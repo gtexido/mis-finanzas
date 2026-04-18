@@ -468,9 +468,10 @@ export default function App() {
   const toast_=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),2400); };
 
   const gastosDelMes=data.gastos[mesKey]||[];
-  const ingresosDelMes=data.ingresos[mesKey]||[];
-  const sueldoDelMes=data.sueldo[mesKey]||0;
-  useEffect(() => {
+const ingresosDelMes=data.ingresos[mesKey]||[];
+const sueldoDelMes=data.sueldo[mesKey]||0;
+
+useEffect(() => {
   setSueldoInput(sueldoDelMes ? String(sueldoDelMes) : "");
 }, [sueldoDelMes, mesKey]);
   const toARS_=(g)=>montoReal(g,tc);
