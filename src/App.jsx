@@ -921,6 +921,10 @@ const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : nul
             {totalIngresos>0&&<><div className="pgb"><div className="pgf" style={{ width:`${Math.min((totalGastos/totalIngresos)*100,100)}%`,background:saldo>=0?"#7c3aed":"#f87171" }}/></div><div style={{ fontSize:11,color:"#64748b",marginTop:4 }}>{Math.round((totalGastos/totalIngresos)*100)}% del ingreso utilizado</div></>}
           </div>
           <div style={{ display:"flex",gap:8,marginBottom:12 }}>
+            <div className="stat-box" style={{ border:"1px solid #14532d" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>✅ PAGADO</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#4ade80" }}>{fmtARS(totalPagado)}</div></div>
+            <div className="stat-box" style={{ border:"1px solid #422006" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>⏳ PENDIENTE</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#fb923c" }}>{fmtARS(totalPendiente)}</div></div>
+            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>💵 USD</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div></div>}
+          </div>
 		  {cantidadAlertasProximas > 0 && (
   <div
     className="card"
@@ -956,11 +960,6 @@ const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : nul
     )}
   </div>
 )}
-            <div className="stat-box" style={{ border:"1px solid #14532d" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>✅ PAGADO</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#4ade80" }}>{fmtARS(totalPagado)}</div></div>
-            <div className="stat-box" style={{ border:"1px solid #422006" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>⏳ PENDIENTE</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#fb923c" }}>{fmtARS(totalPendiente)}</div></div>
-            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>💵 USD</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div></div>}
-          </div>
-
           {/* Card replicar mes */}
           {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#1a1230 0%,#0f1a2e 100%)",border:"1px solid #7c3aed44",borderRadius:20,padding:18,marginBottom:12 }}>
             <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:14 }}>
