@@ -497,6 +497,22 @@ useEffect(() => {
   const todosVenc=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&g.vencimiento);
   const vencUrgentes=todosVenc.filter(g=>{ const d=diasRestantes(g.vencimiento); return d!==null&&d<=7; }).length;
 
+  const alertasProximas = todosVenc
+  .map(g => ({
+    ...g,
+    dias: diasRestantes(g.vencimiento),
+    montoARS: toARS_(g)
+  }))
+  .filter(g => g.dias !== null && g.dias >= 0 && g.dias <= 3)
+  .sort((a, b) => {
+    if (a.dias !== b.dias) return a.dias - b.dias;
+    return b.montoARS - a.montoARS;
+  });
+
+const cantidadAlertasProximas = alertasProximas.length;
+const totalAlertasProximas = alertasProximas.reduce((acc, g) => acc + g.montoARS, 0);
+const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : null;
+
   const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
   const guardarGasto = (extra={}) => {
@@ -895,6 +911,30 @@ useEffect(() => {
             <div className="stat-box" style={{ border:"1px solid #422006" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>⏳ PENDIENTE</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#fb923c" }}>{fmtARS(totalPendiente)}</div></div>
             {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>💵 USD</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div></div>}
           </div>
+		  {cantidadAlertasProximas > 0 && (
+  <div className="card" style={{ border:"1px solid #f8717144", background:"#1a1010" }}>
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+      <div style={{ fontSize:18 }}>⚠️</div>
+      <div style={{ fontSize:14, fontWeight:700, color:"#fca5a5" }}>
+        Tenés {cantidadAlertasProximas} vencimiento{cantidadAlertasProximas > 1 ? "s" : ""} en los próximos 3 días
+      </div>
+    </div>
+
+    <div style={{ fontSize:13, color:"#cbd5e1", marginBottom:6 }}>
+      Total comprometido: <span style={{ color:"#fca5a5", fontWeight:700 }}>{fmtARS(totalAlertasProximas)}</span>
+    </div>
+
+    {mayorAlertaProxima && (
+      <div style={{ fontSize:12, color:"#94a3b8" }}>
+        Mayor próximo: <span style={{ color:"#e2e8f0", fontWeight:600 }}>{mayorAlertaProxima.servicio}</span>
+        {" · "}
+        <span style={{ color:"#fca5a5", fontWeight:700 }}>{fmtARS(mayorAlertaProxima.montoARS)}</span>
+        {" · "}
+        <span>{mayorAlertaProxima.dias === 0 ? "vence hoy" : `vence en ${mayorAlertaProxima.dias} día${mayorAlertaProxima.dias > 1 ? "s" : ""}`}</span>
+      </div>
+    )}
+  </div>
+)}
           {vencUrgentes>0&&<div style={{ background:"#2a1a1a",border:"1px solid #f8717144",borderRadius:16,padding:"12px 16px",marginBottom:12,display:"flex",justifyContent:"space-between",alignItems:"center",cursor:"pointer" }} onClick={()=>setView("vencimientos")}><div><div style={{ fontSize:13,fontWeight:700,color:"#f87171" }}>🔴 {vencUrgentes} vencimiento{vencUrgentes>1?"s":""} urgente{vencUrgentes>1?"s":""}</div><div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>Vencen en menos de 7 días · Tocar para ver</div></div><div style={{ fontSize:20 }}>›</div></div>}
           {/* Card replicar mes */}
           {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#1a1230 0%,#0f1a2e 100%)",border:"1px solid #7c3aed44",borderRadius:20,padding:18,marginBottom:12 }}>
