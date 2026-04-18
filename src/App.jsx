@@ -470,6 +470,9 @@ export default function App() {
   const gastosDelMes=data.gastos[mesKey]||[];
   const ingresosDelMes=data.ingresos[mesKey]||[];
   const sueldoDelMes=data.sueldo[mesKey]||0;
+  useEffect(() => {
+  setSueldoInput(sueldoDelMes ? String(sueldoDelMes) : "");
+}, [sueldoDelMes, mesKey]);
   const toARS_=(g)=>montoReal(g,tc);
   const totalGastos=gastosDelMes.reduce((a,g)=>a+toARS_(g),0);
   const totalPagado=gastosDelMes.filter(g=>g.estado==="pagado").reduce((a,g)=>a+toARS_(g),0);
