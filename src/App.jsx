@@ -30,6 +30,7 @@ import VencBadge from "./components/VencBadge";
 import CotizadorWidget from "./components/CotizadorWidget";
 import SubconceptosModal from "./components/SubconceptosModal";
 import EditModal from "./components/EditModal";
+import DetalleView from "./components/DetalleView";
 import VencimientosView from "./components/VencimientosView";
 
 // ======================================================
