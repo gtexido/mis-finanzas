@@ -236,6 +236,7 @@ const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : nul
 // ======================================================
 const guardarGasto = async (extra = {}) => {
   const f = { ...form, ...extra };
+console.log("GUARDAR GASTO - payload final", f);
 
   if (!f.categoria || !f.servicio) {
     toast_("Completá categoría y servicio", "err");
@@ -327,9 +328,26 @@ const guardarGasto = async (extra = {}) => {
 
   const handleEditSave = async (gastoEditado) => {
   const key = editingMesKey || mesKey;
+console.log("EDIT SAVE - gastoEditado", gastoEditado);
+
+console.log("ANTES DE ACTUALIZAR GASTO - payload a API", {
+  id: gastoEditado.id,
+  periodo: key,
+  dia: gastoEditado.dia,
+  categoria: gastoEditado.categoria,
+  formaPago: gastoEditado.formaPago,
+  servicio: gastoEditado.servicio,
+  monto: Number(gastoEditado.monto || 0),
+  moneda: gastoEditado.moneda || "ARS",
+  estado: gastoEditado.estado,
+  observacion: gastoEditado.observacion || "",
+  vencimiento: gastoEditado.vencimiento || null,
+  esRecurrente: !!gastoEditado.esRecurrente,
+  subconceptos: gastoEditado.subconceptos || [],
+});
 
   try {
-    await actualizarGasto({
+	  await actualizarGasto({
       id: gastoEditado.id,
       periodo: key,
       dia: gastoEditado.dia,
@@ -368,7 +386,7 @@ const guardarGasto = async (extra = {}) => {
     setEditingMesKey(null);
     toast_("✅ Cambios guardados en Neon");
   } catch (e) {
-    console.error(e);
+    console.error("ERROR EN handleEditSave", e);
     toast_("No se pudo editar en Neon", "err");
   }
 };
@@ -1007,7 +1025,16 @@ const eliminar = async (tipo, id) => {
             <div style={{ width:20,height:20,borderRadius:6,border:"2px solid #7c3aed",background:form.esRecurrente?"#7c3aed":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{form.esRecurrente&&<span style={{ color:"#fff",fontSize:13 }}>✓</span>}</div>
             <div><div style={{ fontSize:14,fontWeight:600 }}>Guardar como recurrente</div><div style={{ fontSize:11,color:"#64748b" }}>Aparecerá cada mes para cargarlo fácil</div></div>
           </div>
-          <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }} onClick={()=>guardarGasto()}>Guardar gasto</button>
+          <button
+  className="pb"
+  style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
+  onClick={() => {
+    console.log("CLICK BOTON GUARDAR GASTO");
+    guardarGasto();
+  }}
+>
+  Guardar gasto
+</button>
         </>)}
 
         {/* DETALLE / RESUMEN */}

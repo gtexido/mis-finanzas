@@ -402,7 +402,10 @@ useEffect(() => {
         </div>
 
         <button
-          onClick={() => onSave(f)}
+  onClick={() => {
+    console.log("CLICK BOTON GUARDAR CAMBIOS", f);
+    onSave(f);
+  }}
           style={{
             width: "100%",
             background: "#7c3aed",

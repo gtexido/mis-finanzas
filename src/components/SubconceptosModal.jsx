@@ -27,19 +27,26 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
 
   const totalUSD = items.reduce((a, s) => a + s.montoUSD, 0);
 
-  const addItem = () => {
-    const nombre = sugerido || newNombre.trim();
-    if (!nombre || !newMonto) return;
+const buildNuevoItem = () => {
+  const nombre = (sugerido || newNombre || "").trim();
+  if (!nombre || !newMonto) return null;
 
-    setItems((prev) => [
-      ...prev,
-      { id: "sc" + Date.now(), nombre, montoUSD: Number(newMonto) },
-    ]);
-
-    setNewNombre("");
-    setNewMonto("");
-    setSugerido("");
+  return {
+    id: "sc" + Date.now(),
+    nombre,
+    montoUSD: Number(newMonto),
   };
+};
+
+const addItem = () => {
+  const nuevo = buildNuevoItem();
+  if (!nuevo) return;
+
+  setItems((prev) => [...prev, nuevo]);
+  setNewNombre("");
+  setNewMonto("");
+  setSugerido("");
+};
 
   const delItem = (id) => setItems((prev) => prev.filter((s) => s.id !== id));
 
@@ -310,7 +317,23 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         </div>
 
         <button
-          onClick={() => onSave(items)}
+          onClick={() => {
+  const nuevoPendiente = buildNuevoItem();
+
+  const itemsFinales = nuevoPendiente
+    ? [...items, nuevoPendiente]
+    : items;
+
+  console.log("SUBCONCEPTOS MODAL - items finales", itemsFinales);
+
+  onSave(itemsFinales);
+
+  if (nuevoPendiente) {
+    setNewNombre("");
+    setNewMonto("");
+    setSugerido("");
+  }
+}}
           style={{
             width: "100%",
             background: "#1e3a5f",

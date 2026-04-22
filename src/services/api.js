@@ -41,6 +41,8 @@ export async function eliminarGasto(movimientoId) {
 }
 
 export async function actualizarGasto(payload) {
+  console.log("API actualizarGasto - payload recibido", payload);
+
   const res = await fetch("/api/gastos-update", {
     method: "PUT",
     headers: {
@@ -49,12 +51,16 @@ export async function actualizarGasto(payload) {
     body: JSON.stringify(payload),
   });
 
+  console.log("API actualizarGasto - status fetch", res.status);
+
   const json = await res.json();
+  console.log("API actualizarGasto - respuesta json", json);
+
   if (!json.ok) throw new Error(json.error || "Error al actualizar gasto");
   return json.data;
 }
 
-export async function crearIngreso(payload) {
+ export async function crearIngreso(payload) {
   const res = await fetch("/api/ingresos", {
     method: "POST",
     headers: {

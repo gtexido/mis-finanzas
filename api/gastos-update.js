@@ -74,7 +74,7 @@ export default async function handler(req, res) {
   try {
     const sql = neon(process.env.DATABASE_URL);
     const body = req.body || {};
-
+console.log("API /gastos-update - body recibido", body);
     const {
       id,
       periodo,
@@ -90,6 +90,9 @@ export default async function handler(req, res) {
       esRecurrente,
       subconceptos = [],
     } = body;
+
+console.log("API /gastos-update - subconceptos recibidos", subconceptos);
+console.log("API /gastos-update - cantidad subconceptos", subconceptos.length);
 
     if (!id || !periodo || !categoria || !servicio) {
       return res.status(400).json({
@@ -129,10 +132,14 @@ export default async function handler(req, res) {
   WHERE movimiento_id = ${id};
 `;
 
+console.log("API /gastos-update - detalle anterior eliminado para", id);
+
 if (Array.isArray(subconceptos) && subconceptos.length > 0) {
   let orden = 1;
 
   for (const sub of subconceptos) {
+	  console.log("API /gastos-update - insertando detalle", sub);
+	  
     const detalleId = `det_${Math.random().toString(36).slice(2, 14)}`;
 
     await sql`
@@ -167,6 +174,7 @@ if (Array.isArray(subconceptos) && subconceptos.length > 0) {
     });
   } catch (error) {
     console.error("Error en /api/gastos-update:", error);
+	console.log("API /gastos-update - actualización finalizada OK para", id);
     return res.status(500).json({
       ok: false,
       error: error.message || "Error interno",
