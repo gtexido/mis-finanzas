@@ -152,26 +152,36 @@ export default async function handler(req, res) {
     `;
 
     if (Array.isArray(subconceptos) && subconceptos.length > 0) {
-      for (const sub of subconceptos) {
-        const subconceptoId = generarId("sub");
+  let orden = 1;
 
-        await sql`
-          INSERT INTO subconceptos_usd (
-            subconcepto_id,
-            movimiento_id,
-            nombre,
-            monto_usd,
-            activo
-          ) VALUES (
-            ${subconceptoId},
-            ${movimientoId},
-            ${sub.nombre || "Item"},
-            ${Number(sub.montoUSD || 0)},
-            true
-          );
-        `;
-      }
-    }
+  for (const sub of subconceptos) {
+    const detalleId = generarId("det");
+
+    await sql`
+      INSERT INTO detalle_movimiento (
+        detalle_id,
+        movimiento_id,
+        nombre_item,
+        monto,
+        moneda,
+        orden,
+        observacion,
+        activo
+      ) VALUES (
+        ${detalleId},
+        ${movimientoId},
+        ${sub.nombre || "Item"},
+        ${Number(sub.montoUSD || 0)},
+        'USD',
+        ${orden},
+        ${null},
+        true
+      );
+    `;
+
+    orden++;
+  }
+}
 
     return res.status(200).json({
       ok: true,

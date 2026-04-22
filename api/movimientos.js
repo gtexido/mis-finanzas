@@ -73,32 +73,35 @@ export default async function handler(req, res) {
 
     const movimientoIds = movimientos.map((m) => m.movimiento_id);
 
-    let subconceptos = [];
-    if (movimientoIds.length > 0) {
-      subconceptos = await sql`
-        SELECT
-          subconcepto_id,
-          movimiento_id,
-          nombre,
-          monto_usd,
-          activo,
-          created_at,
-          updated_at
-        FROM subconceptos_usd
-        WHERE activo = true
-          AND movimiento_id = ANY(${movimientoIds})
-        ORDER BY created_at;
-      `;
-    }
+    let detalles = [];
+if (movimientoIds.length > 0) {
+  detalles = await sql`
+    SELECT
+      detalle_id,
+      movimiento_id,
+      nombre_item,
+      monto,
+      moneda,
+      orden,
+      observacion,
+      activo,
+      created_at,
+      updated_at
+    FROM detalle_movimiento
+    WHERE activo = true
+      AND movimiento_id = ANY(${movimientoIds})
+    ORDER BY movimiento_id, orden, created_at;
+  `;
+}
 
     return res.status(200).json({
-      ok: true,
-      data: {
-        periodo,
-        movimientos,
-        subconceptos,
-      },
-    });
+  ok: true,
+  data: {
+    periodo,
+    movimientos,
+    detalles,
+  },
+});
   } catch (error) {
     console.error("Error en /api/movimientos:", error);
     return res.status(500).json({

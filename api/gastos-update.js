@@ -125,31 +125,41 @@ export default async function handler(req, res) {
     `;
 
     await sql`
-      DELETE FROM subconceptos_usd
-      WHERE movimiento_id = ${id};
+  DELETE FROM detalle_movimiento
+  WHERE movimiento_id = ${id};
+`;
+
+if (Array.isArray(subconceptos) && subconceptos.length > 0) {
+  let orden = 1;
+
+  for (const sub of subconceptos) {
+    const detalleId = `det_${Math.random().toString(36).slice(2, 14)}`;
+
+    await sql`
+      INSERT INTO detalle_movimiento (
+        detalle_id,
+        movimiento_id,
+        nombre_item,
+        monto,
+        moneda,
+        orden,
+        observacion,
+        activo
+      ) VALUES (
+        ${detalleId},
+        ${id},
+        ${sub.nombre || "Item"},
+        ${Number(sub.montoUSD || 0)},
+        'USD',
+        ${orden},
+        ${null},
+        true
+      );
     `;
 
-    if (Array.isArray(subconceptos) && subconceptos.length > 0) {
-      for (const sub of subconceptos) {
-        const subconceptoId = `sub_${Math.random().toString(36).slice(2, 14)}`;
-
-        await sql`
-          INSERT INTO subconceptos_usd (
-            subconcepto_id,
-            movimiento_id,
-            nombre,
-            monto_usd,
-            activo
-          ) VALUES (
-            ${subconceptoId},
-            ${id},
-            ${sub.nombre || "Item"},
-            ${Number(sub.montoUSD || 0)},
-            true
-          );
-        `;
-      }
-    }
+    orden++;
+  }
+}
 
     return res.status(200).json({
       ok: true,

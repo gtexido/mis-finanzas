@@ -373,18 +373,41 @@ const guardarGasto = async (extra = {}) => {
   }
 };
 
-  const handleSubconceptosSave=(items)=>{
-    if(!subconceptosGasto)return;
-    const key=editingMesKey||mesKey;
-    setData(prev=>{
-      const updated={...prev,gastos:{...prev.gastos,[key]:prev.gastos[key].map(g=>g.id===subconceptosGasto.id?{...g,subconceptos:items}:g)}};
+const handleSubconceptosSave = (items) => {
+  if (!subconceptosGasto) return;
+
+  const key = editingMesKey || mesKey;
+
+  // Si es edición de un gasto existente
+  if (subconceptosGasto.id) {
+    setData((prev) => {
+      const updated = {
+        ...prev,
+        gastos: {
+          ...prev.gastos,
+          [key]: (prev.gastos[key] || []).map((g) =>
+            g.id === subconceptosGasto.id ? { ...g, subconceptos: items } : g
+          ),
+        },
+      };
       syncSheets("gastos", key, updated.gastos[key]);
       return updated;
     });
-    if(editingGasto&&editingGasto.id===subconceptosGasto.id) setEditingGasto(prev=>({...prev,subconceptos:items}));
-    setSubconceptosGasto(null);
-    toast_("💵 Desglose guardado");
-  };
+
+    if (editingGasto && editingGasto.id === subconceptosGasto.id) {
+      setEditingGasto((prev) => ({ ...prev, subconceptos: items }));
+    }
+  }
+
+  // Si es alta nueva, también copiar al formulario actual
+  setForm((prev) => ({
+    ...prev,
+    subconceptos: items,
+  }));
+
+  setSubconceptosGasto(null);
+  toast_("💵 Desglose guardado");
+};
 
   const openEdit=(g,key=null)=>{ setEditingGasto({...g}); setEditingMesKey(key); };
  const toggleEstado = async (id) => {

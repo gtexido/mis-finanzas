@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { diasRestantes, semaforo } from "../utils/dates";
 import { fmtARS, fmtUSD } from "../utils/formatters";
 
@@ -11,6 +11,10 @@ export default function EditModal({
   onAbrirSubconceptos,
 }) {
   const [f, setF] = React.useState({ vencimiento: "", ...gasto });
+
+useEffect(() => {
+  setF({ vencimiento: "", ...gasto });
+}, [gasto]);
 
   const esDolar =
     config.conceptosDolar?.includes(f.servicio) ||

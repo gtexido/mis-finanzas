@@ -1,6 +1,6 @@
 export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
   const movimientos = apiData.movimientos || [];
-  const subconceptos = apiData.subconceptos || [];
+const detalles = apiData.detalles || [];
 
   const formaPagoMap = {
     fp_manual: "Manual",
@@ -78,13 +78,15 @@ export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
       observacion: m.observacion || "",
       vencimiento: m.vencimiento ? String(m.vencimiento).slice(0, 10) : "",
       esRecurrente: !!m.es_recurrente,
-      subconceptos: subconceptos
-        .filter((s) => s.movimiento_id === m.movimiento_id)
-        .map((s) => ({
-          id: s.subconcepto_id,
-          nombre: s.nombre,
-          montoUSD: Number(s.monto_usd || 0),
-        })),
+      subconceptos: detalles
+  .filter((d) => d.movimiento_id === m.movimiento_id)
+  .sort((a, b) => (a.orden || 0) - (b.orden || 0))
+  .filter((d) => (d.moneda || "ARS") === "USD")
+  .map((d) => ({
+    id: d.detalle_id,
+    nombre: d.nombre_item,
+    montoUSD: Number(d.monto || 0),
+  })),
     }));
 
   const ingresos = movimientos
