@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { diasRestantes, semaforo } from "../utils/dates";
 import { fmtARS, fmtUSD } from "../utils/formatters";
+import { montoReal, montoUSDReal } from "../utils/money";
 
 export default function EditModal({
   gasto,
@@ -10,20 +11,85 @@ export default function EditModal({
   onClose,
   onAbrirSubconceptos,
 }) {
-  const [f, setF] = React.useState({ vencimiento: "", ...gasto });
+  const [f, setF] = React.useState({ vencimiento: "", moneda: "ARS", ...gasto });
 
-useEffect(() => {
-  setF({ vencimiento: "", ...gasto });
-}, [gasto]);
+  useEffect(() => {
+    setF({ vencimiento: "", moneda: "ARS", ...gasto });
+  }, [gasto]);
 
-  const esDolar =
-    config.conceptosDolar?.includes(f.servicio) ||
-    (f.subconceptos && f.subconceptos.length > 0);
+  const toNumber = (value, fallback = 0) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
 
-  const totalUSD =
-    esDolar && f.subconceptos
-      ? f.subconceptos.reduce((a, s) => a + s.montoUSD, 0)
-      : 0;
+  const normalizarMoneda = (moneda) => {
+    return String(moneda || "ARS").trim().toUpperCase();
+  };
+
+  const tieneDesglose = Array.isArray(f.subconceptos) && f.subconceptos.length > 0;
+  const moneda = normalizarMoneda(f.moneda || "ARS");
+  const tipoCambioActual = toNumber(tc, 1);
+
+  const montoItem = (item) => toNumber(item?.monto ?? item?.montoUSD ?? 0);
+
+  const obtenerTipoCambioItem = (item) => {
+    return toNumber(
+      item?.tipoCambio ??
+        item?.tipo_cambio ??
+        f?.tipoCambio ??
+        f?.tipo_cambio ??
+        tipoCambioActual,
+      tipoCambioActual
+    );
+  };
+
+  const montoARSItem = (item) => {
+    const monedaItem = normalizarMoneda(item?.moneda || moneda);
+    const monto = montoItem(item);
+
+    const montoARSGuardado =
+      item?.montoARSCalculado ?? item?.monto_ars_calculado;
+
+    if (
+      montoARSGuardado !== null &&
+      montoARSGuardado !== undefined &&
+      montoARSGuardado !== ""
+    ) {
+      return toNumber(montoARSGuardado);
+    }
+
+    if (monedaItem === "USD") {
+      return monto * obtenerTipoCambioItem(item);
+    }
+
+    return monto;
+  };
+
+  const fmtMonto = (monto, mon = moneda) => {
+    const n = toNumber(monto);
+    return normalizarMoneda(mon) === "USD" ? fmtUSD(n) : fmtARS(n);
+  };
+
+  const totalDetalleARS = tieneDesglose ? montoReal(f, tipoCambioActual) : 0;
+  const totalDetalleUSD = tieneDesglose ? montoUSDReal(f) : 0;
+
+  const totalARSDirecto = tieneDesglose
+    ? f.subconceptos.reduce((acc, s) => {
+        const monedaItem = normalizarMoneda(s.moneda || moneda);
+        return monedaItem === "ARS" ? acc + montoItem(s) : acc;
+      }, 0)
+    : 0;
+
+  const totalUSDConvertidoARS = tieneDesglose
+    ? f.subconceptos.reduce((acc, s) => {
+        const monedaItem = normalizarMoneda(s.moneda || moneda);
+        return monedaItem === "USD" ? acc + montoARSItem(s) : acc;
+      }, 0)
+    : 0;
+
+  const tieneUSDDetalle = totalDetalleUSD > 0;
+  const tieneARSDetalle = totalARSDirecto > 0;
+  const tieneMonedaMixta = tieneUSDDetalle && tieneARSDetalle;
 
   const EL2 = {
     fontSize: 11,
@@ -71,56 +137,42 @@ useEffect(() => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 18,
-          }}
-        >
-          <div style={{ fontWeight: 700, fontSize: 17 }}>✏️ Editar gasto</div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:18 }}>
+          <div style={{ fontWeight:700, fontSize:17 }}>✏️ Editar gasto</div>
           <button
             onClick={onClose}
-            style={{
-              background: "#1e1e2e",
-              border: "none",
-              color: "#94a3b8",
-              borderRadius: 10,
-              padding: "6px 12px",
-              cursor: "pointer",
-            }}
+            style={{ background:"#1e1e2e", border:"none", color:"#94a3b8", borderRadius:10, padding:"6px 12px", cursor:"pointer" }}
           >
             ✕
           </button>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom:14 }}>
           <div style={EL2}>CONCEPTO</div>
           <input
             style={EI2}
             value={f.servicio}
-            onChange={(e) => setF((p) => ({ ...p, servicio: e.target.value }))}
+            onChange={(e) => setF((p) => ({ ...p, servicio:e.target.value }))}
           />
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom:14 }}>
           <div style={EL2}>CATEGORÍA</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
             {config.categorias.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setF((p) => ({ ...p, categoria: c.id }))}
+                onClick={() => setF((p) => ({ ...p, categoria:c.id }))}
                 style={{
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  fontFamily: "'DM Sans',sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  background: f.categoria === c.id ? c.color : "#1e1e2e",
-                  color: f.categoria === c.id ? "#0a0a0f" : "#94a3b8",
+                  border:"none",
+                  borderRadius:10,
+                  padding:"6px 12px",
+                  cursor:"pointer",
+                  fontFamily:"'DM Sans',sans-serif",
+                  fontWeight:600,
+                  fontSize:12,
+                  background:f.categoria === c.id ? c.color : "#1e1e2e",
+                  color:f.categoria === c.id ? "#0a0a0f" : "#94a3b8",
                 }}
               >
                 {c.label}
@@ -129,23 +181,23 @@ useEffect(() => {
           </div>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom:14 }}>
           <div style={EL2}>FORMA DE PAGO</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
             {config.formasPago.map((fp) => (
               <button
                 key={fp}
-                onClick={() => setF((p) => ({ ...p, formaPago: fp }))}
+                onClick={() => setF((p) => ({ ...p, formaPago:fp }))}
                 style={{
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  fontFamily: "'DM Sans',sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  background: f.formaPago === fp ? "#7c3aed" : "#1e1e2e",
-                  color: f.formaPago === fp ? "#fff" : "#94a3b8",
+                  border:"none",
+                  borderRadius:10,
+                  padding:"6px 12px",
+                  cursor:"pointer",
+                  fontFamily:"'DM Sans',sans-serif",
+                  fontWeight:600,
+                  fontSize:12,
+                  background:f.formaPago === fp ? "#7c3aed" : "#1e1e2e",
+                  color:f.formaPago === fp ? "#fff" : "#94a3b8",
                 }}
               >
                 {fp}
@@ -154,188 +206,222 @@ useEffect(() => {
           </div>
         </div>
 
-        {esDolar ? (
-          <div
-            style={{
-              marginBottom: 14,
-              background: "#0f1a2e",
-              border: "1px solid #1e3a5f",
-              borderRadius: 16,
-              padding: "14px 16px",
-            }}
-          >
-            <div style={EL2}>💵 DESGLOSE EN DÓLARES</div>
-
-            {f.subconceptos && f.subconceptos.length > 0 ? (
-              <>
-                {f.subconceptos.map((s) => (
-                  <div
-                    key={s.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      padding: "4px 0",
-                      fontSize: 13,
-                    }}
-                  >
-                    <span style={{ color: "#e2e8f0" }}>{s.nombre}</span>
-                    <span
-                      style={{
-                        color: "#38bdf8",
-                        fontFamily: "'Space Mono',monospace",
-                      }}
-                    >
-                      {fmtUSD(s.montoUSD)}
-                    </span>
-                  </div>
-                ))}
-
-                <div
-                  style={{
-                    borderTop: "1px solid #1e3a5f",
-                    marginTop: 8,
-                    paddingTop: 8,
-                    display: "flex",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <span style={{ color: "#64748b", fontSize: 13 }}>Total</span>
-                  <div style={{ textAlign: "right" }}>
-                    <div
-                      style={{
-                        fontFamily: "'Space Mono',monospace",
-                        fontSize: 14,
-                        color: "#38bdf8",
-                        fontWeight: 700,
-                      }}
-                    >
-                      {fmtUSD(totalUSD)}
-                    </div>
-                    <div style={{ fontSize: 11, color: "#a78bfa" }}>
-                      {fmtARS(totalUSD * tc)}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div style={{ color: "#64748b", fontSize: 13 }}>Sin ítems aún</div>
-            )}
+        <div style={{ marginBottom:14 }}>
+          <div style={EL2}>MONEDA DEL MOVIMIENTO</div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button
+              onClick={() => setF((p) => ({ ...p, moneda:"ARS" }))}
+              style={{
+                border:moneda === "ARS" ? "2px solid #7c3aed" : "2px solid transparent",
+                borderRadius:12,
+                padding:"10px 12px",
+                cursor:"pointer",
+                background:"#1e1e2e",
+                color:moneda === "ARS" ? "#e2e8f0" : "#64748b",
+                fontFamily:"'DM Sans',sans-serif",
+                fontWeight:600,
+                fontSize:13,
+              }}
+            >
+              $ARS
+            </button>
 
             <button
-              onClick={() => onAbrirSubconceptos(f)}
+              onClick={() => setF((p) => ({ ...p, moneda:"USD" }))}
               style={{
-                width: "100%",
-                background: "#1e3a5f",
-                border: "none",
-                color: "#38bdf8",
-                borderRadius: 12,
-                padding: "10px 0",
-                cursor: "pointer",
-                fontFamily: "'DM Sans',sans-serif",
-                fontWeight: 700,
-                fontSize: 14,
-                marginTop: 12,
+                border:moneda === "USD" ? "2px solid #38bdf8" : "2px solid transparent",
+                borderRadius:12,
+                padding:"10px 12px",
+                cursor:"pointer",
+                background:moneda === "USD" ? "#1e3a5f" : "#1e1e2e",
+                color:moneda === "USD" ? "#38bdf8" : "#64748b",
+                fontFamily:"'DM Sans',sans-serif",
+                fontWeight:600,
+                fontSize:13,
+              }}
+            >
+              💵 USD
+            </button>
+          </div>
+        </div>
+
+        {tieneDesglose ? (
+          <div
+            style={{
+              marginBottom:14,
+              background:"#0f1a2e",
+              border:"1px solid #1e3a5f",
+              borderRadius:16,
+              padding:"14px 16px",
+            }}
+          >
+            <div style={EL2}>
+              🧾 DESGLOSE ARS/USD · TC ${tipoCambioActual.toLocaleString("es-AR")}
+            </div>
+
+            {f.subconceptos.map((s, idx) => {
+              const monedaItem = normalizarMoneda(s.moneda || moneda);
+              const esUSDItem = monedaItem === "USD";
+              const tcItem = obtenerTipoCambioItem(s);
+
+              return (
+                <div
+                  key={s.id || idx}
+                  style={{
+                    display:"flex",
+                    justifyContent:"space-between",
+                    alignItems:"flex-start",
+                    padding:"6px 0",
+                    fontSize:13,
+                    borderBottom: idx === f.subconceptos.length - 1 ? "none" : "1px solid #1e3a5f55",
+                  }}
+                >
+                  <div>
+                    <div style={{ color:"#e2e8f0" }}>{s.nombre}</div>
+                    <div style={{ fontSize:10, color:"#64748b", marginTop:2 }}>
+                      {monedaItem}
+                      {esUSDItem ? ` · TC $${tcItem.toLocaleString("es-AR")}` : ""}
+                    </div>
+                  </div>
+
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ color:"#38bdf8", fontFamily:"'Space Mono',monospace", fontWeight:700 }}>
+                      {fmtMonto(montoItem(s), monedaItem)}
+                    </div>
+
+                    {esUSDItem && (
+                      <div style={{ fontSize:11, color:"#a78bfa" }}>
+                        {fmtARS(montoARSItem(s))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            <div
+              style={{
+                borderTop:"1px solid #1e3a5f",
+                marginTop:8,
+                paddingTop:10,
+                display:"flex",
+                justifyContent:"space-between",
+              }}
+            >
+              <span style={{ color:"#64748b", fontSize:13 }}>Total en pesos</span>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontFamily:"'Space Mono',monospace", fontSize:15, color:"#38bdf8", fontWeight:700 }}>
+                  {fmtARS(totalDetalleARS)}
+                </div>
+
+                {tieneUSDDetalle && (
+                  <div style={{ fontSize:11, color:"#a78bfa" }}>
+                    {fmtUSD(totalDetalleUSD)}
+                  </div>
+                )}
+
+                {tieneMonedaMixta && (
+                  <div style={{ fontSize:10, color:"#64748b", marginTop:2 }}>
+                    ARS directo {fmtARS(totalARSDirecto)} · USD conv. {fmtARS(totalUSDConvertidoARS)}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={() => onAbrirSubconceptos({ ...f, moneda })}
+              style={{
+                width:"100%",
+                background:"#1e3a5f",
+                border:"none",
+                color:"#38bdf8",
+                borderRadius:12,
+                padding:"10px 0",
+                cursor:"pointer",
+                fontFamily:"'DM Sans',sans-serif",
+                fontWeight:700,
+                fontSize:14,
+                marginTop:12,
               }}
             >
               ✏️ Editar desglose
             </button>
           </div>
         ) : (
-          <div style={{ marginBottom: 14 }}>
-            <div style={EL2}>MONTO Y MONEDA</div>
-            <div style={{ display: "flex", gap: 8 }}>
+          <>
+            <div style={{ marginBottom:14 }}>
+              <div style={EL2}>MONTO</div>
               <input
-  		type="number"
- 		inputMode="numeric"
-  		style={{ ...EI2, flex: 2 }}
-  		value={f.monto === 0 ? "" : (f.monto ?? "")}
-  		onChange={(e) => {
-    		const val = e.target.value;
-    		setF((p) => ({
-      		...p,
-      		monto: val === "" ? "" : Number(val),
-    		}));
-  		}}
-		/>
-              <button
-                onClick={() => setF((p) => ({ ...p, moneda: "ARS" }))}
-                style={{
-                  border:
-                    f.moneda === "ARS"
-                      ? "2px solid #7c3aed"
-                      : "2px solid transparent",
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  background: "#1e1e2e",
-                  color: f.moneda === "ARS" ? "#e2e8f0" : "#64748b",
-                  fontFamily: "'DM Sans',sans-serif",
-                  fontWeight: 600,
-                  fontSize: 13,
+                type="number"
+                inputMode="numeric"
+                style={{ ...EI2 }}
+                value={f.monto === 0 ? "" : (f.monto ?? "")}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setF((p) => ({ ...p, monto: val === "" ? "" : Number(val) }));
                 }}
-              >
-                $ARS
-              </button>
-              <button
-                onClick={() => setF((p) => ({ ...p, moneda: "USD" }))}
-                style={{
-                  border:
-                    f.moneda === "USD"
-                      ? "2px solid #38bdf8"
-                      : "2px solid transparent",
-                  borderRadius: 12,
-                  padding: "10px 12px",
-                  cursor: "pointer",
-                  background: f.moneda === "USD" ? "#1e3a5f" : "#1e1e2e",
-                  color: f.moneda === "USD" ? "#38bdf8" : "#64748b",
-                  fontFamily: "'DM Sans',sans-serif",
-                  fontWeight: 600,
-                  fontSize: 13,
-                }}
-              >
-                💵
-              </button>
+              />
+
+              {moneda === "USD" && f.monto && (
+                <div style={{ fontSize:11, color:"#38bdf8", marginTop:6 }}>
+                  ≈ {fmtARS(Number(f.monto || 0) * tipoCambioActual)}
+                </div>
+              )}
             </div>
-          </div>
+
+            <button
+              onClick={() => onAbrirSubconceptos({ ...f, moneda, subconceptos: [] })}
+              style={{
+                width:"100%",
+                background:"#1e3a5f",
+                border:"none",
+                color:"#38bdf8",
+                borderRadius:12,
+                padding:"10px 0",
+                cursor:"pointer",
+                fontFamily:"'DM Sans',sans-serif",
+                fontWeight:700,
+                fontSize:14,
+                marginBottom:14,
+              }}
+            >
+              + Convertir a desglose
+            </button>
+          </>
         )}
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom:14 }}>
           <div style={EL2}>ESTADO</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display:"flex", gap:8 }}>
             <button
-              onClick={() => setF((p) => ({ ...p, estado: "pagado" }))}
+              onClick={() => setF((p) => ({ ...p, estado:"pagado" }))}
               style={{
-                border:
-                  f.estado === "pagado"
-                    ? "2px solid #4ade80"
-                    : "2px solid transparent",
-                borderRadius: 12,
-                padding: "10px 16px",
-                cursor: "pointer",
-                background: f.estado === "pagado" ? "#14532d" : "#1e1e2e",
-                color: f.estado === "pagado" ? "#4ade80" : "#64748b",
-                fontFamily: "'DM Sans',sans-serif",
-                fontWeight: 600,
-                fontSize: 14,
+                border:f.estado === "pagado" ? "2px solid #4ade80" : "2px solid transparent",
+                borderRadius:12,
+                padding:"10px 16px",
+                cursor:"pointer",
+                background:f.estado === "pagado" ? "#14532d" : "#1e1e2e",
+                color:f.estado === "pagado" ? "#4ade80" : "#64748b",
+                fontFamily:"'DM Sans',sans-serif",
+                fontWeight:600,
+                fontSize:14,
               }}
             >
               ✅ Pagado
             </button>
+
             <button
-              onClick={() => setF((p) => ({ ...p, estado: "pendiente" }))}
+              onClick={() => setF((p) => ({ ...p, estado:"pendiente" }))}
               style={{
-                border:
-                  f.estado === "pendiente"
-                    ? "2px solid #fb923c"
-                    : "2px solid transparent",
-                borderRadius: 12,
-                padding: "10px 16px",
-                cursor: "pointer",
-                background: f.estado === "pendiente" ? "#422006" : "#1e1e2e",
-                color: f.estado === "pendiente" ? "#fb923c" : "#64748b",
-                fontFamily: "'DM Sans',sans-serif",
-                fontWeight: 600,
-                fontSize: 14,
+                border:f.estado === "pendiente" ? "2px solid #fb923c" : "2px solid transparent",
+                borderRadius:12,
+                padding:"10px 16px",
+                cursor:"pointer",
+                background:f.estado === "pendiente" ? "#422006" : "#1e1e2e",
+                color:f.estado === "pendiente" ? "#fb923c" : "#64748b",
+                fontFamily:"'DM Sans',sans-serif",
+                fontWeight:600,
+                fontSize:14,
               }}
             >
               ⏳ Pendiente
@@ -343,80 +429,78 @@ useEffect(() => {
           </div>
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom:14 }}>
           <div style={EL2}>DÍA DE PAGO</div>
           <input
             type="number"
             inputMode="numeric"
-            style={{ ...EI2, width: 100 }}
+            style={{ ...EI2, width:100 }}
             value={f.dia}
-            onChange={(e) => setF((p) => ({ ...p, dia: e.target.value }))}
+            onChange={(e) => setF((p) => ({ ...p, dia:e.target.value }))}
           />
         </div>
 
-        <div style={{ marginBottom: 14 }}>
+        <div style={{ marginBottom:14 }}>
           <div style={EL2}>📅 FECHA DE VENCIMIENTO</div>
           <input
             type="date"
-            style={{ ...EI2, colorScheme: "dark" }}
+            style={{ ...EI2, colorScheme:"dark" }}
             value={f.vencimiento || ""}
-            onChange={(e) =>
-              setF((p) => ({ ...p, vencimiento: e.target.value }))
-            }
+            onChange={(e) => setF((p) => ({ ...p, vencimiento:e.target.value }))}
           />
 
-          {f.vencimiento &&
-            (() => {
-              const dias = diasRestantes(f.vencimiento);
-              const s = semaforo(dias);
-              return s ? (
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: s.color,
-                    marginTop: 6,
-                    fontWeight: 600,
-                  }}
-                >
-                  {s.icon}{" "}
-                  {dias === 0
-                    ? "¡Vence hoy!"
-                    : dias < 0
-                    ? `Venció hace ${Math.abs(dias)} días`
-                    : `Faltan ${dias} días`}
-                </div>
-              ) : null;
-            })()}
+          {f.vencimiento && (() => {
+            const dias = diasRestantes(f.vencimiento);
+            const s = semaforo(dias);
+
+            return s ? (
+              <div style={{ fontSize:12, color:s.color, marginTop:6, fontWeight:600 }}>
+                {s.icon}{" "}
+                {dias === 0
+                  ? "¡Vence hoy!"
+                  : dias < 0
+                  ? `Venció hace ${Math.abs(dias)} días`
+                  : `Faltan ${dias} días`}
+              </div>
+            ) : null;
+          })()}
         </div>
 
-        <div style={{ marginBottom: 20 }}>
+        <div style={{ marginBottom:20 }}>
           <div style={EL2}>OBSERVACIÓN</div>
           <input
             style={EI2}
             value={f.observacion || ""}
-            onChange={(e) =>
-              setF((p) => ({ ...p, observacion: e.target.value }))
-            }
+            onChange={(e) => setF((p) => ({ ...p, observacion:e.target.value }))}
             placeholder="Opcional..."
           />
         </div>
 
         <button
-  onClick={() => {
-    console.log("CLICK BOTON GUARDAR CAMBIOS", f);
-    onSave(f);
-  }}
+          onClick={() => {
+            const totalFinal = tieneDesglose
+              ? totalDetalleARS
+              : moneda === "USD"
+                ? Number(f.monto || 0)
+                : Number(f.monto || 0);
+
+            onSave({
+              ...f,
+              moneda,
+              monto: totalFinal,
+            });
+          }}
           style={{
-            width: "100%",
-            background: "#7c3aed",
-            border: "none",
-            color: "#fff",
-            borderRadius: 14,
-            padding: 16,
-            cursor: "pointer",
-            fontFamily: "'DM Sans',sans-serif",
-            fontWeight: 700,
-            fontSize: 16,
+            width:"100%",
+            background:"#7c3aed",
+            border:"none",
+            color:"#fff",
+            borderRadius:14,
+            padding:16,
+            cursor:"pointer",
+            fontFamily:"'DM Sans',sans-serif",
+            fontWeight:700,
+            fontSize:16,
           }}
         >
           Guardar cambios

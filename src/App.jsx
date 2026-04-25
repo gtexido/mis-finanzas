@@ -13,7 +13,8 @@ import {
   actualizarGasto,
   crearIngreso,
   eliminarIngreso,
-  guardarSueldoNeon
+  guardarSueldoNeon,
+  getCotizacionPorFecha
 } from "./services/api";
 
 // Utils
@@ -84,7 +85,19 @@ const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto"
 const getMesKey = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
 const slug = (s) => s.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"")+"_"+Date.now();
 const pct = (a,b) => b===0?null:Math.round(((a-b)/b)*100);
+const fmtMonto = (monto, moneda = "ARS") => {
+  const n = Number(monto || 0);
 
+  if (moneda === "USD") {
+    return `USD ${n.toFixed(2)}`;
+  }
+
+  return `$ ${n.toLocaleString("es-AR")}`;
+};
+
+const montoDetalle = (item) =>
+  Number(item.monto ?? item.montoUSD ?? 0);
+  
 // LEGACY parcial: localStorage queda temporalmente como respaldo de UI.
 const load = () => {
   try {
@@ -137,6 +150,7 @@ export default function App() {
   subconceptos:[],
   tipoGasto:"simple",
   accionCompuesto:"nuevo",
+  decisionManual:false,
 });
   const [sueldoInput,setSueldoInput]=useState("");
   const [ingForm,setIngForm]=useState({fuente:"",monto:"",dia:String(now.getDate())});
@@ -164,6 +178,58 @@ export default function App() {
 
   const mesKey=getMesKey(mes.y,mes.m);
   const tc=cfg.tipoCambio||1415;
+  
+  const normalizarFechaConversion = (gasto = {}) => {
+  if (gasto.vencimiento) {
+    return String(gasto.vencimiento).slice(0, 10);
+  }
+
+  if (gasto.fechaOperacion) {
+    return String(gasto.fechaOperacion).slice(0, 10);
+  }
+
+  if (gasto.fecha_operacion) {
+    return String(gasto.fecha_operacion).slice(0, 10);
+  }
+
+  const dia = String(gasto.dia || now.getDate()).padStart(2, "0");
+  return `${mesKey}-${dia}`;
+};
+
+const resolverTipoCambioPorFecha = async (gasto = {}) => {
+  const fechaConversion = normalizarFechaConversion(gasto);
+
+  try {
+    const cotizacion = await getCotizacionPorFecha(fechaConversion, "tarjeta");
+
+    if (cotizacion?.valor !== null && cotizacion?.valor !== undefined) {
+      return {
+        fechaConversion,
+        tipoCambio: Number(cotizacion.valor),
+        fuente: cotizacion.fuente || "cotizaciones",
+      };
+    }
+  } catch (error) {
+    console.warn("No se encontró cotización para fecha:", fechaConversion, error);
+  }
+
+  return {
+    fechaConversion,
+    tipoCambio: Number(tc || 1),
+    fuente: "tipo_cambio_default",
+  };
+};
+
+const abrirSubconceptosConCotizacion = async (gasto) => {
+  const cotizacion = await resolverTipoCambioPorFecha(gasto);
+
+  setSubconceptosGasto({
+    ...gasto,
+    fechaConversion: cotizacion.fechaConversion,
+    tcConversion: cotizacion.tipoCambio,
+    fuenteTC: cotizacion.fuente,
+  });
+};
 
 // ======================================================
 // 🔄 EFECTOS (Carga inicial / sincronización)
@@ -245,89 +311,159 @@ const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : nul
 
 const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
-const esServicioCompuesto = (nombre) =>
-  ["Tarjeta Santander Dólares"].includes(nombre);
+const normalizarTexto = (txt = "") =>
+  String(txt)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
 
-const gastoCompuestoExistente =
-  (data.gastos[mesKey] || []).find(
-    (g) => g.servicio === form.servicio && esServicioCompuesto(form.servicio)
+const gastosDelMesActual = data.gastos[mesKey] || [];
+
+const buscarGastoSimilar = (formActual) => {
+  if (!formActual.servicio || !formActual.categoria) return null;
+
+  return gastosDelMesActual.find((g) =>
+    normalizarTexto(g.servicio) === normalizarTexto(formActual.servicio) &&
+    g.categoria === formActual.categoria
   ) || null;
+};
 
-const hayCompuestoExistente = !!gastoCompuestoExistente;
-const usarExistente =
-  form.tipoGasto === "detalle" &&
-  esServicioCompuesto(form.servicio) &&
-  hayCompuestoExistente &&
-  form.accionCompuesto === "existente";
+const contarRepeticionesServicio = (servicio) => {
+  return gastosDelMesActual.filter(
+    (g) => normalizarTexto(g.servicio) === normalizarTexto(servicio)
+  ).length;
+};
+
+const gastoCompuestoExistente = buscarGastoSimilar(form);
+
+const gastoTieneDesglose = (g) =>
+  !!g && Array.isArray(g.subconceptos) && g.subconceptos.length > 0;
+
+const esServicioCompuesto = (nombre) => {
+  if (!nombre) return false;
+
+  const similar = gastosDelMesActual.find(
+    (g) => normalizarTexto(g.servicio) === normalizarTexto(nombre)
+  );
+
+  const repeticiones = contarRepeticionesServicio(nombre);
+
+  return (
+    esDolarConcepto(nombre) ||
+    gastoTieneDesglose(similar) ||
+    repeticiones >= 2
+  );
+};
+
+const sugerenciaCarga = {
+  candidatoExistente: gastoCompuestoExistente,
+  accionSugerida: gastoCompuestoExistente ? "existente" : "nuevo",
+  tipoSugerido:
+  gastoCompuestoExistente
+    ? (gastoTieneDesglose(gastoCompuestoExistente) ? "detalle" : "simple")
+    : esServicioCompuesto(form.servicio)
+      ? "detalle"
+      : "simple",
+};
 
 useEffect(() => {
   if (!form.servicio) return;
+  if (form.decisionManual) return;
 
-  const esCompuesto = esServicioCompuesto(form.servicio);
-
-  const existente = (data.gastos[mesKey] || []).find(
-    (g) => g.servicio === form.servicio && esCompuesto
-  );
-
-  if (esCompuesto) {
+  if (sugerenciaCarga.candidatoExistente || esServicioCompuesto(form.servicio)) {
     setForm((prev) => ({
       ...prev,
-      tipoGasto: "detalle",
-      accionCompuesto: existente ? "existente" : "nuevo",
-      monto: ""
+      tipoGasto: sugerenciaCarga.tipoSugerido,
+      accionCompuesto: sugerenciaCarga.accionSugerida,
+      monto: sugerenciaCarga.tipoSugerido === "detalle" ? "" : prev.monto,
     }));
   }
-}, [form.servicio, mesKey, data.gastos]);
+}, [form.servicio, form.categoria, mesKey, data.gastos]);
 
 // ======================================================
 // 🧩 HANDLERS (acciones del usuario / CRUD / cambios de estado)
 // ======================================================
+const calcularTotalARSDetalle = (items = []) => {
+  if (!Array.isArray(items) || items.length === 0) return 0;
+
+  return items.reduce((acc, item) => {
+    const monedaItem = String(item.moneda || "ARS").trim().toUpperCase();
+    const monto = Number(item.monto ?? item.montoUSD ?? 0);
+
+    const montoARSGuardado = item.montoARSCalculado ?? item.monto_ars_calculado;
+    if (
+      montoARSGuardado !== null &&
+      montoARSGuardado !== undefined &&
+      montoARSGuardado !== "" &&
+      Number.isFinite(Number(montoARSGuardado))
+    ) {
+      return acc + Number(montoARSGuardado);
+    }
+
+    if (monedaItem === "USD") {
+      const tipoCambio = Number(item.tipoCambio ?? item.tipo_cambio ?? tc ?? 1);
+      return acc + monto * (Number.isFinite(tipoCambio) ? tipoCambio : 1);
+    }
+
+    return acc + monto;
+  }, 0);
+};
+
+const tieneSubconceptosValidos = (items = []) => Array.isArray(items) && items.length > 0;
+
 const guardarGasto = async (extra = {}) => {
   const f = { ...form, ...extra };
 
   if (!f.categoria || !f.servicio) {
-  toast_("Completá categoría y servicio", "err");
-  return;
-}
+    toast_("Completá categoría y servicio", "err");
+    return;
+  }
 
-if (!esDolarConcepto(f.servicio) && !f.monto) {
-  toast_("Ingresá el monto", "err");
-  return;
-}
+  if (f.tipoGasto !== "detalle" && !f.monto) {
+    toast_("Ingresá el monto", "err");
+    return;
+  }
 
-if (f.tipoGasto === "detalle" && (!f.subconceptos || f.subconceptos.length === 0)) {
+  if (f.tipoGasto === "detalle" && (!f.subconceptos || f.subconceptos.length === 0)) {
     toast_("Agregá al menos un ítem al desglose", "err");
     return;
   }
 
-const usarExistente =
-  f.tipoGasto === "detalle" &&
-  esServicioCompuesto(f.servicio) &&
-  f.accionCompuesto === "existente" &&
-  !!gastoCompuestoExistente;
+  const usarExistente =
+    f.accionCompuesto === "existente" &&
+    !!gastoCompuestoExistente;
 
-if (usarExistente) {
-  try {
-    await actualizarGasto({
-      id: gastoCompuestoExistente.id,
-      periodo: mesKey,
-      dia: gastoCompuestoExistente.dia,
-      categoria: gastoCompuestoExistente.categoria,
-      formaPago: gastoCompuestoExistente.formaPago,
-      servicio: gastoCompuestoExistente.servicio,
-      monto: Number(gastoCompuestoExistente.monto || 0),
-      moneda: gastoCompuestoExistente.moneda || "USD",
-      estado: gastoCompuestoExistente.estado || "pagado",
-      observacion: gastoCompuestoExistente.observacion || "",
-      vencimiento: gastoCompuestoExistente.vencimiento || null,
-      esRecurrente: !!gastoCompuestoExistente.esRecurrente,
-      subconceptos: [
-        ...(gastoCompuestoExistente.subconceptos || []),
-        ...(f.subconceptos || []),
-      ],
-    });
+  if (usarExistente) {
+    try {
+      const subconceptosFinales =
+        f.tipoGasto === "detalle"
+          ? [
+              ...(gastoCompuestoExistente.subconceptos || []),
+              ...(f.subconceptos || []),
+            ]
+          : (gastoCompuestoExistente.subconceptos || []);
 
-    
+      const montoFinal =
+        f.tipoGasto === "detalle" && tieneSubconceptosValidos(subconceptosFinales)
+          ? calcularTotalARSDetalle(subconceptosFinales)
+          : Number(gastoCompuestoExistente.monto || 0) + Number(f.monto || 0);
+
+      await actualizarGasto({
+        id: gastoCompuestoExistente.id,
+        periodo: mesKey,
+        dia: gastoCompuestoExistente.dia,
+        categoria: gastoCompuestoExistente.categoria,
+        formaPago: gastoCompuestoExistente.formaPago,
+        servicio: gastoCompuestoExistente.servicio,
+        monto: montoFinal,
+        moneda: gastoCompuestoExistente.moneda || f.moneda || "ARS",
+        estado: gastoCompuestoExistente.estado || f.estado || "pagado",
+        observacion: gastoCompuestoExistente.observacion || "",
+        vencimiento: gastoCompuestoExistente.vencimiento || null,
+        esRecurrente: !!gastoCompuestoExistente.esRecurrente,
+        subconceptos: subconceptosFinales,
+      });
 
       const movimientosApi = await getMovimientos(mesKey);
       const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
@@ -349,47 +485,53 @@ if (usarExistente) {
       }));
 
       setForm({
-  categoria: "",
-  formaPago: "",
-  servicio: "",
-  monto: "",
-  moneda: "ARS",
-  estado: "pagado",
-  observacion: "",
-  dia: String(now.getDate()),
-  esRecurrente: false,
-  vencimiento: "",
-  subconceptos: [],
-  tipoGasto: "simple",
-  accionCompuesto: "nuevo",
-});
+        categoria: "",
+        formaPago: "",
+        servicio: "",
+        monto: "",
+        moneda: "ARS",
+        estado: "pagado",
+        observacion: "",
+        dia: String(now.getDate()),
+        esRecurrente: false,
+        vencimiento: "",
+        subconceptos: [],
+        tipoGasto: "simple",
+        accionCompuesto: "nuevo",
+        decisionManual: false,
+      });
 
-      toast_("✅ Ítems agregados al gasto existente");
+      toast_("✅ Gasto actualizado");
       return;
     } catch (e) {
       console.error(e);
-      toast_("No se pudo agregar al gasto existente", "err");
+      toast_("No se pudo actualizar el gasto existente", "err");
       return;
     }
   }
 
-  try {
-    await crearGasto({
-      periodo: mesKey,
-      dia: f.dia,
-      categoria: f.categoria,
-      formaPago: f.formaPago,
-      servicio: f.servicio,
-      monto: Number(f.monto || 0),
-      moneda: f.moneda || "ARS",
-      estado: f.estado || "pagado",
-      observacion: f.observacion || "",
-      vencimiento: f.vencimiento || null,
-      esRecurrente: !!f.esRecurrente,
-      subconceptos: f.subconceptos || [],
-    });
+try {
+  const subconceptosPayload = f.subconceptos || [];
+  const montoCabecera = tieneSubconceptosValidos(subconceptosPayload)
+    ? calcularTotalARSDetalle(subconceptosPayload)
+    : Number(f.monto || 0);
 
-    const movimientosApi = await getMovimientos(mesKey);
+  await crearGasto({
+    periodo: mesKey,
+    dia: f.dia,
+    categoria: f.categoria,
+    formaPago: f.formaPago,
+    servicio: f.servicio,
+    monto: montoCabecera,
+    moneda: f.moneda || "ARS",
+    estado: f.estado || "pagado",
+    observacion: f.observacion || "",
+    vencimiento: f.vencimiento || null,
+    esRecurrente: !!f.esRecurrente,
+    subconceptos: subconceptosPayload,
+  });
+
+  const movimientosApi = await getMovimientos(mesKey);
     const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
 
     setData((prev) => ({
@@ -408,18 +550,22 @@ if (usarExistente) {
       },
     }));
 
-    setForm((p) => ({
-  ...p,
-  servicio: "",
-  monto: "",
-  observacion: "",
-  dia: String(now.getDate()),
-  esRecurrente: false,
-  vencimiento: "",
-  subconceptos: [],
-  tipoGasto: "simple",
-  accionCompuesto: "nuevo",
-}));
+    setForm({
+      categoria: "",
+      formaPago: "",
+      servicio: "",
+      monto: "",
+      moneda: "ARS",
+      estado: "pagado",
+      observacion: "",
+      dia: String(now.getDate()),
+      esRecurrente: false,
+      vencimiento: "",
+      subconceptos: [],
+      tipoGasto: "simple",
+      accionCompuesto: "nuevo",
+      decisionManual: false,
+    });
 
     toast_("¡Gasto guardado en Neon!");
   } catch (e) {
@@ -504,40 +650,58 @@ if (usarExistente) {
 const handleSubconceptosSave = (items) => {
   if (!subconceptosGasto) return;
 
-  const key = editingMesKey || mesKey;
+  const monedaBase = subconceptosGasto.moneda || editingGasto?.moneda || form.moneda || "ARS";
+const tcAplicable = Number(subconceptosGasto.tcConversion || tc || 1);
 
-  // Si es edición de un gasto existente
-  const esEdicionReal =
-  !!subconceptosGasto.id && !String(subconceptosGasto.id).startsWith("new");
+  const itemsNormalizados = (items || []).map((it, idx) => {
+    const monedaItem = String(it.moneda || monedaBase || "ARS").trim().toUpperCase();
+    const monto = Number(it.monto ?? it.montoUSD ?? 0);
 
-if (esEdicionReal) {
-    setData((prev) => {
-      const updated = {
-        ...prev,
-        gastos: {
-          ...prev.gastos,
-          [key]: (prev.gastos[key] || []).map((g) =>
-            g.id === subconceptosGasto.id ? { ...g, subconceptos: items } : g
-          ),
-        },
-      };
-      syncSheets("gastos", key, updated.gastos[key]);
-      return updated;
-    });
+    const tipoCambio =
+      it.tipoCambio !== null && it.tipoCambio !== undefined && it.tipoCambio !== ""
+        ? Number(it.tipoCambio)
+        : monedaItem === "USD"
+          ? tcAplicable
+          : null;
 
-    if (editingGasto && editingGasto.id === subconceptosGasto.id) {
-      setEditingGasto((prev) => ({ ...prev, subconceptos: items }));
-    }
+    const montoARSCalculado =
+      it.montoARSCalculado !== null &&
+      it.montoARSCalculado !== undefined &&
+      it.montoARSCalculado !== ""
+        ? Number(it.montoARSCalculado)
+        : monedaItem === "USD"
+          ? monto * Number(tipoCambio || tcAplicable || 1)
+          : monto;
+
+    return {
+      id: it.id || it.detalleId || `det_tmp_${Date.now()}_${idx}`,
+      nombre: it.nombre || it.nombreItem || "Item",
+      monto,
+      moneda: monedaItem,
+      tipoCambio,
+      montoARSCalculado,
+      orden: it.orden || idx + 1,
+      observacion: it.observacion || "",
+    };
+  });
+
+  if (editingGasto && editingGasto.id === subconceptosGasto.id) {
+    setEditingGasto((prev) => ({
+      ...prev,
+      moneda: prev.moneda || monedaBase,
+      subconceptos: itemsNormalizados,
+    }));
+  } else {
+    setForm((prev) => ({
+      ...prev,
+      moneda: prev.moneda || monedaBase,
+      subconceptos: itemsNormalizados,
+      accionCompuesto: prev.accionCompuesto,
+    }));
   }
 
-setForm((prev) => ({
-  ...prev,
-  subconceptos: items,
-  accionCompuesto: prev.accionCompuesto,
-}));
-
   setSubconceptosGasto(null);
-  toast_("💵 Desglose guardado");
+  toast_("🧾 Desglose guardado");
 };
 
   const openEdit=(g,key=null)=>{ setEditingGasto({...g}); setEditingMesKey(key); };
@@ -814,42 +978,71 @@ const eliminar = async (tipo, id) => {
   const ib=(bg,color)=>({background:bg,border:"none",color,borderRadius:8,padding:"5px 10px",cursor:"pointer",fontSize:13,fontWeight:600});
 
   // Render gasto en detalle
-  const GastoRow=({item})=>{
-    const dias=diasRestantes(item.vencimiento);
-    const s=item.estado==="pendiente"?semaforo(dias):null;
-    const usd=montoUSDReal(item);
-    const ars=toARS_(item);
-    const tieneSubconceptos=item.subconceptos&&item.subconceptos.length>0;
-    return(
-      <div style={{ padding:"10px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
-        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
-          <div style={{ flex:1 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
-              <div style={{ fontSize:14,fontWeight:500 }}>{item.servicio}</div>
-              {tieneSubconceptos&&<span style={{ fontSize:10,color:"#38bdf8",background:"#1e3a5f",padding:"1px 6px",borderRadius:10 }}>💵 {item.subconceptos.length} ítems</span>}
-              <span style={{ fontSize:10,color:"#64748b",marginLeft:"auto" }}>✎</span>
-            </div>
-            {/* Subconceptos mini */}
-            {tieneSubconceptos&&<div style={{ marginBottom:6,padding:"6px 8px",background:"#0f1a2e",borderRadius:10,fontSize:11 }}>
-              {item.subconceptos.map(s=>(<div key={s.id} style={{ display:"flex",justifyContent:"space-between",color:"#64748b",paddingBottom:2 }}><span>{s.nombre}</span><span style={{ color:"#38bdf8",fontFamily:"'Space Mono',monospace" }}>{fmtUSD(s.montoUSD)}</span></div>))}
-            </div>}
-            <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginBottom:4,alignItems:"center" }}>
-              <span onClick={e=>{e.stopPropagation();toggleEstado(item.id);}} style={{ display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:item.estado==="pagado"?"#14532d":"#422006",color:item.estado==="pagado"?"#4ade80":"#fb923c",cursor:"pointer" }}>
-                {item.estado==="pagado"?"✅ Pagado":"⏳ Pendiente"}
-              </span>
-              {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:20,fontSize:10,fontWeight:700,background:"#1e2a3e",color:"#60a5fa",border:"1px solid #60a5fa33" }}>🏦 Débito auto.</span>}
-              {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}
-            </div>
-            <div style={{ fontSize:11,color:"#64748b" }}>{item.dia}/{mes.m+1} · {item.formaPago}{item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}{item.observacion?` · ${item.observacion}`:""}</div>
+  // Render gasto en detalle
+const GastoRow=({item})=>{
+  const dias=diasRestantes(item.vencimiento);
+  const s=item.estado==="pendiente"?semaforo(dias):null;
+  const ars=toARS_(item);
+  const tieneSubconceptos=item.subconceptos&&item.subconceptos.length>0;
+  const totalMostrarARS = montoReal(item, tc);
+  const totalUSDDetalle = montoUSDReal(item);
+
+  return(
+    <div style={{ padding:"10px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
+        <div style={{ flex:1 }}>
+          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
+            <div style={{ fontSize:14,fontWeight:500 }}>{item.servicio}</div>
+            {tieneSubconceptos&&<span style={{ fontSize:10,color:"#38bdf8",background:"#1e3a5f",padding:"1px 6px",borderRadius:10 }}>🧾 {item.subconceptos.length} ítems</span>}
+            <span style={{ fontSize:10,color:"#64748b",marginLeft:"auto" }}>✎</span>
           </div>
-          <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,marginLeft:8 }}>
-            {usd>0?(<><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:"#38bdf8",fontWeight:700 }}>{fmtUSD(usd)}</div><div style={{ fontSize:11,color:"#a78bfa" }}>{fmtARS(ars)}</div></>):(<div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:ars>0?"#e2e8f0":"#64748b" }}>{ars>0?fmtARS(ars):"$ —"}</div>)}
-            <button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12 }} onClick={e=>{e.stopPropagation();setConfirmDel({...item,tipo:"gastos"});}}>✕</button>
+
+          {tieneSubconceptos&&(
+            <div style={{ marginBottom:6,padding:"6px 8px",background:"#0f1a2e",borderRadius:10,fontSize:11 }}>
+              {item.subconceptos.map(sub=>(
+                <div key={sub.id} style={{ display:"flex",justifyContent:"space-between",color:"#64748b",paddingBottom:2 }}>
+                  <span>{sub.nombre}</span>
+                  <span style={{ color:"#38bdf8",fontFamily:"'Space Mono',monospace" }}>
+                    {fmtMonto(
+                      Number(sub.monto ?? sub.montoUSD ?? 0),
+                      sub.moneda || item.moneda || "ARS"
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginBottom:4,alignItems:"center" }}>
+            <span onClick={e=>{e.stopPropagation();toggleEstado(item.id);}} style={{ display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:item.estado==="pagado"?"#14532d":"#422006",color:item.estado==="pagado"?"#4ade80":"#fb923c",cursor:"pointer" }}>
+              {item.estado==="pagado"?"✅ Pagado":"⏳ Pendiente"}
+            </span>
+            {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:20,fontSize:10,fontWeight:700,background:"#1e2a3e",color:"#60a5fa",border:"1px solid #60a5fa33" }}>🏦 Débito auto.</span>}
+            {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}
+          </div>
+
+          <div style={{ fontSize:11,color:"#64748b" }}>
+            {item.dia}/{mes.m+1} · {item.formaPago}{item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}{item.observacion?` · ${item.observacion}`:""}
           </div>
         </div>
+
+        <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,marginLeft:8 }}>
+          <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:totalMostrarARS>0?"#e2e8f0":"#64748b" }}>
+            {fmtARS(totalMostrarARS)}
+          </div>
+
+          {totalUSDDetalle > 0 && (
+            <div style={{ fontSize:11,color:"#a78bfa" }}>
+              {fmtUSD(totalUSDDetalle)}
+            </div>
+          )}
+
+          <button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12 }} onClick={e=>{e.stopPropagation();setConfirmDel({...item,tipo:"gastos"});}}>✕</button>
+        </div>
       </div>
-    );
-  };
+    </div>
+  );
+};
 
   const esDolar_form = esDolarConcepto(form.servicio);
 
@@ -887,7 +1080,7 @@ const eliminar = async (tipo, id) => {
       {toast&&<div className="toast" style={{ background:toast.type==="err"?"#7f1d1d":"#14532d",color:toast.type==="err"?"#fca5a5":"#86efac" }}>{toast.msg}</div>}
 
       {/* Modal subconceptos USD */}
-      {subconceptosGasto&&<SubconceptosModal gasto={subconceptosGasto} tc={tc} onSave={handleSubconceptosSave} onClose={()=>setSubconceptosGasto(null)}/>}
+      {subconceptosGasto&&<SubconceptosModal gasto={subconceptosGasto} tc={subconceptosGasto.tcConversion || tc} onSave={handleSubconceptosSave} onClose={()=>setSubconceptosGasto(null)}/>}
 
       {/* Modal gestión servicios inline */}
       {gestionServModal&&(
@@ -939,7 +1132,19 @@ const eliminar = async (tipo, id) => {
       )}
 
       {/* Modal edición */}
-      {editingGasto&&!subconceptosGasto&&<EditModal gasto={editingGasto} config={cfg} tc={tc} onSave={handleEditSave} onClose={()=>{setEditingGasto(null);setEditingMesKey(null);}} onAbrirSubconceptos={(g)=>setSubconceptosGasto(g)}/>}
+      {editingGasto && editingGasto.id && (
+        <EditModal
+          gasto={editingGasto}
+          config={cfg}
+          tc={tc}
+          onSave={handleEditSave}
+          onClose={() => {
+            setEditingGasto(null);
+            setEditingMesKey(null);
+          }}
+          onAbrirSubconceptos={abrirSubconceptosConCotizacion}
+        />
+      )}
 
       {/* Modal acumulación */}
       {acumModal&&(
@@ -1104,7 +1309,13 @@ const eliminar = async (tipo, id) => {
   <div style={{ display:"flex", gap:8 }}>
     <button
       className="pb"
-      onClick={() => setForm((f) => ({ ...f, tipoGasto:"simple", accionCompuesto:"nuevo" }))}
+      onClick={() => setForm((f) => ({
+  ...f,
+  tipoGasto:"simple",
+  accionCompuesto:"nuevo",
+  decisionManual:true,
+  subconceptos:[]
+}))}
       style={{
         background: form.tipoGasto==="simple" ? "#7c3aed" : "#1e1e2e",
         color: form.tipoGasto==="simple" ? "#fff" : "#94a3b8",
@@ -1116,7 +1327,12 @@ const eliminar = async (tipo, id) => {
 
     <button
       className="pb"
-      onClick={() => setForm((f) => ({ ...f, tipoGasto:"detalle" }))}
+      onClick={() => setForm((f) => ({
+  ...f,
+  tipoGasto:"detalle",
+  decisionManual:true,
+  monto:""
+}))}
       style={{
         background: form.tipoGasto==="detalle" ? "#7c3aed" : "#1e1e2e",
         color: form.tipoGasto==="detalle" ? "#fff" : "#94a3b8",
@@ -1136,16 +1352,16 @@ const eliminar = async (tipo, id) => {
   {form.categoria&&(cfg.servicios[form.categoria]||[]).length>0&&
     <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:8 }}>
       {(cfg.servicios[form.categoria]||[]).map(s=>(
-        <button key={s} className="pb" onClick={()=>setForm(f=>({...f,servicio:s}))} style={{ background:form.servicio===s?(esDolarConcepto(s)?"#1e3a5f":"#1e4032"):"#1e1e2e",color:form.servicio===s?(esDolarConcepto(s)?"#38bdf8":"#4ade80"):"#94a3b8",fontSize:12,padding:"6px 12px",border:esDolarConcepto(s)?"1px solid #38bdf822":"none" }}>
+        <button key={s} className="pb" onClick={()=>setForm(f=>({...f,servicio:s,decisionManual:false}))} style={{ background:form.servicio===s?(esDolarConcepto(s)?"#1e3a5f":"#1e4032"):"#1e1e2e",color:form.servicio===s?(esDolarConcepto(s)?"#38bdf8":"#4ade80"):"#94a3b8",fontSize:12,padding:"6px 12px",border:esDolarConcepto(s)?"1px solid #38bdf822":"none" }}>
           {s}{esDolarConcepto(s)?" 💵":""}
         </button>
       ))}
     </div>
   }
 
-  <input className="inf" placeholder="O escribí el concepto..." value={form.servicio} onChange={e=>setForm(f=>({...f,servicio:e.target.value}))}/>
+  <input className="inf" placeholder="O escribí el concepto..." value={form.servicio} onChange={e=>setForm(f=>({...f,servicio:e.target.value,decisionManual:false}))}/>
 
-  {form.tipoGasto === "detalle" && esServicioCompuesto(form.servicio) && gastoCompuestoExistente && (
+  {form.servicio && gastoCompuestoExistente && (
     <div style={{
       marginBottom: 14,
       background: "#13131a",
@@ -1153,18 +1369,28 @@ const eliminar = async (tipo, id) => {
       borderRadius: 14,
       padding: "12px 14px"
     }}>
+	
+	<div style={{ fontSize:11, color:"#64748b", marginBottom:6 }}>
+  {contarRepeticionesServicio(form.servicio) >= 2
+    ? "Detectamos múltiples cargas similares este mes"
+    : "Encontramos un gasto similar este mes"}
+   </div>
+
       <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
         Ya existe un gasto similar este mes
       </div>
 
       <div style={{ fontWeight: 600, marginBottom: 10 }}>
-        {gastoCompuestoExistente.servicio} — {fmtUSD(montoUSDReal(gastoCompuestoExistente))}
+        {gastoCompuestoExistente.servicio} — {fmtMonto(
+  gastoCompuestoExistente.monto,
+  gastoCompuestoExistente.moneda || form.moneda
+)}
       </div>
 
       <div style={{ display:"flex", gap:8 }}>
         <button
           className="pb"
-          onClick={() => setForm((f) => ({ ...f, accionCompuesto:"existente" }))}
+          onClick={() => setForm((f) => ({ ...f, accionCompuesto:"existente", decisionManual:true }))}
           style={{
             background: form.accionCompuesto==="existente" ? "#14532d" : "#1e1e2e",
             color: form.accionCompuesto==="existente" ? "#4ade80" : "#94a3b8",
@@ -1177,7 +1403,7 @@ const eliminar = async (tipo, id) => {
 
         <button
           className="pb"
-          onClick={() => setForm((f) => ({ ...f, accionCompuesto:"nuevo" }))}
+          onClick={() => setForm((f) => ({ ...f, accionCompuesto:"nuevo", decisionManual:true }))}
           style={{
             background: form.accionCompuesto==="nuevo" ? "#1e3a5f" : "#1e1e2e",
             color: form.accionCompuesto==="nuevo" ? "#38bdf8" : "#94a3b8",
@@ -1193,26 +1419,187 @@ const eliminar = async (tipo, id) => {
 </div>
 	 
           {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
-          {form.tipoGasto === "detalle" ? (
-            <div style={{ marginBottom:14,background:"#0f1a2e",border:"1px solid #1e3a5f",borderRadius:16,padding:"14px 16px" }}>
-              <div style={{ fontSize:11,color:"#38bdf8",fontWeight:700,letterSpacing:1,marginBottom:10 }}>💵 DESGLOSE USD — TC ${tc.toLocaleString("es-AR")}</div>
-              {form.subconceptos.length>0&&form.subconceptos.map((s,i)=>(<div key={i} style={{ display:"flex",justifyContent:"space-between",padding:"4px 0",fontSize:13 }}><span>{s.nombre}</span><span style={{ color:"#38bdf8",fontFamily:"'Space Mono',monospace" }}>{fmtUSD(s.montoUSD)}</span></div>))}
-              {form.subconceptos.length>0&&<div style={{ borderTop:"1px solid #1e3a5f",marginTop:8,paddingTop:8,display:"flex",justifyContent:"space-between" }}><span style={{ color:"#64748b",fontSize:13 }}>Total</span><div style={{ textAlign:"right" }}><div style={{ color:"#38bdf8",fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:700 }}>{fmtUSD(form.subconceptos.reduce((a,s)=>a+s.montoUSD,0))}</div><div style={{ fontSize:11,color:"#a78bfa" }}>{fmtARS(form.subconceptos.reduce((a,s)=>a+s.montoUSD,0)*tc)}</div></div></div>}
-              <button onClick={()=>setSubconceptosGasto({...form,id:"new_"+Date.now()})} style={{ width:"100%",background:"#1e3a5f",border:"none",color:"#38bdf8",borderRadius:12,padding:"10px 0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:14,marginTop:10 }}>
-                {form.subconceptos.length>0?"✏️ Editar desglose":"+ Agregar ítems USD"}
-              </button>
+          {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
+{form.tipoGasto === "detalle" ? (
+  <>
+    {/* Selector de moneda */}
+    <div style={{ marginBottom:10 }}>
+      <div style={{ display:"flex",gap:8 }}>
+        <button
+          className="pb"
+          onClick={() => setForm(f => ({ ...f, moneda:"ARS" }))}
+          style={{
+            background: form.moneda==="ARS" ? "#7c3aed" : "#1e1e2e",
+            color: form.moneda==="ARS" ? "#fff" : "#94a3b8"
+          }}
+        >
+          $ARS
+        </button>
+
+        <button
+          className="pb"
+          onClick={() => setForm(f => ({ ...f, moneda:"USD" }))}
+          style={{
+            background: form.moneda==="USD" ? "#1e3a5f" : "#1e1e2e",
+            color: form.moneda==="USD" ? "#38bdf8" : "#94a3b8"
+          }}
+        >
+          💵 USD
+        </button>
+      </div>
+    </div>
+
+    {/* Bloque de desglose */}
+    <div style={{
+      marginBottom:14,
+      background:"#0f1a2e",
+      border:"1px solid #1e3a5f",
+      borderRadius:16,
+      padding:"14px 16px"
+    }}>
+      <div style={{
+        fontSize:11,
+        color:"#38bdf8",
+        fontWeight:700,
+        letterSpacing:1,
+        marginBottom:10
+      }}>
+        🧾 DESGLOSE — {form.moneda}
+        {form.moneda === "USD" ? ` — TC $${tc.toLocaleString("es-AR")}` : ""}
+      </div>
+
+      {form.subconceptos.length > 0 && form.subconceptos.map((s,i) => (
+        <div
+          key={i}
+          style={{
+            display:"flex",
+            justifyContent:"space-between",
+            padding:"4px 0",
+            fontSize:13
+          }}
+        >
+          <span>{s.nombre}</span>
+          <span style={{
+            color:"#38bdf8",
+            fontFamily:"'Space Mono',monospace"
+          }}>
+            {fmtMonto(
+              Number(s.monto ?? s.montoUSD ?? 0),
+              s.moneda || form.moneda
+            )}
+          </span>
+        </div>
+      ))}
+
+      {form.subconceptos.length > 0 && (
+        <div style={{
+          borderTop:"1px solid #1e3a5f",
+          marginTop:8,
+          paddingTop:8,
+          display:"flex",
+          justifyContent:"space-between"
+        }}>
+          <span style={{ color:"#64748b",fontSize:13 }}>Total</span>
+
+          <div style={{ textAlign:"right" }}>
+            <div style={{
+              color:"#38bdf8",
+              fontFamily:"'Space Mono',monospace",
+              fontSize:14,
+              fontWeight:700
+            }}>
+              {fmtARS(
+                form.subconceptos.reduce(
+                  (a, s) => a + (
+                    String(s.moneda || form.moneda || "ARS").toUpperCase() === "USD"
+                      ? Number(s.monto ?? s.montoUSD ?? 0) * Number(s.tipoCambio || tc || 1)
+                      : Number(s.monto ?? s.montoUSD ?? 0)
+                  ),
+                  0
+                )
+              )}
             </div>
-          ) : (
-            <div style={{ marginBottom:14 }}>
-              <span style={lbl}>MONTO Y MONEDA</span>
-              <div style={{ display:"flex",gap:8 }}>
-                <input className="inf" type="number" placeholder="0" value={form.monto} onChange={e=>setForm(f=>({...f,monto:e.target.value}))} inputMode="numeric" style={{ flex:2 }}/>
-                <button className="pb" onClick={()=>setForm(f=>({...f,moneda:"ARS"}))} style={{ background:"#1e1e2e",border:form.moneda==="ARS"?"2px solid #7c3aed":"2px solid transparent",color:form.moneda==="ARS"?"#e2e8f0":"#64748b",padding:"10px 14px" }}>$ARS</button>
-                <button className="pb" onClick={()=>setForm(f=>({...f,moneda:"USD"}))} style={{ background:form.moneda==="USD"?"#1e3a5f":"#1e1e2e",border:form.moneda==="USD"?"2px solid #38bdf8":"2px solid transparent",color:form.moneda==="USD"?"#38bdf8":"#64748b",padding:"10px 14px" }}>💵</button>
+
+            {form.subconceptos.some((s) => String(s.moneda || form.moneda || "ARS").toUpperCase() === "USD") && (
+              <div style={{ fontSize:11,color:"#a78bfa" }}>
+                {fmtUSD(
+                  form.subconceptos.reduce(
+                    (a, s) => a + (
+                      String(s.moneda || form.moneda || "ARS").toUpperCase() === "USD"
+                        ? Number(s.monto ?? s.montoUSD ?? 0)
+                        : 0
+                    ),
+                    0
+                  )
+                )}
               </div>
-              {form.moneda==="USD"&&form.monto&&<div style={{ fontSize:12,color:"#38bdf8",marginTop:6 }}>≈ {fmtARS(Number(form.monto)*tc)}</div>}
-            </div>
-          )}
+            )}
+          </div>
+        </div>
+      )}
+
+      <button
+  onClick={() =>
+  abrirSubconceptosConCotizacion({
+    ...form,
+    id: "new_" + Date.now(),
+    moneda: form.moneda || "ARS"
+  })
+}
+  style={{ width:"100%",background:"#1e3a5f",border:"none",color:"#38bdf8",borderRadius:12,padding:"10px 0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:14,marginTop:10 }}
+>
+  {form.subconceptos.length>0 ? "✏️ Editar desglose" : "+ Agregar ítems"}
+</button>
+    </div>
+  </>
+) : (
+  <div style={{ marginBottom:14 }}>
+    <span style={lbl}>MONTO Y MONEDA</span>
+    <div style={{ display:"flex",gap:8 }}>
+      <input
+        className="inf"
+        type="number"
+        placeholder="0"
+        value={form.monto}
+        onChange={e=>setForm(f=>({...f,monto:e.target.value}))}
+        inputMode="numeric"
+        style={{ flex:2 }}
+      />
+
+      <button
+        className="pb"
+        onClick={()=>setForm(f=>({...f,moneda:"ARS"}))}
+        style={{
+          background:"#1e1e2e",
+          border:form.moneda==="ARS"?"2px solid #7c3aed":"2px solid transparent",
+          color:form.moneda==="ARS"?"#e2e8f0":"#64748b",
+          padding:"10px 14px"
+        }}
+      >
+        $ARS
+      </button>
+
+      <button
+        className="pb"
+        onClick={()=>setForm(f=>({...f,moneda:"USD"}))}
+        style={{
+          background:form.moneda==="USD"?"#1e3a5f":"#1e1e2e",
+          border:form.moneda==="USD"?"2px solid #38bdf8":"2px solid transparent",
+          color:form.moneda==="USD"?"#38bdf8":"#64748b",
+          padding:"10px 14px"
+        }}
+      >
+        💵
+      </button>
+    </div>
+
+    {form.moneda==="USD" && form.monto && (
+      <div style={{ fontSize:12,color:"#38bdf8",marginTop:6 }}>
+        ≈ {fmtARS(Number(form.monto)*tc)}
+      </div>
+    )}
+  </div>
+)}
 
           <div style={{ marginBottom:14 }}><span style={lbl}>ESTADO</span><div style={{ display:"flex",gap:8 }}><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pagado"}))} style={{ background:form.estado==="pagado"?"#14532d":"#1e1e2e",color:form.estado==="pagado"?"#4ade80":"#64748b",border:form.estado==="pagado"?"2px solid #4ade80":"2px solid transparent" }}>✅ Pagado</button><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pendiente"}))} style={{ background:form.estado==="pendiente"?"#422006":"#1e1e2e",color:form.estado==="pendiente"?"#fb923c":"#64748b",border:form.estado==="pendiente"?"2px solid #fb923c":"2px solid transparent" }}>⏳ Pendiente</button></div></div>
           <div style={{ display:"flex",gap:10,marginBottom:14 }}><div style={{ flex:1 }}><span style={lbl}>DÍA</span><input className="inf" type="number" placeholder={now.getDate()} value={form.dia} onChange={e=>setForm(f=>({...f,dia:e.target.value}))} inputMode="numeric"/></div></div>
@@ -1223,7 +1610,7 @@ const eliminar = async (tipo, id) => {
             <div><div style={{ fontSize:14,fontWeight:600 }}>Guardar como recurrente</div><div style={{ fontSize:11,color:"#64748b" }}>Aparecerá cada mes para cargarlo fácil</div></div>
           </div>
           
-		    {form.tipoGasto === "detalle" && esServicioCompuesto(form.servicio) && (
+		    {form.servicio && gastoCompuestoExistente && (
   <div style={{
     marginBottom: 12,
     fontSize: 12,

@@ -1,8 +1,12 @@
 node_modules
 dist
 .vercel
+
 .env
 .env.local
-.env*.local
+.env.*.local
+
 .DS_Store
-Thumbs.db
+
+*.zip
+mis-finanzas-source-corregido/

@@ -20,6 +20,16 @@ export default async function handler(req, res) {
       SELECT * FROM fuentes_ingreso ORDER BY orden_visual;
     `;
 
+    const parametros = await sql`
+      SELECT
+        clave,
+        valor,
+        descripcion,
+        updated_at
+      FROM parametros
+      ORDER BY clave;
+    `;
+
     return res.status(200).json({
       ok: true,
       data: {
@@ -27,10 +37,11 @@ export default async function handler(req, res) {
         formasPago,
         servicios,
         fuentesIngreso,
+        parametros,
       },
     });
   } catch (error) {
-    console.error("Error en API:", error);
+    console.error("Error en API catalogos:", error);
     return res.status(500).json({
       ok: false,
       error: error.message,

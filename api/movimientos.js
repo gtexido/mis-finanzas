@@ -73,7 +73,8 @@ export default async function handler(req, res) {
 
     const movimientoIds = movimientos.map((m) => m.movimiento_id);
 
-    let detalles = [];
+  let detalles = [];
+
 if (movimientoIds.length > 0) {
   detalles = await sql`
     SELECT
@@ -82,6 +83,8 @@ if (movimientoIds.length > 0) {
       nombre_item,
       monto,
       moneda,
+      tipo_cambio,
+      monto_ars_calculado,
       orden,
       observacion,
       activo,

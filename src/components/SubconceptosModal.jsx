@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { fmtARS, fmtUSD } from "../utils/formatters";
 
-const SUBCONCEPTOS_USD_SUGERIDOS = [
+const SUBCONCEPTOS_SUGERIDOS = [
   "Google One",
   "YouTube",
   "ChatGPT",
@@ -16,39 +16,154 @@ const SUBCONCEPTOS_USD_SUGERIDOS = [
   "Canva",
   "Notion",
   "Dropbox",
+  "Shell",
+  "YPF",
+  "Axion",
+  "Carrefour",
+  "Chango Mas",
+  "Dino",
   "Otro",
 ];
 
+const normalizarMoneda = (moneda) => {
+  return String(moneda || "ARS").trim().toUpperCase();
+};
+
+const toNumber = (value, fallback = 0) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+};
+
 export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
-  const [items, setItems] = useState(gasto.subconceptos ? [...gasto.subconceptos] : []);
+  const monedaMovimiento = normalizarMoneda(gasto.moneda || "ARS");
+  const tipoCambioActual = toNumber(tc, 1);
+
+  const calcularMontoARS = (monto, moneda, tipoCambio = tipoCambioActual) => {
+    const n = toNumber(monto);
+    const mon = normalizarMoneda(moneda);
+
+    if (mon === "USD") {
+      return n * toNumber(tipoCambio, 1);
+    }
+
+    return n;
+  };
+
+  const normalizarItem = (item) => {
+    const monedaItem = normalizarMoneda(item.moneda || monedaMovimiento);
+    const monto = toNumber(item.monto ?? item.montoUSD ?? 0);
+
+    const tipoCambio =
+      item.tipoCambio !== null && item.tipoCambio !== undefined && item.tipoCambio !== ""
+        ? toNumber(item.tipoCambio, null)
+        : item.tipo_cambio !== null && item.tipo_cambio !== undefined && item.tipo_cambio !== ""
+          ? toNumber(item.tipo_cambio, null)
+          : monedaItem === "USD"
+            ? tipoCambioActual
+            : null;
+
+    const montoARSCalculado =
+      item.montoARSCalculado !== null &&
+      item.montoARSCalculado !== undefined &&
+      item.montoARSCalculado !== ""
+        ? toNumber(item.montoARSCalculado, null)
+        : item.monto_ars_calculado !== null &&
+          item.monto_ars_calculado !== undefined &&
+          item.monto_ars_calculado !== ""
+          ? toNumber(item.monto_ars_calculado, null)
+          : calcularMontoARS(monto, monedaItem, tipoCambio);
+
+    return {
+      ...item,
+      id: item.id || item.detalleId || `sc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      nombre: item.nombre || item.nombreItem || item.nombre_item || "",
+      monto,
+      moneda: monedaItem,
+      tipoCambio,
+      montoARSCalculado,
+    };
+  };
+
+  const [items, setItems] = useState(
+    gasto.subconceptos ? gasto.subconceptos.map(normalizarItem) : []
+  );
+
   const [newNombre, setNewNombre] = useState("");
   const [newMonto, setNewMonto] = useState("");
+  const [newMoneda, setNewMoneda] = useState(monedaMovimiento);
   const [sugerido, setSugerido] = useState("");
 
-  const totalUSD = items.reduce((a, s) => a + s.montoUSD, 0);
-
-const buildNuevoItem = () => {
-  const nombre = (sugerido || newNombre || "").trim();
-  if (!nombre || !newMonto) return null;
-
-  return {
-    id: "sc" + Date.now(),
-    nombre,
-    montoUSD: Number(newMonto),
+  const fmtMonto = (monto, mon = "ARS") => {
+    const n = toNumber(monto);
+    return normalizarMoneda(mon) === "USD" ? fmtUSD(n) : fmtARS(n);
   };
-};
 
-const addItem = () => {
-  const nuevo = buildNuevoItem();
-  if (!nuevo) return;
+  const totalARS = items.reduce((acc, item) => {
+    return acc + calcularMontoARS(item.monto, item.moneda, item.tipoCambio);
+  }, 0);
 
-  setItems((prev) => [...prev, nuevo]);
-  setNewNombre("");
-  setNewMonto("");
-  setSugerido("");
-};
+  const totalUSD = items.reduce((acc, item) => {
+    return normalizarMoneda(item.moneda) === "USD" ? acc + toNumber(item.monto) : acc;
+  }, 0);
+
+  const totalARSDirecto = items.reduce((acc, item) => {
+    return normalizarMoneda(item.moneda) === "ARS" ? acc + toNumber(item.monto) : acc;
+  }, 0);
+
+  const tieneUSD = totalUSD > 0;
+  const tieneARS = totalARSDirecto > 0;
+  const tieneMonedaMixta = tieneUSD && tieneARS;
+
+  const buildNuevoItem = () => {
+    const nombre = (sugerido || newNombre || "").trim();
+    const monto = toNumber(newMonto);
+    const moneda = normalizarMoneda(newMoneda);
+
+    if (!nombre || !newMonto) return null;
+
+    const tipoCambio = moneda === "USD" ? tipoCambioActual : null;
+    const montoARSCalculado = calcularMontoARS(monto, moneda, tipoCambio);
+
+    return {
+      id: `sc_${Date.now()}`,
+      nombre,
+      monto,
+      moneda,
+      tipoCambio,
+      montoARSCalculado,
+    };
+  };
+
+  const addItem = () => {
+    const nuevo = buildNuevoItem();
+    if (!nuevo) return;
+
+    setItems((prev) => [...prev, nuevo]);
+    setNewNombre("");
+    setNewMonto("");
+    setSugerido("");
+  };
 
   const delItem = (id) => setItems((prev) => prev.filter((s) => s.id !== id));
+
+  const prepararItemsParaGuardar = (itemsFinales) => {
+    return itemsFinales.map((item, index) => {
+      const moneda = normalizarMoneda(item.moneda);
+      const monto = toNumber(item.monto);
+      const tipoCambio = moneda === "USD" ? toNumber(item.tipoCambio || tipoCambioActual, 1) : null;
+      const montoARSCalculado = calcularMontoARS(monto, moneda, tipoCambio);
+
+      return {
+        ...item,
+        nombre: item.nombre || item.nombreItem || "Item",
+        monto,
+        moneda,
+        tipoCambio,
+        montoARSCalculado,
+        orden: index + 1,
+      };
+    });
+  };
 
   return (
     <div
@@ -76,15 +191,11 @@ const addItem = () => {
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: 6,
-          }}
-        >
-          <div style={{ fontWeight: 700, fontSize: 17 }}>💵 {gasto.servicio}</div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+          <div style={{ fontWeight: 700, fontSize: 17 }}>
+            🧾 {gasto.servicio}
+          </div>
+
           <button
             onClick={onClose}
             style={{
@@ -101,7 +212,8 @@ const addItem = () => {
         </div>
 
         <div style={{ fontSize: 12, color: "#64748b", marginBottom: 18 }}>
-          Desglose en dólares · TC ${tc.toLocaleString("es-AR")}
+          Desglose por ítem · ARS/USD
+          {tipoCambioActual ? ` · TC $${tipoCambioActual.toLocaleString("es-AR")}` : ""}
         </div>
 
         <div
@@ -113,9 +225,11 @@ const addItem = () => {
             marginBottom: 16,
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>TOTAL USD</div>
+              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+                TOTAL EN PESOS
+              </div>
               <div
                 style={{
                   fontFamily: "'Space Mono',monospace",
@@ -124,23 +238,34 @@ const addItem = () => {
                   color: "#38bdf8",
                 }}
               >
-                {fmtUSD(totalUSD)}
+                {fmtARS(totalARS)}
               </div>
             </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>EN PESOS</div>
-              <div
-                style={{
-                  fontFamily: "'Space Mono',monospace",
-                  fontSize: 16,
-                  fontWeight: 700,
-                  color: "#a78bfa",
-                }}
-              >
-                {fmtARS(totalUSD * tc)}
+
+            {tieneUSD && (
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+                  TOTAL USD
+                </div>
+                <div
+                  style={{
+                    fontFamily: "'Space Mono',monospace",
+                    fontSize: 16,
+                    fontWeight: 700,
+                    color: "#a78bfa",
+                  }}
+                >
+                  {fmtUSD(totalUSD)}
+                </div>
               </div>
-            </div>
+            )}
           </div>
+
+          {tieneMonedaMixta && (
+            <div style={{ marginTop: 8, fontSize: 11, color: "#94a3b8" }}>
+              ARS directo: {fmtARS(totalARSDirecto)} · USD convertido: {fmtARS(totalARS - totalARSDirecto)}
+            </div>
+          )}
         </div>
 
         {items.map((s) => (
@@ -154,7 +279,14 @@ const addItem = () => {
               borderBottom: "1px solid #1e1e2e",
             }}
           >
-            <div style={{ fontSize: 14, fontWeight: 500 }}>{s.nombre}</div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 500 }}>{s.nombre}</div>
+              <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+                {normalizarMoneda(s.moneda)}
+                {normalizarMoneda(s.moneda) === "USD" ? ` · TC $${toNumber(s.tipoCambio || tipoCambioActual).toLocaleString("es-AR")}` : ""}
+              </div>
+            </div>
+
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <div style={{ textAlign: "right" }}>
                 <div
@@ -165,12 +297,16 @@ const addItem = () => {
                     fontWeight: 700,
                   }}
                 >
-                  {fmtUSD(s.montoUSD)}
+                  {fmtMonto(s.monto, s.moneda)}
                 </div>
-                <div style={{ fontSize: 10, color: "#64748b" }}>
-                  {fmtARS(s.montoUSD * tc)}
-                </div>
+
+                {normalizarMoneda(s.moneda) === "USD" && (
+                  <div style={{ fontSize: 10, color: "#64748b" }}>
+                    {fmtARS(calcularMontoARS(s.monto, s.moneda, s.tipoCambio))}
+                  </div>
+                )}
               </div>
+
               <button
                 onClick={() => delItem(s.id)}
                 style={{
@@ -211,7 +347,7 @@ const addItem = () => {
           </div>
 
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-            {SUBCONCEPTOS_USD_SUGERIDOS.filter((s) => !items.some((i) => i.nombre === s))
+            {SUBCONCEPTOS_SUGERIDOS.filter((s) => !items.some((i) => i.nombre === s))
               .slice(0, 8)
               .map((s) => (
                 <button
@@ -256,6 +392,29 @@ const addItem = () => {
           />
 
           <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ width: 92 }}>
+              <select
+                value={newMoneda}
+                onChange={(e) => setNewMoneda(e.target.value)}
+                style={{
+                  width: "100%",
+                  background: "#1a1a24",
+                  border: "1.5px solid #1e3a5f",
+                  borderRadius: 12,
+                  padding: "10px 8px",
+                  color: "#e2e8f0",
+                  fontSize: 14,
+                  outline: "none",
+                  fontFamily: "'DM Sans',sans-serif",
+                  fontWeight: 700,
+                  height: "100%",
+                }}
+              >
+                <option value="ARS">ARS</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
+
             <div style={{ flex: 1, position: "relative" }}>
               <span
                 style={{
@@ -268,8 +427,9 @@ const addItem = () => {
                   fontSize: 14,
                 }}
               >
-                U$D
+                {newMoneda === "USD" ? "USD" : "$"}
               </span>
+
               <input
                 type="number"
                 inputMode="decimal"
@@ -279,7 +439,7 @@ const addItem = () => {
                   background: "#1a1a24",
                   border: "1.5px solid #1e3a5f",
                   borderRadius: 12,
-                  padding: "10px 13px 10px 44px",
+                  padding: "10px 13px 10px 52px",
                   color: "#e2e8f0",
                   fontSize: 14,
                   outline: "none",
@@ -309,31 +469,29 @@ const addItem = () => {
             </button>
           </div>
 
-          {newMonto && (
+          {newMonto && newMoneda === "USD" && (
             <div style={{ fontSize: 11, color: "#38bdf8", marginTop: 6 }}>
-              ≈ {fmtARS(Number(newMonto) * tc)}
+              ≈ {fmtARS(toNumber(newMonto) * tipoCambioActual)}
             </div>
           )}
         </div>
 
         <button
           onClick={() => {
-  const nuevoPendiente = buildNuevoItem();
+            const nuevoPendiente = buildNuevoItem();
 
-  const itemsFinales = nuevoPendiente
-    ? [...items, nuevoPendiente]
-    : items;
+            const itemsFinales = nuevoPendiente
+              ? [...items, nuevoPendiente]
+              : items;
 
-  console.log("SUBCONCEPTOS MODAL - items finales", itemsFinales);
+            onSave(prepararItemsParaGuardar(itemsFinales));
 
-  onSave(itemsFinales);
-
-  if (nuevoPendiente) {
-    setNewNombre("");
-    setNewMonto("");
-    setSugerido("");
-  }
-}}
+            if (nuevoPendiente) {
+              setNewNombre("");
+              setNewMonto("");
+              setSugerido("");
+            }
+          }}
           style={{
             width: "100%",
             background: "#1e3a5f",

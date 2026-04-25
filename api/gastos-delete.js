@@ -20,7 +20,7 @@ export default async function handler(req, res) {
     }
 
     await sql`
-      DELETE FROM subconceptos_usd
+      DELETE FROM detalle_movimiento
       WHERE movimiento_id = ${movimientoId};
     `;
 

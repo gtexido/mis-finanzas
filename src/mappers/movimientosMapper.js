@@ -1,6 +1,6 @@
 export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
   const movimientos = apiData.movimientos || [];
-const detalles = apiData.detalles || [];
+  const detalles = apiData.detalles || [];
 
   const formaPagoMap = {
     fp_manual: "Manual",
@@ -64,30 +64,60 @@ const detalles = apiData.detalles || [];
     fi_descartables_vg: "Descartables V&G",
   };
 
+  const mapDetalle = (d, movimiento) => ({
+    id: d.detalle_id,
+    detalleId: d.detalle_id,
+    movimientoId: d.movimiento_id,
+
+    nombre: d.nombre_item,
+    nombreItem: d.nombre_item,
+
+    monto: Number(d.monto || 0),
+    moneda: d.moneda || movimiento.moneda || "ARS",
+
+    tipoCambio:
+      d.tipo_cambio !== null && d.tipo_cambio !== undefined
+        ? Number(d.tipo_cambio)
+        : null,
+
+    montoARSCalculado:
+      d.monto_ars_calculado !== null && d.monto_ars_calculado !== undefined
+        ? Number(d.monto_ars_calculado)
+        : null,
+
+    orden: Number(d.orden || 0),
+    observacion: d.observacion || "",
+    activo: d.activo !== false,
+  });
+
   const gastos = movimientos
     .filter((m) => m.tipo_movimiento === "GASTO")
-    .map((m) => ({
-      id: m.movimiento_id,
-      dia: String(m.dia ?? ""),
-      categoria: (m.categoria_id || "").replace("cat_", ""),
-      formaPago: formaPagoMap[m.forma_pago_id] || "",
-      servicio: servicioMap[m.servicio_id] || m.concepto_manual || m.servicio_id || "",
-      monto: Number(m.monto || 0),
-      moneda: m.moneda || "ARS",
-      estado: m.estado || "pendiente",
-      observacion: m.observacion || "",
-      vencimiento: m.vencimiento ? String(m.vencimiento).slice(0, 10) : "",
-      esRecurrente: !!m.es_recurrente,
-      subconceptos: detalles
-  .filter((d) => d.movimiento_id === m.movimiento_id)
-  .sort((a, b) => (a.orden || 0) - (b.orden || 0))
-  .filter((d) => (d.moneda || "ARS") === "USD")
-  .map((d) => ({
-    id: d.detalle_id,
-    nombre: d.nombre_item,
-    montoUSD: Number(d.monto || 0),
-  })),
-    }));
+    .map((m) => {
+      const subconceptos = detalles
+        .filter((d) => d.movimiento_id === m.movimiento_id)
+        .sort((a, b) => (Number(a.orden || 0) - Number(b.orden || 0)))
+        .map((d) => mapDetalle(d, m));
+
+      return {
+        id: m.movimiento_id,
+        dia: String(m.dia ?? ""),
+        categoria: (m.categoria_id || "").replace("cat_", ""),
+        formaPago: formaPagoMap[m.forma_pago_id] || "",
+        servicio: servicioMap[m.servicio_id] || m.concepto_manual || m.servicio_id || "",
+        monto: Number(m.monto || 0),
+        moneda: m.moneda || "ARS",
+        estado: m.estado || "pendiente",
+        observacion: m.observacion || "",
+        vencimiento: m.vencimiento ? String(m.vencimiento).slice(0, 10) : "",
+        esRecurrente: !!m.es_recurrente,
+
+        subconceptos,
+
+        // Alias útiles para futuras pantallas o componentes.
+        detalle: subconceptos,
+        detalles: subconceptos,
+      };
+    });
 
   const ingresos = movimientos
     .filter((m) => m.tipo_movimiento === "INGRESO" && m.subtipo_movimiento === "INGRESO_EXTRA")
