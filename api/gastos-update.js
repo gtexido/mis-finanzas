@@ -33,6 +33,12 @@ function mapFormaPagoId(formaPago) {
   return map[formaPago] || null;
 }
 
+function normalizarListaIds(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return [value].filter(Boolean);
+}
+
 function mapServicioId(servicio) {
   const map = {
     "Muni Auto": "ser_muni_auto",
@@ -178,6 +184,10 @@ export default async function handler(req, res) {
       dia,
       categoria,
       formaPago,
+      medioPagoId,
+      instrumentoId,
+      categoriaGastoId,
+      etiquetasIds = [],
       servicio,
       monto,
       moneda,
@@ -202,6 +212,12 @@ export default async function handler(req, res) {
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
     const fechaConversion = normalizarFecha(vencimiento || fechaOperacion);
     const monedaMovimiento = normalizarMoneda(moneda || "ARS");
+    const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
+    const usuarioIdCreador = body.usuarioIdCreador || body.usuario_id_creador || "usr_default";
+    const medioPagoNuevoId = medioPagoId || body.medio_pago_id || null;
+    const instrumentoNuevoId = instrumentoId || body.instrumento_id || null;
+    const categoriaGastoNuevoId = categoriaGastoId || body.categoria_gasto_id || null;
+    const etiquetasNormalizadas = normalizarListaIds(etiquetasIds.length ? etiquetasIds : body.etiquetas || body.etiquetas_ids);
 
     const detallesNormalizados = [];
 
@@ -239,6 +255,11 @@ export default async function handler(req, res) {
         forma_pago_id = ${formaPagoId},
         servicio_id = ${servicioId},
         concepto_manual = ${conceptoManual},
+        workspace_id = COALESCE(workspace_id, ${workspaceId}),
+        usuario_id_creador = COALESCE(usuario_id_creador, ${usuarioIdCreador}),
+        medio_pago_id = ${medioPagoNuevoId},
+        instrumento_id = ${instrumentoNuevoId},
+        categoria_gasto_id = ${categoriaGastoNuevoId},
         monto = ${montoCabecera},
         moneda = ${monedaMovimiento},
         estado = ${estado || "pendiente"},
@@ -248,6 +269,26 @@ export default async function handler(req, res) {
         updated_at = NOW()
       WHERE movimiento_id = ${id};
     `;
+
+    await sql`
+      DELETE FROM movimiento_etiquetas
+      WHERE movimiento_id = ${id};
+    `;
+
+    if (etiquetasNormalizadas.length > 0) {
+      for (const etiquetaId of etiquetasNormalizadas) {
+        await sql`
+          INSERT INTO movimiento_etiquetas (
+            movimiento_id,
+            etiqueta_id
+          ) VALUES (
+            ${id},
+            ${etiquetaId}
+          )
+          ON CONFLICT (movimiento_id, etiqueta_id) DO NOTHING;
+        `;
+      }
+    }
 
     await sql`
       DELETE FROM detalle_movimiento

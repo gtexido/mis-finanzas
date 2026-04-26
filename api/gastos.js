@@ -33,6 +33,12 @@ function mapFormaPagoId(formaPago) {
   return map[formaPago] || null;
 }
 
+function normalizarListaIds(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.filter(Boolean);
+  return [value].filter(Boolean);
+}
+
 function mapServicioId(servicio) {
   const map = {
     "Muni Auto": "ser_muni_auto",
@@ -177,6 +183,10 @@ export default async function handler(req, res) {
       dia,
       categoria,
       formaPago,
+      medioPagoId,
+      instrumentoId,
+      categoriaGastoId,
+      etiquetasIds = [],
       servicio,
       monto,
       moneda,
@@ -203,6 +213,12 @@ export default async function handler(req, res) {
     const servicioId = mapServicioId(servicio);
     const conceptoManual = servicioId ? null : servicio || null;
     const monedaMovimiento = normalizarMoneda(moneda || "ARS");
+    const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
+    const usuarioIdCreador = body.usuarioIdCreador || body.usuario_id_creador || "usr_default";
+    const medioPagoNuevoId = medioPagoId || body.medio_pago_id || null;
+    const instrumentoNuevoId = instrumentoId || body.instrumento_id || null;
+    const categoriaGastoNuevoId = categoriaGastoId || body.categoria_gasto_id || null;
+    const etiquetasNormalizadas = normalizarListaIds(etiquetasIds.length ? etiquetasIds : body.etiquetas || body.etiquetas_ids);
 
     const detallesNormalizados = [];
 
@@ -243,6 +259,11 @@ export default async function handler(req, res) {
         servicio_id,
         concepto_manual,
         fuente_ingreso_id,
+        workspace_id,
+        usuario_id_creador,
+        medio_pago_id,
+        instrumento_id,
+        categoria_gasto_id,
         monto,
         moneda,
         estado,
@@ -262,6 +283,11 @@ export default async function handler(req, res) {
         ${servicioId},
         ${conceptoManual},
         ${null},
+        ${workspaceId},
+        ${usuarioIdCreador},
+        ${medioPagoNuevoId},
+        ${instrumentoNuevoId},
+        ${categoriaGastoNuevoId},
         ${montoCabecera},
         ${monedaMovimiento},
         ${estado || "pendiente"},
@@ -271,6 +297,21 @@ export default async function handler(req, res) {
         true
       );
     `;
+
+    if (etiquetasNormalizadas.length > 0) {
+      for (const etiquetaId of etiquetasNormalizadas) {
+        await sql`
+          INSERT INTO movimiento_etiquetas (
+            movimiento_id,
+            etiqueta_id
+          ) VALUES (
+            ${movimientoId},
+            ${etiquetaId}
+          )
+          ON CONFLICT (movimiento_id, etiqueta_id) DO NOTHING;
+        `;
+      }
+    }
 
     if (detallesNormalizados.length > 0) {
       let orden = 1;

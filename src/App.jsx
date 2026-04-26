@@ -52,6 +52,42 @@ const DEFAULT_CONFIG = {
     { id:"otros", label:"Otros", color:"#94a3b8" },
   ],
   formasPago: ["Manual","Tarjeta","Débito automático","Tarjeta Cordobesa"],
+  mediosPago: [
+    { id:"mp_bancon", nombre:"Bancon", color:"#4ade80" },
+    { id:"mp_santander", nombre:"Santander", color:"#f87171" },
+    { id:"mp_personal_pay", nombre:"Personal Pay", color:"#60a5fa" },
+    { id:"mp_mercado_pago", nombre:"Mercado Pago", color:"#a78bfa" },
+    { id:"mp_efectivo", nombre:"Efectivo", color:"#94a3b8" },
+    { id:"mp_sin_definir", nombre:"Sin definir", color:"#64748b" },
+  ],
+  instrumentosPago: [
+    { id:"ins_manual", nombre:"Manual" },
+    { id:"ins_tarjeta_credito", nombre:"Tarjeta crédito" },
+    { id:"ins_debito", nombre:"Débito" },
+    { id:"ins_debito_automatico", nombre:"Débito automático" },
+    { id:"ins_transferencia", nombre:"Transferencia" },
+    { id:"ins_efectivo", nombre:"Efectivo" },
+    { id:"ins_sin_definir", nombre:"Sin definir" },
+  ],
+  categoriasGasto: [
+    { id:"cg_supermercado", nombre:"Supermercado", color:"#22c55e" },
+    { id:"cg_nafta", nombre:"Nafta", color:"#f97316" },
+    { id:"cg_educacion", nombre:"Educación", color:"#38bdf8" },
+    { id:"cg_servicios", nombre:"Servicios", color:"#facc15" },
+    { id:"cg_suscripciones", nombre:"Suscripciones", color:"#a78bfa" },
+    { id:"cg_salud", nombre:"Salud", color:"#fb7185" },
+    { id:"cg_comida", nombre:"Comida", color:"#fb923c" },
+    { id:"cg_hogar", nombre:"Hogar", color:"#60a5fa" },
+    { id:"cg_impuestos", nombre:"Impuestos", color:"#f87171" },
+    { id:"cg_tarjetas", nombre:"Tarjetas", color:"#ef4444" },
+    { id:"cg_otros", nombre:"Otros", color:"#94a3b8" },
+  ],
+  etiquetas: [
+    { id:"tag_fijo", nombre:"Fijo", color:"#38bdf8" },
+    { id:"tag_variable", nombre:"Variable", color:"#f97316" },
+    { id:"tag_recurrente", nombre:"Recurrente", color:"#22c55e" },
+    { id:"tag_suscripcion", nombre:"Suscripción", color:"#a78bfa" },
+  ],
   servicios: {
     bancon: ["Muni Auto","Renta Auto/Casa","Tarjeta Cordobesa"],
     santander: ["Caruso","IPV","Prevencion","Tarjeta Santander","Tarjeta Santander Dólares","Microsoft 365","Agua Casa","Netflix","Nivel 6 MP","Monotributo","Capcut"],
@@ -97,6 +133,55 @@ const fmtMonto = (monto, moneda = "ARS") => {
 
 const montoDetalle = (item) =>
   Number(item.monto ?? item.montoUSD ?? 0);
+
+const medioPagoDesdeCategoriaLegacy = (categoria) => {
+  const map = {
+    bancon: "mp_bancon",
+    santander: "mp_santander",
+    personal_pay: "mp_personal_pay",
+    mercado_pago: "mp_mercado_pago",
+  };
+  return map[categoria] || "mp_sin_definir";
+};
+
+const instrumentoDesdeFormaPagoLegacy = (formaPago) => {
+  const map = {
+    Manual: "ins_manual",
+    Tarjeta: "ins_tarjeta_credito",
+    "Débito automático": "ins_debito_automatico",
+    "Tarjeta Cordobesa": "ins_tarjeta_credito",
+  };
+  return map[formaPago] || "ins_sin_definir";
+};
+
+const categoriaGastoDesdeServicio = (servicio = "") => {
+  const s = String(servicio).trim();
+  const reglas = [
+    { id:"cg_supermercado", vals:["Super","Carne/Pollo/Verdulería/kiosco"] },
+    { id:"cg_nafta", vals:["Nafta"] },
+    { id:"cg_educacion", vals:["Colegio CESD","Colegio CESD Material Didáctico","Colegio CESD Extendido","Colegio CESD Bono Vianda","Basquet"] },
+    { id:"cg_servicios", vals:["Luz Casa","Gas","Agua Casa","Cable Casa y Teléfonos","Cable Local","Agua Bidones"] },
+    { id:"cg_suscripciones", vals:["Tarjeta Santander Dólares","Microsoft 365","Netflix","Capcut","Nivel 6 MP"] },
+    { id:"cg_salud", vals:["Farmacia","Prevencion","Caruso"] },
+    { id:"cg_comida", vals:["Comida Banco","Lomito","Helado"] },
+    { id:"cg_hogar", vals:["Expensas","Seguro Auto"] },
+    { id:"cg_impuestos", vals:["Monotributo","Muni Auto","Renta Auto/Casa","IPV"] },
+    { id:"cg_tarjetas", vals:["Tarjeta Santander","Tarjeta Cordobesa"] },
+    { id:"cg_deporte", vals:["Lucho Gym"] },
+  ];
+  return reglas.find((r) => r.vals.includes(s))?.id || "cg_otros";
+};
+
+const etiquetasDesdeServicio = (servicio = "") => {
+  const s = String(servicio).trim();
+  const fijos = ["Luz Casa","Gas","Agua Casa","Cable Casa y Teléfonos","Cable Local","Expensas","Seguro Auto","Monotributo","Muni Auto","Renta Auto/Casa","IPV","Tarjeta Santander","Tarjeta Santander Dólares","Tarjeta Cordobesa","Colegio CESD","Prevencion","Caruso"];
+  const suscripciones = ["Tarjeta Santander Dólares","Microsoft 365","Netflix","Capcut","Nivel 6 MP"];
+  const tags = [];
+  if (fijos.includes(s)) tags.push("tag_fijo");
+  else tags.push("tag_variable");
+  if (suscripciones.includes(s)) tags.push("tag_suscripcion");
+  return tags;
+};
   
 // LEGACY parcial: localStorage queda temporalmente como respaldo de UI.
 const load = () => {
@@ -149,6 +234,10 @@ export default function App() {
   esRecurrente:false,
   vencimiento:"",
   subconceptos:[],
+  medioPagoId:"",
+  instrumentoId:"",
+  categoriaGastoId:"",
+  etiquetasIds:[],
   tipoGasto:"simple",
   accionCompuesto:"nuevo",
   decisionManual:false,
@@ -544,6 +633,10 @@ const guardarGasto = async (extra = {}) => {
         dia: gastoCompuestoExistente.dia,
         categoria: gastoCompuestoExistente.categoria,
         formaPago: gastoCompuestoExistente.formaPago,
+        medioPagoId: gastoCompuestoExistente.medioPagoId || f.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoCompuestoExistente.categoria),
+        instrumentoId: gastoCompuestoExistente.instrumentoId || f.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoCompuestoExistente.formaPago),
+        categoriaGastoId: gastoCompuestoExistente.categoriaGastoId || f.categoriaGastoId || categoriaGastoDesdeServicio(gastoCompuestoExistente.servicio),
+        etiquetasIds: gastoCompuestoExistente.etiquetasIds || f.etiquetasIds || etiquetasDesdeServicio(gastoCompuestoExistente.servicio),
         servicio: gastoCompuestoExistente.servicio,
         monto: montoFinal,
         moneda: gastoCompuestoExistente.moneda || f.moneda || "ARS",
@@ -585,6 +678,10 @@ const guardarGasto = async (extra = {}) => {
         esRecurrente: false,
         vencimiento: "",
         subconceptos: [],
+        medioPagoId: "",
+        instrumentoId: "",
+        categoriaGastoId: "",
+        etiquetasIds: [],
         tipoGasto: "simple",
         accionCompuesto: "nuevo",
         decisionManual: false,
@@ -610,6 +707,10 @@ try {
     dia: f.dia,
     categoria: f.categoria,
     formaPago: f.formaPago,
+    medioPagoId: f.medioPagoId || medioPagoDesdeCategoriaLegacy(f.categoria),
+    instrumentoId: f.instrumentoId || instrumentoDesdeFormaPagoLegacy(f.formaPago),
+    categoriaGastoId: f.categoriaGastoId || categoriaGastoDesdeServicio(f.servicio),
+    etiquetasIds: f.etiquetasIds?.length ? f.etiquetasIds : etiquetasDesdeServicio(f.servicio),
     servicio: f.servicio,
     monto: montoCabecera,
     moneda: f.moneda || "ARS",
@@ -651,6 +752,10 @@ try {
       esRecurrente: false,
       vencimiento: "",
       subconceptos: [],
+      medioPagoId: "",
+      instrumentoId: "",
+      categoriaGastoId: "",
+      etiquetasIds: [],
       tipoGasto: "simple",
       accionCompuesto: "nuevo",
       decisionManual: false,
@@ -698,6 +803,10 @@ try {
       dia: gastoEditado.dia,
       categoria: gastoEditado.categoria,
       formaPago: gastoEditado.formaPago,
+      medioPagoId: gastoEditado.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoEditado.categoria),
+      instrumentoId: gastoEditado.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoEditado.formaPago),
+      categoriaGastoId: gastoEditado.categoriaGastoId || categoriaGastoDesdeServicio(gastoEditado.servicio),
+      etiquetasIds: gastoEditado.etiquetasIds || gastoEditado.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoEditado.servicio),
       servicio: gastoEditado.servicio,
       monto: Number(gastoEditado.monto || 0),
       moneda: gastoEditado.moneda || "ARS",
@@ -812,6 +921,10 @@ const tcAplicable = Number(subconceptosGasto.tcConversion || tc || 1);
       dia: gastoActual.dia,
       categoria: gastoActual.categoria,
       formaPago: gastoActual.formaPago,
+      medioPagoId: gastoActual.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoActual.categoria),
+      instrumentoId: gastoActual.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoActual.formaPago),
+      categoriaGastoId: gastoActual.categoriaGastoId || categoriaGastoDesdeServicio(gastoActual.servicio),
+      etiquetasIds: gastoActual.etiquetasIds || gastoActual.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoActual.servicio),
       servicio: gastoActual.servicio,
       monto: Number(gastoActual.monto || 0),
       moneda: gastoActual.moneda || "ARS",
@@ -1092,6 +1205,10 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
         dia: diaReplica,
         categoria: g.categoria,
         formaPago: g.formaPago,
+        medioPagoId: g.medioPagoId || medioPagoDesdeCategoriaLegacy(g.categoria),
+        instrumentoId: g.instrumentoId || instrumentoDesdeFormaPagoLegacy(g.formaPago),
+        categoriaGastoId: g.categoriaGastoId || categoriaGastoDesdeServicio(g.servicio),
+        etiquetasIds: g.etiquetasIds || g.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(g.servicio),
         servicio: g.servicio,
         monto: tieneDetalle ? 0 : Number(g.monto || 0),
         moneda: g.moneda || "ARS",
@@ -1494,10 +1611,17 @@ const GastoRow=({item})=>{
               <span style={lbl}>CATEGORÍA</span>
               <button onClick={()=>setGestionCatModal(true)} style={{ background:"#1e1e2e",border:"none",color:"#7c3aed",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600 }}>+ Gestionar</button>
             </div>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{cfg.categorias.map(cat=>(<button key={cat.id} className="pb" onClick={()=>setForm(f=>({...f,categoria:cat.id,servicio:""}))} style={{ background:form.categoria===cat.id?cat.color:"#1e1e2e",color:form.categoria===cat.id?"#0a0a0f":"#94a3b8",fontSize:13 }}>{cat.label}</button>))}</div>
+            <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{cfg.categorias.map(cat=>(<button key={cat.id} className="pb" onClick={()=>setForm(f=>({...f,categoria:cat.id,medioPagoId:f.medioPagoId||medioPagoDesdeCategoriaLegacy(cat.id),servicio:""}))} style={{ background:form.categoria===cat.id?cat.color:"#1e1e2e",color:form.categoria===cat.id?"#0a0a0f":"#94a3b8",fontSize:13 }}>{cat.label}</button>))}</div>
           </div>
-          <div style={{ marginBottom:14 }}><span style={lbl}>FORMA DE PAGO</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{cfg.formasPago.map(fp=>(<button key={fp} className="pb" onClick={()=>setForm(f=>({...f,formaPago:fp}))} style={{ background:form.formaPago===fp?"#7c3aed":"#1e1e2e",color:form.formaPago===fp?"#fff":"#94a3b8",fontSize:13 }}>{fp}</button>))}</div></div>
-          <div style={{ marginBottom:14 }}>
+          <div style={{ marginBottom:14 }}><span style={lbl}>FORMA DE PAGO</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{cfg.formasPago.map(fp=>(<button key={fp} className="pb" onClick={()=>setForm(f=>({...f,formaPago:fp,instrumentoId:f.instrumentoId||instrumentoDesdeFormaPagoLegacy(fp)}))} style={{ background:form.formaPago===fp?"#7c3aed":"#1e1e2e",color:form.formaPago===fp?"#fff":"#94a3b8",fontSize:13 }}>{fp}</button>))}</div></div>
+          <div style={{ marginBottom:14, background:"#101827", border:"1px solid #1e293b", borderRadius:16, padding:12 }}>
+  <div style={{ fontSize:11, color:"#38bdf8", fontWeight:800, letterSpacing:1, marginBottom:10 }}>NUEVO MODELO DE ANÁLISIS</div>
+  <div style={{ marginBottom:12 }}><span style={lbl}>MEDIO DE PAGO</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.mediosPago || []).map(mp=>(<button key={mp.id} className="pb" onClick={()=>setForm(f=>({...f,medioPagoId:mp.id}))} style={{ background:form.medioPagoId===mp.id?(mp.color||"#38bdf8"):"#1e1e2e",color:form.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{mp.nombre}</button>))}</div></div>
+  <div style={{ marginBottom:12 }}><span style={lbl}>INSTRUMENTO</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.instrumentosPago || []).map(ins=>(<button key={ins.id} className="pb" onClick={()=>setForm(f=>({...f,instrumentoId:ins.id}))} style={{ background:form.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:form.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{ins.nombre}</button>))}</div></div>
+  <div style={{ marginBottom:12 }}><span style={lbl}>CATEGORÍA REAL</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.categoriasGasto || []).map(cg=>(<button key={cg.id} className="pb" onClick={()=>setForm(f=>({...f,categoriaGastoId:cg.id}))} style={{ background:form.categoriaGastoId===cg.id?(cg.color||"#38bdf8"):"#1e1e2e",color:form.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{cg.nombre}</button>))}</div></div>
+  <div><span style={lbl}>ETIQUETAS</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.etiquetas || []).map(tag=>{ const activo=(form.etiquetasIds||[]).includes(tag.id); return (<button key={tag.id} className="pb" onClick={()=>setForm(f=>{ const actuales=f.etiquetasIds||[]; return {...f,etiquetasIds: actuales.includes(tag.id)?actuales.filter(x=>x!==tag.id):[...actuales,tag.id]}; })} style={{ background:activo?(tag.color||"#38bdf8"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{tag.nombre}</button>); })}</div></div>
+</div>
+<div style={{ marginBottom:14 }}>
   <span style={lbl}>TIPO DE GASTO</span>
   <div style={{ display:"flex", gap:8 }}>
     <button
@@ -1545,14 +1669,14 @@ const GastoRow=({item})=>{
   {form.categoria&&(cfg.servicios[form.categoria]||[]).length>0&&
     <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:8 }}>
       {(cfg.servicios[form.categoria]||[]).map(s=>(
-        <button key={s} className="pb" onClick={()=>setForm(f=>({...f,servicio:s,decisionManual:false}))} style={{ background:form.servicio===s?(esDolarConcepto(s)?"#1e3a5f":"#1e4032"):"#1e1e2e",color:form.servicio===s?(esDolarConcepto(s)?"#38bdf8":"#4ade80"):"#94a3b8",fontSize:12,padding:"6px 12px",border:esDolarConcepto(s)?"1px solid #38bdf822":"none" }}>
+        <button key={s} className="pb" onClick={()=>setForm(f=>({...f,servicio:s,categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(s),etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(s),decisionManual:false}))} style={{ background:form.servicio===s?(esDolarConcepto(s)?"#1e3a5f":"#1e4032"):"#1e1e2e",color:form.servicio===s?(esDolarConcepto(s)?"#38bdf8":"#4ade80"):"#94a3b8",fontSize:12,padding:"6px 12px",border:esDolarConcepto(s)?"1px solid #38bdf822":"none" }}>
           {s}{esDolarConcepto(s)?" 💵":""}
         </button>
       ))}
     </div>
   }
 
-  <input className="inf" placeholder="O escribí el concepto..." value={form.servicio} onChange={e=>setForm(f=>({...f,servicio:e.target.value,decisionManual:false}))}/>
+  <input className="inf" placeholder="O escribí el concepto..." value={form.servicio} onChange={e=>{ const val=e.target.value; setForm(f=>({...f,servicio:val,categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(val),etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(val),decisionManual:false})); }}/>
 
   {form.servicio && gastoCompuestoExistente && (
     <div style={{
