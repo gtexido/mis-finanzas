@@ -132,6 +132,7 @@ export default function App() {
   const now=new Date();
   const stored=load();
   const [view,setView]=useState("home");
+  const [analisisTab,setAnalisisTab]=useState("medio");
   const [data,setData]=useState(stored.data);
   const [cfg,setCfg]=useState(stored.config);
   const [recurrentes,setRecurrentes]=useState(stored.recurrentes);
@@ -308,6 +309,94 @@ useEffect(() => {
 const cantidadAlertasProximas = alertasProximas.length;
 const totalAlertasProximas = alertasProximas.reduce((acc, g) => acc + g.montoARS, 0);
 const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : null;
+
+
+const crearRankingAnalisis = (items, obtenerClave, obtenerMeta = () => ({})) => {
+  const mapa = new Map();
+
+  items.forEach((g) => {
+    const clave = obtenerClave(g) || "Sin definir";
+    const meta = obtenerMeta(g) || {};
+    const actual = mapa.get(clave) || {
+      nombre: clave,
+      total: 0,
+      totalUSD: 0,
+      cantidad: 0,
+      color: meta.color || "#64748b",
+      items: [],
+    };
+
+    actual.total += toARS_(g);
+    actual.totalUSD += montoUSDReal(g);
+    actual.cantidad += 1;
+    actual.items.push(g);
+
+    if (!actual.color && meta.color) actual.color = meta.color;
+    mapa.set(clave, actual);
+  });
+
+  return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
+};
+
+const crearRankingEtiquetas = (items) => {
+  const mapa = new Map();
+
+  items.forEach((g) => {
+    const etiquetas = Array.isArray(g.etiquetas) && g.etiquetas.length
+      ? g.etiquetas
+      : [{ nombre: "Sin etiqueta", color: "#64748b" }];
+
+    etiquetas.forEach((tag) => {
+      const nombre = tag.nombre || "Sin etiqueta";
+      const actual = mapa.get(nombre) || {
+        nombre,
+        total: 0,
+        totalUSD: 0,
+        cantidad: 0,
+        color: tag.color || "#64748b",
+        items: [],
+      };
+
+      actual.total += toARS_(g);
+      actual.totalUSD += montoUSDReal(g);
+      actual.cantidad += 1;
+      actual.items.push(g);
+      mapa.set(nombre, actual);
+    });
+  });
+
+  return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
+};
+
+const analisisPorMedio = crearRankingAnalisis(
+  gastosDelMes,
+  (g) => g.medioPagoNombre || g.medioPago || g.categoriaNombre || "Sin definir",
+  (g) => ({ color: g.medioPagoColor })
+);
+
+const analisisPorCategoriaReal = crearRankingAnalisis(
+  gastosDelMes,
+  (g) => g.categoriaGastoNombre || g.categoriaGasto || "Sin categoría",
+  (g) => ({ color: g.categoriaGastoColor })
+);
+
+const analisisPorInstrumento = crearRankingAnalisis(
+  gastosDelMes,
+  (g) => g.instrumentoNombre || g.instrumento || g.formaPago || "Sin instrumento"
+);
+
+const analisisPorEtiqueta = crearRankingEtiquetas(gastosDelMes);
+
+const opcionesAnalisis = [
+  { id: "medio", label: "Medio", icon: "🏦", items: analisisPorMedio, descripcion: "Dónde se concentra el gasto." },
+  { id: "categoria", label: "Categoría", icon: "🧩", items: analisisPorCategoriaReal, descripcion: "En qué se está gastando." },
+  { id: "instrumento", label: "Instrumento", icon: "💳", items: analisisPorInstrumento, descripcion: "Cómo se está pagando." },
+  { id: "etiqueta", label: "Etiqueta", icon: "🏷️", items: analisisPorEtiqueta, descripcion: "Qué tipo de gasto domina." },
+];
+
+const analisisActual = opcionesAnalisis.find((o) => o.id === analisisTab) || opcionesAnalisis[0];
+const mayorAnalisis = analisisActual.items[0] || null;
+const maxAnalisis = Math.max(...analisisActual.items.map((x) => x.total), 1);
 
 const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
@@ -971,94 +1060,12 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   });
 };
 
-
-const normalizarTextoReplica = (valor = "") => {
-  return String(valor || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-};
-
-const esGastoReplicable = (g = {}) => {
-  const servicio = normalizarTextoReplica(g.servicio || g.concepto_manual || "");
-  const formaPago = normalizarTextoReplica(g.formaPago || "");
-  const categoria = normalizarTextoReplica(g.categoria || "");
-
-  if (g.esRecurrente) return true;
-  if (formaPago.includes("debito automatico")) return true;
-
-  const patronesIncluir = [
-    "tarjeta",
-    "monotributo",
-    "agua casa",
-    "luz casa",
-    "gas",
-    "cable",
-    "expensas",
-    "seguro",
-    "colegio",
-    "ipv",
-    "caruso",
-    "prevencion",
-    "microsoft 365",
-    "netflix",
-    "nivel 6",
-  ];
-
-  const patronesExcluir = [
-    "super",
-    "nafta",
-    "carne",
-    "pollo",
-    "verduleria",
-    "kiosco",
-    "agua bidones",
-    "quini",
-    "comida banco",
-    "peluqueria",
-    "cumple",
-    "helado",
-    "regalos",
-    "farmacia",
-    "cotillon",
-    "lomito",
-    "boda de oro",
-    "vaper",
-    "lava auto",
-    "panaderia",
-  ];
-
-  if (patronesIncluir.some((p) => servicio.includes(p))) return true;
-  if (patronesExcluir.some((p) => servicio.includes(p))) return false;
-
-  // Mientras no tengamos etiqueta "recurrente" real, priorizamos no replicar gastos variables.
-  if (categoria.includes("gastos_fijos")) return false;
-
-  return false;
-};
-
-const sugerirExclusionesReplicar = () => {
-  return new Set(gastosDelMes.filter((g) => !esGastoReplicable(g)).map((g) => g.id));
-};
-
-const claveReplicaMovimiento = (g = {}) => {
-  return [
-    g.servicio || "",
-    g.categoria || "",
-    g.formaPago || "",
-    g.observacion || "",
-  ]
-    .map((v) => normalizarTextoReplica(v))
-    .join("|");
-};
-
   // ── Replicar mes ──
   const mesKeyAnterior=()=>{ let m=mes.m-1,y=mes.y; if(m<0){m=11;y--;} return getMesKey(y,m); };
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
   const yaHayMesSiguiente=()=> !!(data.gastos[mesKeySiguiente()]?.length);
-  const mostrarReplicar=()=> gastosDelMes.length>0;
+  const mostrarReplicar=()=> gastosDelMes.length>0 && !yaHayMesSiguiente();
   const gastosFuenteReplicar= gastosDelMes;
   const gastosIncluidos= gastosFuenteReplicar.filter(g=>!excluirReplicar.has(g.id));
   const toggleExcluir=(id)=>setExcluirReplicar(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
@@ -1071,29 +1078,14 @@ const claveReplicaMovimiento = (g = {}) => {
   }
 
   try {
-    const movimientosDestinoApi = await getMovimientos(nextKey);
-    const dataDestino = mapMovimientosDesdeApi(movimientosDestinoApi, nextKey);
-    const gastosDestinoExistentes = dataDestino.gastos[nextKey] || [];
-    const clavesDestino = new Set(gastosDestinoExistentes.map((g) => claveReplicaMovimiento(g)));
-
-    let creados = 0;
-    let omitidos = 0;
-
     for (const g of gastosIncluidos) {
-      const clave = claveReplicaMovimiento(g);
-
-      if (clavesDestino.has(clave)) {
-        omitidos++;
-        continue;
-      }
-
       const subconceptosReplica = prepararSubconceptosParaReplica(g.subconceptos || []);
       const tieneDetalle = subconceptosReplica.length > 0;
 
       const diaReplica = moverDiaAlMesSiguiente(g.dia, nextKey);
       const vencimientoReplica = g.vencimiento
         ? moverFechaAlMesSiguiente(g.vencimiento)
-        : null;
+        : "";
 
       await crearGasto({
         periodo: nextKey,
@@ -1105,13 +1097,10 @@ const claveReplicaMovimiento = (g = {}) => {
         moneda: g.moneda || "ARS",
         estado: "pendiente",
         observacion: g.observacion || "",
-        vencimiento: vencimientoReplica,
-        esRecurrente: !!g.esRecurrente || esGastoReplicable(g),
+        vencimiento: vencimientoReplica || null,
+        esRecurrente: !!g.esRecurrente,
         subconceptos: subconceptosReplica,
       });
-
-      clavesDestino.add(clave);
-      creados++;
     }
 
     const movimientosApi = await getMovimientos(nextKey);
@@ -1134,12 +1123,7 @@ const claveReplicaMovimiento = (g = {}) => {
     }));
 
     setReplicarStep("done");
-
-    if (omitidos > 0) {
-      toast_(`✅ ${creados} gastos copiados a ${mesNombreSig()} · ${omitidos} ya existían`);
-    } else {
-      toast_(`✅ ${creados} gastos copiados a ${mesNombreSig()}`);
-    }
+    toast_(`✅ ${gastosIncluidos.length} gastos copiados a ${mesNombreSig()}`);
   } catch (e) {
     console.error("Error replicando mes:", e);
     toast_("No se pudo replicar el mes en Neon", "err");
@@ -1395,7 +1379,7 @@ const GastoRow=({item})=>{
       <div style={{ padding:"28px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <div>
           <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-          <div style={{ fontSize:20,fontWeight:700 }}>{view==="config"?"Configuración":view==="variacion"?"Variación":view==="vencimientos"?"📅 Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
+          <div style={{ fontSize:20,fontWeight:700 }}>{view==="config"?"Configuración":view==="analisis"?"📊 Análisis":view==="variacion"?"Variación":view==="vencimientos"?"📅 Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
         </div>
         {!["config","variacion","vencimientos"].includes(view)&&(
           <div style={{ display:"flex",gap:8 }}>
@@ -1464,11 +1448,11 @@ const GastoRow=({item})=>{
               <div style={{ width:40,height:40,borderRadius:12,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0 }}>📋</div>
               <div>
                 <div style={{ fontWeight:700,fontSize:15 }}>¿Pasamos a {mesNombreSig()}?</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>Copiá o completá gastos de {MESES[mes.m]} evitando duplicados</div>
+                <div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>Replicá todos los gastos de {MESES[mes.m]} como base para el mes siguiente</div>
               </div>
             </div>
             <div style={{ display:"flex",gap:10 }}>
-              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:13 }} onClick={()=>{ setExcluirReplicar(sugerirExclusionesReplicar()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>📋 Replicar a {mesNombreSig()}</button>
+              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:13 }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>📋 Replicar a {mesNombreSig()}</button>
               <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:13,padding:"10px 14px" }} onClick={()=>{ /* ocultar temporalmente */ }}>Omitir</button>
             </div>
           </div>}
@@ -1921,6 +1905,107 @@ const GastoRow=({item})=>{
   />
 )}
 
+        {/* ANÁLISIS */}
+        {view==="analisis"&&(
+          <div>
+            <div className="card" style={{ background:"linear-gradient(135deg,#111827 0%,#1a1230 100%)",border:"1px solid #2a1a4e" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start" }}>
+                <div>
+                  <div style={{ fontSize:11,color:"#94a3b8",fontWeight:700,letterSpacing:1,textTransform:"uppercase",marginBottom:6 }}>Lectura multidimensional</div>
+                  <div style={{ fontSize:20,fontWeight:800,lineHeight:1.2 }}>Entender el gasto, no solo registrarlo</div>
+                  <div style={{ fontSize:12,color:"#94a3b8",marginTop:6,lineHeight:1.5 }}>{MESES[mes.m]} {mes.y} · {gastosDelMes.length} movimientos</div>
+                </div>
+                <div style={{ textAlign:"right",fontFamily:"'Space Mono',monospace",fontWeight:800,color:"#f87171",fontSize:16 }}>{fmtARS(totalGastos)}</div>
+              </div>
+              {mayorAnalisis&&(
+                <div style={{ marginTop:14,padding:"12px 14px",borderRadius:14,background:"#0f172a",border:"1px solid #1e293b" }}>
+                  <div style={{ fontSize:11,color:"#64748b",fontWeight:700,marginBottom:4 }}>MAYOR CONCENTRACIÓN</div>
+                  <div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}>
+                    <div style={{ fontSize:14,fontWeight:700 }}>{mayorAnalisis.nombre}</div>
+                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:800,color:"#e2e8f0" }}>{fmtARS(mayorAnalisis.total)}</div>
+                  </div>
+                  <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
+                    {totalGastos>0?`${Math.round((mayorAnalisis.total/totalGastos)*100)}% del gasto mensual`:"Sin gastos cargados"}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8,marginBottom:14 }}>
+              {opcionesAnalisis.map(op=>(
+                <button
+                  key={op.id}
+                  onClick={()=>setAnalisisTab(op.id)}
+                  style={{
+                    background:analisisTab===op.id?"#7c3aed":"#1e1e2e",
+                    border:"none",
+                    color:analisisTab===op.id?"#fff":"#94a3b8",
+                    borderRadius:14,
+                    padding:"10px 6px",
+                    cursor:"pointer",
+                    fontSize:11,
+                    fontWeight:700,
+                    display:"flex",
+                    flexDirection:"column",
+                    alignItems:"center",
+                    gap:4
+                  }}
+                >
+                  <span style={{ fontSize:17 }}>{op.icon}</span>
+                  <span>{op.label}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="card">
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
+                <div>
+                  <div style={{ fontWeight:800,fontSize:17 }}>{analisisActual.icon} Por {analisisActual.label.toLowerCase()}</div>
+                  <div style={{ fontSize:12,color:"#64748b",marginTop:3 }}>{analisisActual.descripcion}</div>
+                </div>
+                <div style={{ fontSize:11,color:"#64748b",textAlign:"right" }}>{analisisActual.items.length} grupos</div>
+              </div>
+
+              {analisisActual.items.length===0&&(
+                <div style={{ padding:"20px 0",textAlign:"center",color:"#64748b",fontSize:13 }}>No hay gastos para analizar en este período.</div>
+              )}
+
+              {analisisActual.items.map((item,idx)=>{
+                const pctTotal = totalGastos>0 ? Math.round((item.total/totalGastos)*100) : 0;
+                const pctBar = Math.min((item.total/maxAnalisis)*100,100);
+                return(
+                  <div key={`${analisisTab}-${item.nombre}`} style={{ padding:"12px 0",borderBottom:idx<analisisActual.items.length-1?"1px solid #1e1e2e":"none" }}>
+                    <div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",marginBottom:6 }}>
+                      <div style={{ display:"flex",alignItems:"center",gap:9,minWidth:0 }}>
+                        <span style={{ width:10,height:10,borderRadius:"50%",background:item.color||"#64748b",flexShrink:0 }} />
+                        <div style={{ minWidth:0 }}>
+                          <div style={{ fontSize:14,fontWeight:700,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.nombre}</div>
+                          <div style={{ fontSize:11,color:"#64748b" }}>{item.cantidad} movimiento{item.cantidad!==1?"s":""} · {pctTotal}% del mes</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign:"right",flexShrink:0 }}>
+                        <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:800,color:"#e2e8f0" }}>{fmtARS(item.total)}</div>
+                        {item.totalUSD>0&&<div style={{ fontFamily:"'Space Mono',monospace",fontSize:10,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(item.totalUSD)}</div>}
+                      </div>
+                    </div>
+                    <div style={{ height:5,borderRadius:99,background:"#1e1e2e",overflow:"hidden" }}>
+                      <div style={{ height:"100%",width:`${pctBar}%`,background:item.color||"#7c3aed",borderRadius:99,opacity:.85 }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {analisisTab==="etiqueta"&&(
+              <div className="card" style={{ border:"1px solid #1e3a5f",background:"#0f172a" }}>
+                <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.6 }}>
+                  Nota: un mismo gasto puede tener más de una etiqueta. Por eso, en esta vista un gasto puede aportar a más de un grupo.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* VARIACIÓN */}
         {view==="variacion"&&(()=>{
           const toARS__=(g,t)=>montoReal(g,t);
@@ -2033,7 +2118,7 @@ const GastoRow=({item})=>{
             <div style={{ display:"flex",gap:8,marginBottom:12 }}>
               <div style={{ flex:1,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>INCLUIDOS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:700,color:"#4ade80" }}>{gastosIncluidos.length}</div></div>
               <div style={{ flex:1,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>EXCLUIDOS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:700,color:"#f87171" }}>{excluirReplicar.size}</div></div>
-              <div style={{ flex:2,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>REF. ARS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#e2e8f0" }}>{fmtARS(gastosIncluidos.reduce((a,g)=>a+montoReal(g,tc),0))}</div></div>
+              <div style={{ flex:2,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>REF. ARS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#e2e8f0" }}>{fmtARS(gastosIncluidos.filter(g=>g.moneda==="ARS").reduce((a,g)=>a+montoReal(g,tc),0))}</div></div>
             </div>
             {/* Filtro categorías */}
             <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4 }}>
@@ -2043,7 +2128,7 @@ const GastoRow=({item})=>{
           </div>
           {/* Lista */}
           <div style={{ padding:"12px 16px" }}>
-            <div style={{ fontSize:11,color:"#64748b",marginBottom:12 }}>Dejamos marcados los gastos más repetibles. Podés incluir/excluir manualmente antes de confirmar.</div>
+            <div style={{ fontSize:11,color:"#64748b",marginBottom:12 }}>Destildá los gastos únicos que no se repiten (Pascuas, Farmacia, etc.)</div>
             {gastosFuenteReplicar.filter(g=>filtCatReplicar==="todos"||g.categoria===filtCatReplicar).map(g=>{
               const cat=cfg.categorias.find(c=>c.id===g.categoria);
               const excluido=excluirReplicar.has(g.id);
@@ -2085,14 +2170,14 @@ const GastoRow=({item})=>{
             <div style={{ fontSize:14,color:"#94a3b8",lineHeight:1.8 }}>
               Se crean <strong style={{ color:"#e2e8f0" }}>{gastosIncluidos.length} gastos</strong> en {mesNombreSig()} {mes.m+1>10?mes.y:mes.y}<br/>
               todos en estado <strong style={{ color:"#fb923c" }}>⏳ Pendiente</strong><br/>
-              Referencia: <strong style={{ color:"#e2e8f0",fontFamily:"'Space Mono',monospace" }}>{fmtARS(gastosIncluidos.reduce((a,g)=>a+montoReal(g,tc),0))}</strong>
+              Referencia: <strong style={{ color:"#e2e8f0",fontFamily:"'Space Mono',monospace" }}>{fmtARS(gastosIncluidos.filter(g=>g.moneda==="ARS").reduce((a,g)=>a+montoReal(g,tc),0))}</strong>
             </div>
           </div>
           <div style={{ background:"#13131a",border:"1px solid #1e1e2e",borderRadius:16,padding:"14px 16px",marginBottom:24 }}>
             <div style={{ fontSize:12,color:"#64748b",marginBottom:10,fontWeight:700 }}>SE COPIA</div>
-            {["Concepto y categoría","Forma de pago","Monto (como referencia)","Subconceptos ARS/USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
+            {["Concepto y categoría","Forma de pago","Monto (como referencia)","Subconceptos USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
             <div style={{ borderTop:"1px solid #1e1e2e",marginTop:8,paddingTop:8 }}>
-              {["Estado → Pendiente (marcás cuando pagás)","Vencimiento → se mueve al mes siguiente si existía; si no, queda vacío"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
+              {["Estado → Pendiente (marcás cuando pagás)","Fecha vencimiento → vacía (la completás)"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
             </div>
           </div>
           <div style={{ display:"flex",gap:10 }}>
@@ -2123,7 +2208,7 @@ const GastoRow=({item})=>{
 
       {/* BOTTOM NAV */}
       <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d0d14",borderTop:"1px solid #1e1e2e",display:"flex",padding:"8px 0 12px" }}>
-        {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Variación"},{id:"ingresos",icon:"💰",label:"Ingresos"}].map(nav=>(
+        {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"analisis",icon:"🔎",label:"Análisis"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Variación"},{id:"ingresos",icon:"💰",label:"Ingresos"}].map(nav=>(
           <div key={nav.id} className="ni" style={{ position:"relative" }} onClick={()=>setView(nav.id)}>
             <div style={{ fontSize:18 }}>{nav.icon}</div>
             <div style={{ fontSize:9,fontWeight:view===nav.id?700:400,color:view===nav.id?"#7c3aed":"#64748b" }}>{nav.label}</div>
