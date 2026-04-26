@@ -1,6 +1,7 @@
 export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
   const movimientos = apiData.movimientos || [];
   const detalles = apiData.detalles || [];
+  const etiquetasApi = apiData.etiquetas || [];
 
   const formaPagoMap = {
     fp_manual: "Manual",
@@ -90,26 +91,78 @@ export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
     activo: d.activo !== false,
   });
 
+  const mapEtiquetas = (movimientoId) => {
+    return etiquetasApi
+      .filter((e) => e.movimiento_id === movimientoId)
+      .map((e) => ({
+        id: e.etiqueta_id,
+        etiquetaId: e.etiqueta_id,
+        nombre: e.nombre,
+        color: e.color,
+        ordenVisual: Number(e.orden_visual || 0),
+      }));
+  };
+
   const gastos = movimientos
     .filter((m) => m.tipo_movimiento === "GASTO")
     .map((m) => {
       const subconceptos = detalles
         .filter((d) => d.movimiento_id === m.movimiento_id)
-        .sort((a, b) => (Number(a.orden || 0) - Number(b.orden || 0)))
+        .sort((a, b) => Number(a.orden || 0) - Number(b.orden || 0))
         .map((d) => mapDetalle(d, m));
+
+      const etiquetas = mapEtiquetas(m.movimiento_id);
 
       return {
         id: m.movimiento_id,
         dia: String(m.dia ?? ""),
+
+        // Legacy actual, para no romper UI existente.
         categoria: (m.categoria_id || "").replace("cat_", ""),
-        formaPago: formaPagoMap[m.forma_pago_id] || "",
-        servicio: servicioMap[m.servicio_id] || m.concepto_manual || m.servicio_id || "",
+        categoriaId: m.categoria_id || "",
+        categoriaNombre: m.categoria_nombre || "",
+
+        formaPago: m.forma_pago_nombre || formaPagoMap[m.forma_pago_id] || "",
+        formaPagoId: m.forma_pago_id || "",
+
+        servicio:
+          m.servicio_nombre ||
+          servicioMap[m.servicio_id] ||
+          m.concepto_manual ||
+          m.servicio_id ||
+          "",
+        servicioId: m.servicio_id || "",
+        conceptoManual: m.concepto_manual || "",
+
         monto: Number(m.monto || 0),
         moneda: m.moneda || "ARS",
         estado: m.estado || "pendiente",
         observacion: m.observacion || "",
         vencimiento: m.vencimiento ? String(m.vencimiento).slice(0, 10) : "",
         esRecurrente: !!m.es_recurrente,
+
+        // Nuevo modelo multidimensional.
+        workspaceId: m.workspace_id || "",
+        usuarioIdCreador: m.usuario_id_creador || "",
+
+        medioPagoId: m.medio_pago_id || "",
+        medioPago: m.medio_pago_nombre || "",
+        medioPagoNombre: m.medio_pago_nombre || "",
+        medioPagoTipo: m.medio_pago_tipo || "",
+        medioPagoColor: m.medio_pago_color || "",
+
+        instrumentoId: m.instrumento_id || "",
+        instrumento: m.instrumento_nombre || "",
+        instrumentoNombre: m.instrumento_nombre || "",
+        instrumentoTipo: m.instrumento_tipo || "",
+
+        categoriaGastoId: m.categoria_gasto_id || "",
+        categoriaGasto: m.categoria_gasto_nombre || "",
+        categoriaGastoNombre: m.categoria_gasto_nombre || "",
+        categoriaGastoColor: m.categoria_gasto_color || "",
+
+        etiquetas,
+        etiquetasNombres: etiquetas.map((e) => e.nombre),
 
         subconceptos,
 
@@ -123,9 +176,13 @@ export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
     .filter((m) => m.tipo_movimiento === "INGRESO" && m.subtipo_movimiento === "INGRESO_EXTRA")
     .map((m) => ({
       id: m.movimiento_id,
-      fuente: fuenteIngresoMap[m.fuente_ingreso_id] || "",
+      fuente: m.fuente_ingreso_nombre || fuenteIngresoMap[m.fuente_ingreso_id] || "",
+      fuenteIngresoId: m.fuente_ingreso_id || "",
       monto: Number(m.monto || 0),
       dia: String(m.dia ?? "1"),
+
+      workspaceId: m.workspace_id || "",
+      usuarioIdCreador: m.usuario_id_creador || "",
     }));
 
   const sueldoMov = movimientos.find(
