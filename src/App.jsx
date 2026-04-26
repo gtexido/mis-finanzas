@@ -914,28 +914,237 @@ const eliminar = async (tipo, id) => {
   const delFuente=(idx)=>{setCfg(p=>({...p,fuentesIngreso:p.fuentesIngreso.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
   const guardarTC=()=>{if(!tcInput)return;setCfg(p=>({...p,tipoCambio:Number(tcInput)}));setTcInput("");toast_("TC actualizado");};
 
+const ultimoDiaDelMes = (year, monthIndex) => {
+  return new Date(year, monthIndex + 1, 0).getDate();
+};
+
+const moverFechaAlMesSiguiente = (fecha) => {
+  if (!fecha) return "";
+
+  const fechaStr = String(fecha).slice(0, 10);
+  const [anio, mesNumero, diaNumero] = fechaStr.split("-").map(Number);
+
+  if (!anio || !mesNumero || !diaNumero) return "";
+
+  let nuevoMesIndex = mesNumero; // mesNumero viene 1-12; como index siguiente queda igual
+  let nuevoAnio = anio;
+
+  if (nuevoMesIndex > 11) {
+    nuevoMesIndex = 0;
+    nuevoAnio += 1;
+  }
+
+  const diaFinal = Math.min(diaNumero, ultimoDiaDelMes(nuevoAnio, nuevoMesIndex));
+  return `${nuevoAnio}-${String(nuevoMesIndex + 1).padStart(2, "0")}-${String(diaFinal).padStart(2, "0")}`;
+};
+
+const moverDiaAlMesSiguiente = (dia, nextKey) => {
+  const [anio, mesNumero] = String(nextKey).split("-").map(Number);
+  const monthIndex = mesNumero - 1;
+  const diaNum = Number(dia || 1);
+  const diaFinal = Math.min(
+    Number.isFinite(diaNum) && diaNum > 0 ? diaNum : 1,
+    ultimoDiaDelMes(anio, monthIndex)
+  );
+
+  return String(diaFinal);
+};
+
+const prepararSubconceptosParaReplica = (subconceptos = []) => {
+  return (subconceptos || []).map((s, idx) => {
+    const monedaItem = String(s.moneda || "ARS").trim().toUpperCase();
+
+    return {
+      id: undefined,
+      nombre: s.nombre || s.nombreItem || "Item",
+      monto: Number(s.monto ?? s.montoUSD ?? 0),
+      moneda: monedaItem,
+      orden: s.orden || idx + 1,
+      observacion: s.observacion || "",
+
+      // Importante:
+      // Si es USD, NO copiamos tipoCambio ni montoARSCalculado.
+      // El backend lo recalcula con la fecha de vencimiento del nuevo mes.
+      tipoCambio: monedaItem === "USD" ? null : s.tipoCambio ?? null,
+      montoARSCalculado: monedaItem === "USD" ? null : s.montoARSCalculado ?? null,
+    };
+  });
+};
+
+
+const normalizarTextoReplica = (valor = "") => {
+  return String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+};
+
+const esGastoReplicable = (g = {}) => {
+  const servicio = normalizarTextoReplica(g.servicio || g.concepto_manual || "");
+  const formaPago = normalizarTextoReplica(g.formaPago || "");
+  const categoria = normalizarTextoReplica(g.categoria || "");
+
+  if (g.esRecurrente) return true;
+  if (formaPago.includes("debito automatico")) return true;
+
+  const patronesIncluir = [
+    "tarjeta",
+    "monotributo",
+    "agua casa",
+    "luz casa",
+    "gas",
+    "cable",
+    "expensas",
+    "seguro",
+    "colegio",
+    "ipv",
+    "caruso",
+    "prevencion",
+    "microsoft 365",
+    "netflix",
+    "nivel 6",
+  ];
+
+  const patronesExcluir = [
+    "super",
+    "nafta",
+    "carne",
+    "pollo",
+    "verduleria",
+    "kiosco",
+    "agua bidones",
+    "quini",
+    "comida banco",
+    "peluqueria",
+    "cumple",
+    "helado",
+    "regalos",
+    "farmacia",
+    "cotillon",
+    "lomito",
+    "boda de oro",
+    "vaper",
+    "lava auto",
+    "panaderia",
+  ];
+
+  if (patronesIncluir.some((p) => servicio.includes(p))) return true;
+  if (patronesExcluir.some((p) => servicio.includes(p))) return false;
+
+  // Mientras no tengamos etiqueta "recurrente" real, priorizamos no replicar gastos variables.
+  if (categoria.includes("gastos_fijos")) return false;
+
+  return false;
+};
+
+const sugerirExclusionesReplicar = () => {
+  return new Set(gastosDelMes.filter((g) => !esGastoReplicable(g)).map((g) => g.id));
+};
+
+const claveReplicaMovimiento = (g = {}) => {
+  return [
+    g.servicio || "",
+    g.categoria || "",
+    g.formaPago || "",
+    g.observacion || "",
+  ]
+    .map((v) => normalizarTextoReplica(v))
+    .join("|");
+};
+
   // ── Replicar mes ──
   const mesKeyAnterior=()=>{ let m=mes.m-1,y=mes.y; if(m<0){m=11;y--;} return getMesKey(y,m); };
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
   const yaHayMesSiguiente=()=> !!(data.gastos[mesKeySiguiente()]?.length);
-  const mostrarReplicar=()=> gastosDelMes.length>0 && !yaHayMesSiguiente();
+  const mostrarReplicar=()=> gastosDelMes.length>0;
   const gastosFuenteReplicar= gastosDelMes;
   const gastosIncluidos= gastosFuenteReplicar.filter(g=>!excluirReplicar.has(g.id));
   const toggleExcluir=(id)=>setExcluirReplicar(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
-  const confirmarReplica=()=>{
-    const nextKey=mesKeySiguiente();
-    const nuevos=gastosIncluidos.map(g=>({
-      ...g,
-      id:Date.now()+Math.random(),
-      estado:"pendiente",
-      vencimiento:"",
-      dia:"1",
+  const confirmarReplica = async () => {
+  const nextKey = mesKeySiguiente();
+
+  if (!gastosIncluidos.length) {
+    toast_("No hay gastos seleccionados para replicar", "err");
+    return;
+  }
+
+  try {
+    const movimientosDestinoApi = await getMovimientos(nextKey);
+    const dataDestino = mapMovimientosDesdeApi(movimientosDestinoApi, nextKey);
+    const gastosDestinoExistentes = dataDestino.gastos[nextKey] || [];
+    const clavesDestino = new Set(gastosDestinoExistentes.map((g) => claveReplicaMovimiento(g)));
+
+    let creados = 0;
+    let omitidos = 0;
+
+    for (const g of gastosIncluidos) {
+      const clave = claveReplicaMovimiento(g);
+
+      if (clavesDestino.has(clave)) {
+        omitidos++;
+        continue;
+      }
+
+      const subconceptosReplica = prepararSubconceptosParaReplica(g.subconceptos || []);
+      const tieneDetalle = subconceptosReplica.length > 0;
+
+      const diaReplica = moverDiaAlMesSiguiente(g.dia, nextKey);
+      const vencimientoReplica = g.vencimiento
+        ? moverFechaAlMesSiguiente(g.vencimiento)
+        : null;
+
+      await crearGasto({
+        periodo: nextKey,
+        dia: diaReplica,
+        categoria: g.categoria,
+        formaPago: g.formaPago,
+        servicio: g.servicio,
+        monto: tieneDetalle ? 0 : Number(g.monto || 0),
+        moneda: g.moneda || "ARS",
+        estado: "pendiente",
+        observacion: g.observacion || "",
+        vencimiento: vencimientoReplica,
+        esRecurrente: !!g.esRecurrente || esGastoReplicable(g),
+        subconceptos: subconceptosReplica,
+      });
+
+      clavesDestino.add(clave);
+      creados++;
+    }
+
+    const movimientosApi = await getMovimientos(nextKey);
+    const nuevoData = mapMovimientosDesdeApi(movimientosApi, nextKey);
+
+    setData((prev) => ({
+      ...prev,
+      gastos: {
+        ...prev.gastos,
+        [nextKey]: nuevoData.gastos[nextKey] || [],
+      },
+      ingresos: {
+        ...prev.ingresos,
+        [nextKey]: nuevoData.ingresos[nextKey] || [],
+      },
+      sueldo: {
+        ...prev.sueldo,
+        [nextKey]: nuevoData.sueldo[nextKey] || 0,
+      },
     }));
-    setData(prev=>{ const updated={...prev,gastos:{...prev.gastos,[nextKey]:nuevos}}; syncSheets("gastos",nextKey,nuevos); return updated; });
+
     setReplicarStep("done");
-    toast_(`✅ ${nuevos.length} gastos copiados a ${mesNombreSig()}`);
-  };
+
+    if (omitidos > 0) {
+      toast_(`✅ ${creados} gastos copiados a ${mesNombreSig()} · ${omitidos} ya existían`);
+    } else {
+      toast_(`✅ ${creados} gastos copiados a ${mesNombreSig()}`);
+    }
+  } catch (e) {
+    console.error("Error replicando mes:", e);
+    toast_("No se pudo replicar el mes en Neon", "err");
+  }
+};
 
 // ======================================================
 // 💾 BACKUP / RESTORE LOCAL (LEGACY / opcional)
@@ -1255,11 +1464,11 @@ const GastoRow=({item})=>{
               <div style={{ width:40,height:40,borderRadius:12,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0 }}>📋</div>
               <div>
                 <div style={{ fontWeight:700,fontSize:15 }}>¿Pasamos a {mesNombreSig()}?</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>Replicá todos los gastos de {MESES[mes.m]} como base para el mes siguiente</div>
+                <div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>Copiá o completá gastos de {MESES[mes.m]} evitando duplicados</div>
               </div>
             </div>
             <div style={{ display:"flex",gap:10 }}>
-              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:13 }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>📋 Replicar a {mesNombreSig()}</button>
+              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:13 }} onClick={()=>{ setExcluirReplicar(sugerirExclusionesReplicar()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>📋 Replicar a {mesNombreSig()}</button>
               <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:13,padding:"10px 14px" }} onClick={()=>{ /* ocultar temporalmente */ }}>Omitir</button>
             </div>
           </div>}
@@ -1824,7 +2033,7 @@ const GastoRow=({item})=>{
             <div style={{ display:"flex",gap:8,marginBottom:12 }}>
               <div style={{ flex:1,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>INCLUIDOS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:700,color:"#4ade80" }}>{gastosIncluidos.length}</div></div>
               <div style={{ flex:1,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>EXCLUIDOS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:700,color:"#f87171" }}>{excluirReplicar.size}</div></div>
-              <div style={{ flex:2,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>REF. ARS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#e2e8f0" }}>{fmtARS(gastosIncluidos.filter(g=>g.moneda==="ARS").reduce((a,g)=>a+montoReal(g,tc),0))}</div></div>
+              <div style={{ flex:2,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>REF. ARS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#e2e8f0" }}>{fmtARS(gastosIncluidos.reduce((a,g)=>a+montoReal(g,tc),0))}</div></div>
             </div>
             {/* Filtro categorías */}
             <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4 }}>
@@ -1834,7 +2043,7 @@ const GastoRow=({item})=>{
           </div>
           {/* Lista */}
           <div style={{ padding:"12px 16px" }}>
-            <div style={{ fontSize:11,color:"#64748b",marginBottom:12 }}>Destildá los gastos únicos que no se repiten (Pascuas, Farmacia, etc.)</div>
+            <div style={{ fontSize:11,color:"#64748b",marginBottom:12 }}>Dejamos marcados los gastos más repetibles. Podés incluir/excluir manualmente antes de confirmar.</div>
             {gastosFuenteReplicar.filter(g=>filtCatReplicar==="todos"||g.categoria===filtCatReplicar).map(g=>{
               const cat=cfg.categorias.find(c=>c.id===g.categoria);
               const excluido=excluirReplicar.has(g.id);
@@ -1876,14 +2085,14 @@ const GastoRow=({item})=>{
             <div style={{ fontSize:14,color:"#94a3b8",lineHeight:1.8 }}>
               Se crean <strong style={{ color:"#e2e8f0" }}>{gastosIncluidos.length} gastos</strong> en {mesNombreSig()} {mes.m+1>10?mes.y:mes.y}<br/>
               todos en estado <strong style={{ color:"#fb923c" }}>⏳ Pendiente</strong><br/>
-              Referencia: <strong style={{ color:"#e2e8f0",fontFamily:"'Space Mono',monospace" }}>{fmtARS(gastosIncluidos.filter(g=>g.moneda==="ARS").reduce((a,g)=>a+montoReal(g,tc),0))}</strong>
+              Referencia: <strong style={{ color:"#e2e8f0",fontFamily:"'Space Mono',monospace" }}>{fmtARS(gastosIncluidos.reduce((a,g)=>a+montoReal(g,tc),0))}</strong>
             </div>
           </div>
           <div style={{ background:"#13131a",border:"1px solid #1e1e2e",borderRadius:16,padding:"14px 16px",marginBottom:24 }}>
             <div style={{ fontSize:12,color:"#64748b",marginBottom:10,fontWeight:700 }}>SE COPIA</div>
-            {["Concepto y categoría","Forma de pago","Monto (como referencia)","Subconceptos USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
+            {["Concepto y categoría","Forma de pago","Monto (como referencia)","Subconceptos ARS/USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
             <div style={{ borderTop:"1px solid #1e1e2e",marginTop:8,paddingTop:8 }}>
-              {["Estado → Pendiente (marcás cuando pagás)","Fecha vencimiento → vacía (la completás)"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
+              {["Estado → Pendiente (marcás cuando pagás)","Vencimiento → se mueve al mes siguiente si existía; si no, queda vacío"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
             </div>
           </div>
           <div style={{ display:"flex",gap:10 }}>
