@@ -154,6 +154,28 @@ const instrumentoDesdeFormaPagoLegacy = (formaPago) => {
   return map[formaPago] || "ins_sin_definir";
 };
 
+const categoriaLegacyDesdeMedioPagoId = (medioPagoId) => {
+  const map = {
+    mp_bancon: "bancon",
+    mp_santander: "santander",
+    mp_personal_pay: "personal_pay",
+    mp_mercado_pago: "mercado_pago",
+  };
+  return map[medioPagoId] || "otros";
+};
+
+const formaPagoLegacyDesdeInstrumentoId = (instrumentoId) => {
+  const map = {
+    ins_manual: "Manual",
+    ins_tarjeta_credito: "Tarjeta",
+    ins_debito: "Manual",
+    ins_debito_automatico: "Débito automático",
+    ins_transferencia: "Manual",
+    ins_efectivo: "Manual",
+  };
+  return map[instrumentoId] || "Manual";
+};
+
 const categoriaGastoDesdeServicio = (servicio = "") => {
   const s = String(servicio).trim();
   const reglas = [
@@ -234,6 +256,7 @@ export default function App() {
   esRecurrente:false,
   vencimiento:"",
   subconceptos:[],
+  conceptoId:"",
   medioPagoId:"",
   instrumentoId:"",
   categoriaGastoId:"",
@@ -593,8 +616,8 @@ const tieneSubconceptosValidos = (items = []) => Array.isArray(items) && items.l
 const guardarGasto = async (extra = {}) => {
   const f = { ...form, ...extra };
 
-  if (!f.categoria || !f.servicio) {
-    toast_("Completá categoría y servicio", "err");
+  if (!f.servicio) {
+    toast_("Completá el concepto", "err");
     return;
   }
 
@@ -631,8 +654,9 @@ const guardarGasto = async (extra = {}) => {
         id: gastoCompuestoExistente.id,
         periodo: mesKey,
         dia: gastoCompuestoExistente.dia,
-        categoria: gastoCompuestoExistente.categoria,
-        formaPago: gastoCompuestoExistente.formaPago,
+        categoria: gastoCompuestoExistente.categoria || categoriaLegacyDesdeMedioPagoId(gastoCompuestoExistente.medioPagoId || f.medioPagoId),
+        formaPago: gastoCompuestoExistente.formaPago || formaPagoLegacyDesdeInstrumentoId(gastoCompuestoExistente.instrumentoId || f.instrumentoId),
+        conceptoId: gastoCompuestoExistente.conceptoId || gastoCompuestoExistente.concepto_id || f.conceptoId || null,
         medioPagoId: gastoCompuestoExistente.medioPagoId || f.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoCompuestoExistente.categoria),
         instrumentoId: gastoCompuestoExistente.instrumentoId || f.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoCompuestoExistente.formaPago),
         categoriaGastoId: gastoCompuestoExistente.categoriaGastoId || f.categoriaGastoId || categoriaGastoDesdeServicio(gastoCompuestoExistente.servicio),
@@ -678,6 +702,7 @@ const guardarGasto = async (extra = {}) => {
         esRecurrente: false,
         vencimiento: "",
         subconceptos: [],
+        conceptoId: "",
         medioPagoId: "",
         instrumentoId: "",
         categoriaGastoId: "",
@@ -705,8 +730,9 @@ try {
   await crearGasto({
     periodo: mesKey,
     dia: f.dia,
-    categoria: f.categoria,
-    formaPago: f.formaPago,
+    categoria: f.categoria || categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
+    formaPago: f.formaPago || formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
+    conceptoId: f.conceptoId || null,
     medioPagoId: f.medioPagoId || medioPagoDesdeCategoriaLegacy(f.categoria),
     instrumentoId: f.instrumentoId || instrumentoDesdeFormaPagoLegacy(f.formaPago),
     categoriaGastoId: f.categoriaGastoId || categoriaGastoDesdeServicio(f.servicio),
@@ -752,6 +778,7 @@ try {
       esRecurrente: false,
       vencimiento: "",
       subconceptos: [],
+      conceptoId: "",
       medioPagoId: "",
       instrumentoId: "",
       categoriaGastoId: "",
@@ -803,7 +830,6 @@ try {
       dia: gastoEditado.dia,
       categoria: gastoEditado.categoria,
       formaPago: gastoEditado.formaPago,
-	  conceptoId: gastoEditado.conceptoId || gastoEditado.concepto_id || null,
       medioPagoId: gastoEditado.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoEditado.categoria),
       instrumentoId: gastoEditado.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoEditado.formaPago),
       categoriaGastoId: gastoEditado.categoriaGastoId || categoriaGastoDesdeServicio(gastoEditado.servicio),
@@ -1607,134 +1633,244 @@ const GastoRow=({item})=>{
             <button className="pb" style={{ background:"#1a1230",color:"#7c3aed",fontSize:13,padding:"8px 14px",border:"1px solid #2a1a4e" }} onClick={()=>setShowCotizador(!showCotizador)}>💵 {showCotizador?"Ocultar":"Ver dólar"}</button>
           </div>
           {showCotizador&&<CotizadorWidget onSelectTC={(valor,tipo)=>{ setCfg(p=>({...p,tipoCambio:valor})); toast_(`TC ${tipo}: $${valor.toLocaleString("es-AR")}`); setShowCotizador(false); }}/>}
-          <div style={{ marginBottom:14 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-              <span style={lbl}>CATEGORÍA</span>
-              <button onClick={()=>setGestionCatModal(true)} style={{ background:"#1e1e2e",border:"none",color:"#7c3aed",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600 }}>+ Gestionar</button>
+          <div style={{ marginBottom:14, background:"#101827", border:"1px solid #1e293b", borderRadius:16, padding:14 }}>
+            <div style={{ fontSize:11, color:"#38bdf8", fontWeight:800, letterSpacing:1, marginBottom:12 }}>
+              CARGA INTELIGENTE
             </div>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{cfg.categorias.map(cat=>(<button key={cat.id} className="pb" onClick={()=>setForm(f=>({...f,categoria:cat.id,medioPagoId:f.medioPagoId||medioPagoDesdeCategoriaLegacy(cat.id),servicio:""}))} style={{ background:form.categoria===cat.id?cat.color:"#1e1e2e",color:form.categoria===cat.id?"#0a0a0f":"#94a3b8",fontSize:13 }}>{cat.label}</button>))}</div>
+
+            <div style={{ marginBottom:14 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                <span style={lbl}>CONCEPTO</span>
+                <span style={{ fontSize:11,color:"#64748b" }}>elige o escribe uno</span>
+              </div>
+
+              {(cfg.conceptos || []).length > 0 && (
+                <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:8,maxHeight:140,overflowY:"auto",paddingRight:4 }}>
+                  {(cfg.conceptos || []).map(concepto=>(
+                    <button
+                      key={concepto.id}
+                      className="pb"
+                      onClick={()=>setForm(f=>({
+                        ...f,
+                        conceptoId: concepto.id,
+                        servicio: concepto.nombre,
+                        medioPagoId: concepto.medioPagoId || f.medioPagoId || "mp_sin_definir",
+                        instrumentoId: concepto.instrumentoId || f.instrumentoId || "ins_manual",
+                        categoriaGastoId: concepto.categoriaGastoId || f.categoriaGastoId || "cg_otros",
+                        etiquetasIds: concepto.etiquetasIds?.length ? concepto.etiquetasIds : (f.etiquetasIds || []),
+                        moneda: concepto.monedaDefault || f.moneda || "ARS",
+                        categoria: categoriaLegacyDesdeMedioPagoId(concepto.medioPagoId || f.medioPagoId),
+                        formaPago: formaPagoLegacyDesdeInstrumentoId(concepto.instrumentoId || f.instrumentoId),
+                        decisionManual:false
+                      }))}
+                      style={{
+                        background:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#1e3a5f":"#1e4032"):"#1e1e2e",
+                        color:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#38bdf8":"#4ade80"):"#94a3b8",
+                        fontSize:12,
+                        padding:"6px 10px",
+                        border:concepto.monedaDefault==="USD"?"1px solid #38bdf833":"none"
+                      }}
+                    >
+                      {concepto.nombre}{concepto.monedaDefault==="USD"?" 💵":""}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <input
+                className="inf"
+                placeholder="O escribí el concepto..."
+                value={form.servicio}
+                onChange={e=>{
+                  const val=e.target.value;
+                  setForm(f=>({
+                    ...f,
+                    conceptoId:"",
+                    servicio:val,
+                    categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(val),
+                    etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(val),
+                    categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
+                    formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
+                    decisionManual:false
+                  }));
+                }}
+              />
+            </div>
+
+            <div style={{ marginBottom:12 }}>
+              <span style={lbl}>MEDIO DE PAGO</span>
+              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
+                {(cfg.mediosPago || []).map(mp=>(
+                  <button
+                    key={mp.id}
+                    className="pb"
+                    onClick={()=>setForm(f=>({
+                      ...f,
+                      medioPagoId:mp.id,
+                      categoria:categoriaLegacyDesdeMedioPagoId(mp.id)
+                    }))}
+                    style={{ background:form.medioPagoId===mp.id?(mp.color||"#38bdf8"):"#1e1e2e",color:form.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                  >
+                    {mp.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:12 }}>
+              <span style={lbl}>INSTRUMENTO</span>
+              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
+                {(cfg.instrumentosPago || []).map(ins=>(
+                  <button
+                    key={ins.id}
+                    className="pb"
+                    onClick={()=>setForm(f=>({
+                      ...f,
+                      instrumentoId:ins.id,
+                      formaPago:formaPagoLegacyDesdeInstrumentoId(ins.id)
+                    }))}
+                    style={{ background:form.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:form.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                  >
+                    {ins.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom:12 }}>
+              <span style={lbl}>CATEGORÍA REAL</span>
+              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
+                {(cfg.categoriasGasto || []).map(cg=>(
+                  <button
+                    key={cg.id}
+                    className="pb"
+                    onClick={()=>setForm(f=>({...f,categoriaGastoId:cg.id}))}
+                    style={{ background:form.categoriaGastoId===cg.id?(cg.color||"#38bdf8"):"#1e1e2e",color:form.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                  >
+                    {cg.nombre}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <span style={lbl}>ETIQUETAS</span>
+              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
+                {(cfg.etiquetas || []).map(tag=>{
+                  const activo=(form.etiquetasIds||[]).includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      className="pb"
+                      onClick={()=>setForm(f=>{
+                        const actuales=f.etiquetasIds||[];
+                        return {...f,etiquetasIds: actuales.includes(tag.id)?actuales.filter(x=>x!==tag.id):[...actuales,tag.id]};
+                      })}
+                      style={{ background:activo?(tag.color||"#38bdf8"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                    >
+                      {tag.nombre}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-          <div style={{ marginBottom:14 }}><span style={lbl}>FORMA DE PAGO</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{cfg.formasPago.map(fp=>(<button key={fp} className="pb" onClick={()=>setForm(f=>({...f,formaPago:fp,instrumentoId:f.instrumentoId||instrumentoDesdeFormaPagoLegacy(fp)}))} style={{ background:form.formaPago===fp?"#7c3aed":"#1e1e2e",color:form.formaPago===fp?"#fff":"#94a3b8",fontSize:13 }}>{fp}</button>))}</div></div>
-          <div style={{ marginBottom:14, background:"#101827", border:"1px solid #1e293b", borderRadius:16, padding:12 }}>
-  <div style={{ fontSize:11, color:"#38bdf8", fontWeight:800, letterSpacing:1, marginBottom:10 }}>NUEVO MODELO DE ANÁLISIS</div>
-  <div style={{ marginBottom:12 }}><span style={lbl}>MEDIO DE PAGO</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.mediosPago || []).map(mp=>(<button key={mp.id} className="pb" onClick={()=>setForm(f=>({...f,medioPagoId:mp.id}))} style={{ background:form.medioPagoId===mp.id?(mp.color||"#38bdf8"):"#1e1e2e",color:form.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{mp.nombre}</button>))}</div></div>
-  <div style={{ marginBottom:12 }}><span style={lbl}>INSTRUMENTO</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.instrumentosPago || []).map(ins=>(<button key={ins.id} className="pb" onClick={()=>setForm(f=>({...f,instrumentoId:ins.id}))} style={{ background:form.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:form.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{ins.nombre}</button>))}</div></div>
-  <div style={{ marginBottom:12 }}><span style={lbl}>CATEGORÍA REAL</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.categoriasGasto || []).map(cg=>(<button key={cg.id} className="pb" onClick={()=>setForm(f=>({...f,categoriaGastoId:cg.id}))} style={{ background:form.categoriaGastoId===cg.id?(cg.color||"#38bdf8"):"#1e1e2e",color:form.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{cg.nombre}</button>))}</div></div>
-  <div><span style={lbl}>ETIQUETAS</span><div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>{(cfg.etiquetas || []).map(tag=>{ const activo=(form.etiquetasIds||[]).includes(tag.id); return (<button key={tag.id} className="pb" onClick={()=>setForm(f=>{ const actuales=f.etiquetasIds||[]; return {...f,etiquetasIds: actuales.includes(tag.id)?actuales.filter(x=>x!==tag.id):[...actuales,tag.id]}; })} style={{ background:activo?(tag.color||"#38bdf8"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{tag.nombre}</button>); })}</div></div>
-</div>
-<div style={{ marginBottom:14 }}>
-  <span style={lbl}>TIPO DE GASTO</span>
-  <div style={{ display:"flex", gap:8 }}>
-    <button
-      className="pb"
-      onClick={() => setForm((f) => ({
-  ...f,
-  tipoGasto:"simple",
-  accionCompuesto:"nuevo",
-  decisionManual:true,
-  subconceptos:[]
-}))}
-      style={{
-        background: form.tipoGasto==="simple" ? "#7c3aed" : "#1e1e2e",
-        color: form.tipoGasto==="simple" ? "#fff" : "#94a3b8",
-        fontSize: 13
-      }}
-    >
-      Simple
-    </button>
 
-    <button
-      className="pb"
-      onClick={() => setForm((f) => ({
-  ...f,
-  tipoGasto:"detalle",
-  decisionManual:true,
-  monto:""
-}))}
-      style={{
-        background: form.tipoGasto==="detalle" ? "#7c3aed" : "#1e1e2e",
-        color: form.tipoGasto==="detalle" ? "#fff" : "#94a3b8",
-        fontSize: 13
-      }}
-    >
-      Con detalle
-    </button>
-  </div>
-</div>
-<div style={{ marginBottom:14 }}>
-  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-    <span style={lbl}>SERVICIO / CONCEPTO</span>
-    {form.categoria&&<button onClick={()=>setGestionServModal(form.categoria)} style={{ background:"#1e1e2e",border:"none",color:"#7c3aed",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:11,fontWeight:600 }}>+ Gestionar</button>}
-  </div>
+          <div style={{ marginBottom:14 }}>
+            <span style={lbl}>TIPO DE GASTO</span>
+            <div style={{ display:"flex", gap:8 }}>
+              <button
+                className="pb"
+                onClick={() => setForm((f) => ({
+                  ...f,
+                  tipoGasto:"simple",
+                  accionCompuesto:"nuevo",
+                  decisionManual:true,
+                  subconceptos:[]
+                }))}
+                style={{
+                  background: form.tipoGasto==="simple" ? "#7c3aed" : "#1e1e2e",
+                  color: form.tipoGasto==="simple" ? "#fff" : "#94a3b8",
+                  fontSize: 13
+                }}
+              >
+                Simple
+              </button>
 
-  {form.categoria&&(cfg.servicios[form.categoria]||[]).length>0&&
-    <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:8 }}>
-      {(cfg.servicios[form.categoria]||[]).map(s=>(
-        <button key={s} className="pb" onClick={()=>setForm(f=>({...f,servicio:s,categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(s),etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(s),decisionManual:false}))} style={{ background:form.servicio===s?(esDolarConcepto(s)?"#1e3a5f":"#1e4032"):"#1e1e2e",color:form.servicio===s?(esDolarConcepto(s)?"#38bdf8":"#4ade80"):"#94a3b8",fontSize:12,padding:"6px 12px",border:esDolarConcepto(s)?"1px solid #38bdf822":"none" }}>
-          {s}{esDolarConcepto(s)?" 💵":""}
-        </button>
-      ))}
-    </div>
-  }
+              <button
+                className="pb"
+                onClick={() => setForm((f) => ({
+                  ...f,
+                  tipoGasto:"detalle",
+                  decisionManual:true,
+                  monto:""
+                }))}
+                style={{
+                  background: form.tipoGasto==="detalle" ? "#7c3aed" : "#1e1e2e",
+                  color: form.tipoGasto==="detalle" ? "#fff" : "#94a3b8",
+                  fontSize: 13
+                }}
+              >
+                Con detalle
+              </button>
+            </div>
+          </div>
 
-  <input className="inf" placeholder="O escribí el concepto..." value={form.servicio} onChange={e=>{ const val=e.target.value; setForm(f=>({...f,servicio:val,categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(val),etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(val),decisionManual:false})); }}/>
+          {form.servicio && gastoCompuestoExistente && (
+            <div style={{
+              marginBottom: 14,
+              background: "#13131a",
+              border: "1px solid #2a2a3e",
+              borderRadius: 14,
+              padding: "12px 14px"
+            }}>
+              <div style={{ fontSize:11, color:"#64748b", marginBottom:6 }}>
+                {contarRepeticionesServicio(form.servicio) >= 2
+                  ? "Detectamos múltiples cargas similares este mes"
+                  : "Encontramos un gasto similar este mes"}
+              </div>
 
-  {form.servicio && gastoCompuestoExistente && (
-    <div style={{
-      marginBottom: 14,
-      background: "#13131a",
-      border: "1px solid #2a2a3e",
-      borderRadius: 14,
-      padding: "12px 14px"
-    }}>
-	
-	<div style={{ fontSize:11, color:"#64748b", marginBottom:6 }}>
-  {contarRepeticionesServicio(form.servicio) >= 2
-    ? "Detectamos múltiples cargas similares este mes"
-    : "Encontramos un gasto similar este mes"}
-   </div>
+              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
+                Ya existe un gasto similar este mes
+              </div>
 
-      <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
-        Ya existe un gasto similar este mes
-      </div>
+              <div style={{ fontWeight: 600, marginBottom: 10 }}>
+                {gastoCompuestoExistente.servicio} — {fmtMonto(
+                  gastoCompuestoExistente.monto,
+                  gastoCompuestoExistente.moneda || form.moneda
+                )}
+              </div>
 
-      <div style={{ fontWeight: 600, marginBottom: 10 }}>
-        {gastoCompuestoExistente.servicio} — {fmtMonto(
-  gastoCompuestoExistente.monto,
-  gastoCompuestoExistente.moneda || form.moneda
-)}
-      </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button
+                  className="pb"
+                  onClick={() => setForm((f) => ({ ...f, accionCompuesto:"existente", decisionManual:true }))}
+                  style={{
+                    background: form.accionCompuesto==="existente" ? "#14532d" : "#1e1e2e",
+                    color: form.accionCompuesto==="existente" ? "#4ade80" : "#94a3b8",
+                    border: form.accionCompuesto==="existente" ? "1px solid #4ade80" : "1px solid transparent",
+                    fontSize: 12
+                  }}
+                >
+                  Agregar a existente
+                </button>
 
-      <div style={{ display:"flex", gap:8 }}>
-        <button
-          className="pb"
-          onClick={() => setForm((f) => ({ ...f, accionCompuesto:"existente", decisionManual:true }))}
-          style={{
-            background: form.accionCompuesto==="existente" ? "#14532d" : "#1e1e2e",
-            color: form.accionCompuesto==="existente" ? "#4ade80" : "#94a3b8",
-            border: form.accionCompuesto==="existente" ? "1px solid #4ade80" : "1px solid transparent",
-            fontSize: 12
-          }}
-        >
-          Agregar a existente
-        </button>
+                <button
+                  className="pb"
+                  onClick={() => setForm((f) => ({ ...f, accionCompuesto:"nuevo", decisionManual:true }))}
+                  style={{
+                    background: form.accionCompuesto==="nuevo" ? "#1e3a5f" : "#1e1e2e",
+                    color: form.accionCompuesto==="nuevo" ? "#38bdf8" : "#94a3b8",
+                    border: form.accionCompuesto==="nuevo" ? "1px solid #38bdf8" : "1px solid transparent",
+                    fontSize: 12
+                  }}
+                >
+                  Crear nuevo
+                </button>
+              </div>
+            </div>
+          )}
 
-        <button
-          className="pb"
-          onClick={() => setForm((f) => ({ ...f, accionCompuesto:"nuevo", decisionManual:true }))}
-          style={{
-            background: form.accionCompuesto==="nuevo" ? "#1e3a5f" : "#1e1e2e",
-            color: form.accionCompuesto==="nuevo" ? "#38bdf8" : "#94a3b8",
-            border: form.accionCompuesto==="nuevo" ? "1px solid #38bdf8" : "1px solid transparent",
-            fontSize: 12
-          }}
-        >
-          Crear nuevo
-        </button>
-      </div>
-    </div>
-  )}
-</div>
 	 
           {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
           {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
