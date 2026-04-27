@@ -20,7 +20,13 @@ import {
   desactivarConcepto,
   crearMedioPago,
   actualizarMedioPago,
-  desactivarMedioPago
+  desactivarMedioPago,
+  crearCategoriaGasto,
+  actualizarCategoriaGasto,
+  desactivarCategoriaGasto,
+  crearEtiqueta,
+  actualizarEtiqueta,
+  desactivarEtiqueta
 } from "./services/api";
 
 // Utils
@@ -294,6 +300,12 @@ export default function App() {
   const [busquedaMedioCfg,setBusquedaMedioCfg]=useState("");
   const [editMedio,setEditMedio]=useState(null);
   const [nuevoMedio,setNuevoMedio]=useState({ nombre:"", tipo:"banco", color:"#60a5fa", ordenVisual:"" });
+  const [busquedaCategoriaGastoCfg,setBusquedaCategoriaGastoCfg]=useState("");
+  const [editCategoriaGasto,setEditCategoriaGasto]=useState(null);
+  const [nuevaCategoriaGasto,setNuevaCategoriaGasto]=useState({ nombre:"", color:"#60a5fa", ordenVisual:"" });
+  const [busquedaEtiquetaCfg,setBusquedaEtiquetaCfg]=useState("");
+  const [editEtiqueta,setEditEtiqueta]=useState(null);
+  const [nuevaEtiqueta,setNuevaEtiqueta]=useState({ nombre:"", color:"#f97316", ordenVisual:"" });
   const [tcInput,setTcInput]=useState("");
   const [showCotizador,setShowCotizador]=useState(false);
   const [gestionServModal,setGestionServModal]=useState(null); // catId para gestionar servicios inline
@@ -1292,6 +1304,102 @@ const eliminar = async (tipo, id) => {
       if (editMedio?.id === medio.id) setEditMedio(null);
       toast_("Medio de pago desactivado", "err");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar el medio de pago", "err"); }
+  };
+
+  const categoriasGastoConfigFiltradas = (cfg.categoriasGasto || [])
+    .filter((c) => String(c.nombre || "").toLowerCase().includes(busquedaCategoriaGastoCfg.trim().toLowerCase()))
+    .sort((a,b)=>(Number(a.ordenVisual||99)-Number(b.ordenVisual||99)) || String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
+
+  const etiquetasConfigFiltradas = (cfg.etiquetas || [])
+    .filter((e) => String(e.nombre || "").toLowerCase().includes(busquedaEtiquetaCfg.trim().toLowerCase()))
+    .sort((a,b)=>(Number(a.ordenVisual||99)-Number(b.ordenVisual||99)) || String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
+
+  const abrirEditarCategoriaGasto = (categoria) => {
+    setEditCategoriaGasto({
+      id: categoria.id,
+      nombre: categoria.nombre || "",
+      color: categoria.color || "#64748b",
+      ordenVisual: categoria.ordenVisual ?? 99,
+      activo: true,
+    });
+  };
+
+  const crearCategoriaGastoCfg = async () => {
+    const nombre = String(nuevaCategoriaGasto.nombre || "").trim();
+    if (!nombre) { toast_("Ingresá un nombre para la categoría", "err"); return; }
+    try {
+      await crearCategoriaGasto({ nombre, color: nuevaCategoriaGasto.color || "#64748b", ordenVisual: nuevaCategoriaGasto.ordenVisual ? Number(nuevaCategoriaGasto.ordenVisual) : undefined, workspaceId: "ws_default" });
+      await refrescarCatalogos();
+      setNuevaCategoriaGasto({ nombre:"", color:"#60a5fa", ordenVisual:"" });
+      toast_("✅ Categoría creada");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la categoría", "err"); }
+  };
+
+  const guardarCategoriaGastoEditada = async () => {
+    if (!editCategoriaGasto?.id) return;
+    if (!String(editCategoriaGasto.nombre || "").trim()) { toast_("Ingresá un nombre para la categoría", "err"); return; }
+    try {
+      await actualizarCategoriaGasto({ categoriaGastoId: editCategoriaGasto.id, nombre: editCategoriaGasto.nombre.trim(), color: editCategoriaGasto.color || "#64748b", ordenVisual: Number(editCategoriaGasto.ordenVisual || 99), activo: true });
+      await refrescarCatalogos();
+      setEditCategoriaGasto(null);
+      toast_("✅ Categoría actualizada");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la categoría", "err"); }
+  };
+
+  const desactivarCategoriaGastoCfg = async (categoria) => {
+    if (!categoria?.id) return;
+    const ok = window.confirm(`¿Desactivar la categoría "${categoria.nombre}"? No se borran gastos históricos.`);
+    if (!ok) return;
+    try {
+      await desactivarCategoriaGasto(categoria.id);
+      await refrescarCatalogos();
+      if (editCategoriaGasto?.id === categoria.id) setEditCategoriaGasto(null);
+      toast_("Categoría desactivada", "err");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar la categoría", "err"); }
+  };
+
+  const abrirEditarEtiqueta = (etiqueta) => {
+    setEditEtiqueta({
+      id: etiqueta.id,
+      nombre: etiqueta.nombre || "",
+      color: etiqueta.color || "#64748b",
+      ordenVisual: etiqueta.ordenVisual ?? 99,
+      activo: true,
+    });
+  };
+
+  const crearEtiquetaCfg = async () => {
+    const nombre = String(nuevaEtiqueta.nombre || "").trim();
+    if (!nombre) { toast_("Ingresá un nombre para la etiqueta", "err"); return; }
+    try {
+      await crearEtiqueta({ nombre, color: nuevaEtiqueta.color || "#64748b", ordenVisual: nuevaEtiqueta.ordenVisual ? Number(nuevaEtiqueta.ordenVisual) : undefined, workspaceId: "ws_default" });
+      await refrescarCatalogos();
+      setNuevaEtiqueta({ nombre:"", color:"#f97316", ordenVisual:"" });
+      toast_("✅ Etiqueta creada");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la etiqueta", "err"); }
+  };
+
+  const guardarEtiquetaEditada = async () => {
+    if (!editEtiqueta?.id) return;
+    if (!String(editEtiqueta.nombre || "").trim()) { toast_("Ingresá un nombre para la etiqueta", "err"); return; }
+    try {
+      await actualizarEtiqueta({ etiquetaId: editEtiqueta.id, nombre: editEtiqueta.nombre.trim(), color: editEtiqueta.color || "#64748b", ordenVisual: Number(editEtiqueta.ordenVisual || 99), activo: true });
+      await refrescarCatalogos();
+      setEditEtiqueta(null);
+      toast_("✅ Etiqueta actualizada");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la etiqueta", "err"); }
+  };
+
+  const desactivarEtiquetaCfg = async (etiqueta) => {
+    if (!etiqueta?.id) return;
+    const ok = window.confirm(`¿Desactivar la etiqueta "${etiqueta.nombre}"? No se borran gastos históricos.`);
+    if (!ok) return;
+    try {
+      await desactivarEtiqueta(etiqueta.id);
+      await refrescarCatalogos();
+      if (editEtiqueta?.id === etiqueta.id) setEditEtiqueta(null);
+      toast_("Etiqueta desactivada", "err");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar la etiqueta", "err"); }
   };
 
 const ultimoDiaDelMes = (year, monthIndex) => {
@@ -2646,7 +2754,7 @@ const GastoRow=({item})=>{
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
-          <div style={{ display:"flex",gap:6,marginBottom:18,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["medios","💳 Medios"],["categorias","🏷️ Cats"],["formas","💳 Formas"],["servicios","📝 Servs"],["fuentes","💰 Fuentes"],["tc","💵 Cambio"],["backup","💾 Datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
+          <div style={{ display:"flex",gap:6,marginBottom:18,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["medios","💳 Medios"],["categorias","🏷️ Cats"],["etiquetas","🏷️ Tags"],["formas","💳 Formas"],["servicios","📝 Servs"],["fuentes","💰 Fuentes"],["tc","💵 Cambio"],["backup","💾 Datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
           {cfgTab==="conceptos"&&(
             <>
               <div className="card">
@@ -2731,7 +2839,74 @@ const GastoRow=({item})=>{
             </>
           )}
           {cfgTab==="tc"&&(<div className="card"><span style={lbl}>TIPO DE CAMBIO USD → ARS</span><div style={{ fontSize:13,color:"#64748b",marginBottom:10 }}>Actual: <strong style={{ color:"#38bdf8" }}>${tc.toLocaleString("es-AR")}</strong></div><div style={{ display:"flex",gap:10,marginBottom:12 }}><input className="inf" type="number" placeholder="Ej: 1415" value={tcInput} onChange={e=>setTcInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/><button className="pb" style={{ background:"#38bdf8",color:"#0a0a0f",fontWeight:700 }} onClick={guardarTC}>OK</button></div><CotizadorWidget onSelectTC={(valor,tipo)=>{ setCfg(p=>({...p,tipoCambio:valor})); toast_(`TC ${tipo}: $${valor.toLocaleString("es-AR")}`); }}/></div>)}
-          {cfgTab==="categorias"&&(<><div className="card"><span style={lbl}>NUEVA</span><input className="inf" placeholder="Nombre" value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)} style={{ marginBottom:10 }}/><span style={{ ...lbl,marginTop:4 }}>COLOR</span><div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNewCatColor(c)} style={{ background:c,borderColor:newCatColor===c?"#fff":"transparent",transform:newCatColor===c?"scale(1.2)":"none" }}/>)}</div><button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={addCat}>+ Agregar</button></div><div className="card"><span style={lbl}>ACTUALES</span>{cfg.categorias.map(cat=>(<div key={cat.id}>{editCat?.id===cat.id?(<div style={{ padding:"10px 0",borderBottom:"1px solid #1e1e2e" }}><input className="ei" value={editCat.label} onChange={e=>setEditCat(ec=>({...ec,label:e.target.value}))} style={{ width:"100%",marginBottom:8 }}/><div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:8 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setEditCat(ec=>({...ec,color:c}))} style={{ background:c,borderColor:editCat.color===c?"#fff":"transparent",transform:editCat.color===c?"scale(1.2)":"none" }}/>)}</div><div style={{ display:"flex",gap:8 }}><button style={ib("#14532d","#4ade80")} onClick={saveCat}>✓ Guardar</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditCat(null)}>Cancelar</button></div></div>):(<div style={rowS}><div style={{ display:"flex",alignItems:"center",gap:10 }}><div style={{ width:14,height:14,borderRadius:"50%",background:cat.color,flexShrink:0 }}/><span style={{ fontSize:14,fontWeight:500 }}>{cat.label}</span></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditCat({...cat})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delCat(cat.id)}>✕</button></div></div>)}</div>))}</div></>)}
+          {cfgTab==="categorias"&&(
+            <>
+              <div className="card">
+                <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>🏷️ Categorías reales</div>
+                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6,marginBottom:14 }}>Administrá las categorías analíticas usadas para clasificar gastos: Hogar, Auto, Mascotas, Vacaciones, etc.</div>
+                <span style={lbl}>CREAR CATEGORÍA</span>
+                <input className="inf" placeholder="Ej: Mascotas, Auto, Vacaciones" value={nuevaCategoriaGasto.nombre} onChange={e=>setNuevaCategoriaGasto(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10 }}>
+                  <input className="inf" type="number" placeholder="Orden" value={nuevaCategoriaGasto.ordenVisual} onChange={e=>setNuevaCategoriaGasto(p=>({...p,ordenVisual:e.target.value}))}/>
+                </div>
+                <span style={lbl}>COLOR</span>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNuevaCategoriaGasto(p=>({...p,color:c}))} style={{ background:c,borderColor:nuevaCategoriaGasto.color===c?"#fff":"transparent",transform:nuevaCategoriaGasto.color===c?"scale(1.2)":"none" }}/>)}</div>
+                <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={crearCategoriaGastoCfg}>+ Crear categoría</button>
+              </div>
+
+              <div className="card"><span style={lbl}>BUSCAR CATEGORÍA</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaCategoriaGastoCfg} onChange={e=>setBusquedaCategoriaGastoCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{categoriasGastoConfigFiltradas.length} categoría(s) activa(s).</div></div>
+
+              {editCategoriaGasto&&(
+                <div className="card" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR CATEGORÍA</span>
+                  <input className="inf" value={editCategoriaGasto.nombre} onChange={e=>setEditCategoriaGasto(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
+                  <input className="inf" type="number" placeholder="Orden" value={editCategoriaGasto.ordenVisual} onChange={e=>setEditCategoriaGasto(p=>({...p,ordenVisual:e.target.value}))} style={{ marginBottom:10 }}/>
+                  <span style={lbl}>COLOR</span>
+                  <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setEditCategoriaGasto(p=>({...p,color:c}))} style={{ background:c,borderColor:editCategoriaGasto.color===c?"#fff":"transparent",transform:editCategoriaGasto.color===c?"scale(1.2)":"none" }}/>)}</div>
+                  <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarCategoriaGastoEditada}>Guardar categoría</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarCategoriaGastoCfg({id:editCategoriaGasto.id,nombre:editCategoriaGasto.nombre})}>Desactivar</button></div>
+                </div>
+              )}
+
+              <div className="card"><span style={lbl}>CATEGORÍAS ACTIVAS</span>
+                {categoriasGastoConfigFiltradas.map(cat=>(
+                  <div key={cat.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}><div style={{ display:"flex",alignItems:"center",gap:10,minWidth:0 }}><span style={{ width:14,height:14,borderRadius:"50%",background:cat.color||"#64748b",flexShrink:0 }}/><div style={{ minWidth:0 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>orden {cat.ordenVisual??"—"}</div></div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarCategoriaGasto(cat)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarCategoriaGastoCfg(cat)}>✕</button></div></div></div>
+                ))}
+                {categoriasGastoConfigFiltradas.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay categorías con ese filtro.</div>}
+              </div>
+            </>
+          )}
+          {cfgTab==="etiquetas"&&(
+            <>
+              <div className="card">
+                <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>🏷️ Etiquetas</div>
+                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6,marginBottom:14 }}>Administrá etiquetas transversales como Fijo, Variable, Emergencia, Pareja, Trabajo o No esencial.</div>
+                <span style={lbl}>CREAR ETIQUETA</span>
+                <input className="inf" placeholder="Ej: Emergencia, Pareja, No esencial" value={nuevaEtiqueta.nombre} onChange={e=>setNuevaEtiqueta(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
+                <input className="inf" type="number" placeholder="Orden" value={nuevaEtiqueta.ordenVisual} onChange={e=>setNuevaEtiqueta(p=>({...p,ordenVisual:e.target.value}))} style={{ marginBottom:10 }}/>
+                <span style={lbl}>COLOR</span>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNuevaEtiqueta(p=>({...p,color:c}))} style={{ background:c,borderColor:nuevaEtiqueta.color===c?"#fff":"transparent",transform:nuevaEtiqueta.color===c?"scale(1.2)":"none" }}/>)}</div>
+                <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={crearEtiquetaCfg}>+ Crear etiqueta</button>
+              </div>
+
+              <div className="card"><span style={lbl}>BUSCAR ETIQUETA</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaEtiquetaCfg} onChange={e=>setBusquedaEtiquetaCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{etiquetasConfigFiltradas.length} etiqueta(s) activa(s).</div></div>
+
+              {editEtiqueta&&(
+                <div className="card" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR ETIQUETA</span>
+                  <input className="inf" value={editEtiqueta.nombre} onChange={e=>setEditEtiqueta(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
+                  <input className="inf" type="number" placeholder="Orden" value={editEtiqueta.ordenVisual} onChange={e=>setEditEtiqueta(p=>({...p,ordenVisual:e.target.value}))} style={{ marginBottom:10 }}/>
+                  <span style={lbl}>COLOR</span>
+                  <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setEditEtiqueta(p=>({...p,color:c}))} style={{ background:c,borderColor:editEtiqueta.color===c?"#fff":"transparent",transform:editEtiqueta.color===c?"scale(1.2)":"none" }}/>)}</div>
+                  <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarEtiquetaEditada}>Guardar etiqueta</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarEtiquetaCfg({id:editEtiqueta.id,nombre:editEtiqueta.nombre})}>Desactivar</button></div>
+                </div>
+              )}
+
+              <div className="card"><span style={lbl}>ETIQUETAS ACTIVAS</span>
+                {etiquetasConfigFiltradas.map(tag=>(
+                  <div key={tag.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}><div style={{ display:"flex",alignItems:"center",gap:10,minWidth:0 }}><span style={{ width:14,height:14,borderRadius:"50%",background:tag.color||"#64748b",flexShrink:0 }}/><div style={{ minWidth:0 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{tag.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>orden {tag.ordenVisual??"—"}</div></div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarEtiqueta(tag)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarEtiquetaCfg(tag)}>✕</button></div></div></div>
+                ))}
+                {etiquetasConfigFiltradas.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay etiquetas con ese filtro.</div>}
+              </div>
+            </>
+          )}
           {cfgTab==="formas"&&(<><div className="card"><span style={lbl}>NUEVA</span><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Ej: Crédito BBVA" value={newForma} onChange={e=>setNewForma(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={addForma}>+</button></div></div><div className="card"><span style={lbl}>ACTUALES</span>{cfg.formasPago.map((fp,idx)=>(<div key={idx}>{editForma?.idx===idx?(<div style={{ display:"flex",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e",alignItems:"center" }}><input className="ei" value={editForma.val} onChange={e=>setEditForma(ef=>({...ef,val:e.target.value}))}/><button style={ib("#14532d","#4ade80")} onClick={saveForma}>✓</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditForma(null)}>✕</button></div>):(<div style={rowS}><span style={{ fontSize:14 }}>{fp}</span><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditForma({idx,val:fp})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delForma(idx)}>✕</button></div></div>)}</div>))}</div></>)}
           {cfgTab==="servicios"&&(<><div className="card"><span style={lbl}>AGREGAR</span><select className="inf" value={selCatServ} onChange={e=>setSelCatServ(e.target.value)} style={{ marginBottom:10 }}><option value="">Seleccioná categoría...</option>{cfg.categorias.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Nombre" value={newServ} onChange={e=>setNewServ(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={addServ}>+</button></div></div>{cfg.categorias.map(cat=>{ const ss=cfg.servicios[cat.id]||[]; if(!ss.length)return null; return(<div key={cat.id} className="card"><div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}><div style={{ width:10,height:10,borderRadius:"50%",background:cat.color }}/><span style={{ fontWeight:700,fontSize:14,color:cat.color }}>{cat.label}</span></div>{ss.map((s,idx)=>(<div key={idx} style={rowS}><span style={{ fontSize:13 }}>{s}{esDolarConcepto(s)?" 💵":""}</span><button style={ib("#2a1a1a","#f87171")} onClick={()=>delServ(cat.id,idx)}>✕</button></div>))}</div>); })}</>)}
           {cfgTab==="backup"&&(
