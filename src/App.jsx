@@ -14,7 +14,8 @@ import {
   crearIngreso,
   eliminarIngreso,
   guardarSueldoNeon,
-  getCotizacionPorFecha
+  getCotizacionPorFecha,
+  crearConcepto
 } from "./services/api";
 
 // Utils
@@ -1397,7 +1398,68 @@ const GastoRow=({item})=>{
   const conceptosVisibles = mostrarTodosConceptos
     ? conceptosFiltrados
     : conceptosFiltrados.slice(0, textoConceptoLower ? 8 : 10);
+ 
+ const crearConceptoDesdeTexto = async () => {
+  const nombre = String(form.servicio || "").trim();
 
+  if (!nombre) {
+    toast_("Escribí el nombre del concepto", "err");
+    return;
+  }
+
+  try {
+    const conceptoCreado = await crearConcepto({
+      nombre,
+      workspaceId: "ws_default",
+      tipoMovimiento: "GASTO",
+      categoriaGastoId: form.categoriaGastoId || "cg_otros",
+      medioPagoId: form.medioPagoId || "mp_sin_definir",
+      instrumentoId: form.instrumentoId || "ins_manual",
+      monedaDefault: form.moneda || "ARS",
+      etiquetasIds: form.etiquetasIds?.length ? form.etiquetasIds : ["tag_variable"],
+    });
+
+    const catalogosApi = await getCatalogos();
+    const cfgActualizada = mapCatalogosDesdeApi(catalogosApi, tc);
+
+    setCfg(cfgActualizada);
+
+    const conceptoActualizado =
+      (cfgActualizada.conceptos || []).find(
+        (c) => c.id === conceptoCreado.concepto_id
+      ) ||
+      (cfgActualizada.conceptos || []).find(
+        (c) => String(c.nombre || "").trim().toLowerCase() === nombre.toLowerCase()
+      );
+
+    if (conceptoActualizado) {
+      setForm((f) => ({
+        ...f,
+        conceptoId: conceptoActualizado.id,
+        servicio: conceptoActualizado.nombre,
+        medioPagoId: conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir",
+        instrumentoId: conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual",
+        categoriaGastoId: conceptoActualizado.categoriaGastoId || f.categoriaGastoId || "cg_otros",
+        etiquetasIds: conceptoActualizado.etiquetasIds?.length
+          ? conceptoActualizado.etiquetasIds
+          : f.etiquetasIds || [],
+        moneda: conceptoActualizado.monedaDefault || f.moneda || "ARS",
+        categoria: categoriaLegacyDesdeMedioPagoId(
+          conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir"
+        ),
+        formaPago: formaPagoLegacyDesdeInstrumentoId(
+          conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual"
+        ),
+        decisionManual: false,
+      }));
+    }
+
+    toast_(conceptoCreado ? `✅ Concepto "${nombre}" creado` : "✅ Concepto creado");
+  } catch (e) {
+    console.error(e);
+    toast_(e.message || "No se pudo crear el concepto", "err");
+  }
+};
 
 // ======================================================
 // 🎨 RENDER PRINCIPAL
@@ -1775,31 +1837,46 @@ const GastoRow=({item})=>{
                   )}
 
                   {textoConcepto && !conceptoExacto && (
-                    <button
-                      className="pb"
-                      onClick={()=>setForm(f=>({
-                        ...f,
-                        conceptoId:"",
-                        servicio:textoConcepto,
-                        medioPagoId:f.medioPagoId || "mp_sin_definir",
-                        instrumentoId:f.instrumentoId || "ins_manual",
-                        categoriaGastoId:f.categoriaGastoId || "cg_otros",
-                        categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId || "mp_sin_definir"),
-                        formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId || "ins_manual"),
-                        decisionManual:true
-                      }))}
-                      style={{
-                        width:"100%",
-                        background:"#1a1230",
-                        color:"#a78bfa",
-                        border:"1px dashed #7c3aed66",
-                        fontSize:12,
-                        marginTop:10
-                      }}
-                    >
-                      + Usar “{textoConcepto}” como concepto manual
-                    </button>
-                  )}
+  <div style={{ display:"grid",gap:8,marginTop:10 }}>
+    <button
+      className="pb"
+      onClick={crearConceptoDesdeTexto}
+      style={{
+        width:"100%",
+        background:"#14532d",
+        color:"#86efac",
+        border:"1px solid #22c55e66",
+        fontSize:12
+      }}
+    >
+      + Crear concepto “{textoConcepto}”
+    </button>
+
+    <button
+      className="pb"
+      onClick={()=>setForm(f=>({
+        ...f,
+        conceptoId:"",
+        servicio:textoConcepto,
+        medioPagoId:f.medioPagoId || "mp_sin_definir",
+        instrumentoId:f.instrumentoId || "ins_manual",
+        categoriaGastoId:f.categoriaGastoId || "cg_otros",
+        categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId || "mp_sin_definir"),
+        formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId || "ins_manual"),
+        decisionManual:true
+      }))}
+      style={{
+        width:"100%",
+        background:"#1a1230",
+        color:"#a78bfa",
+        border:"1px dashed #7c3aed66",
+        fontSize:12
+      }}
+    >
+      Usar solo en este gasto
+    </button>
+  </div>
+)}
                 </div>
               )}
             </div>

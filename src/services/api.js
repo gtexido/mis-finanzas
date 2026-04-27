@@ -163,3 +163,21 @@ export async function guardarCotizacion(payload) {
 
   return json.data;
 }
+
+export async function crearConcepto(payload) {
+  const res = await fetch("/api/conceptos", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al crear concepto");
+  }
+
+  return json.data;
+}
