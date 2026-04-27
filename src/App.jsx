@@ -17,7 +17,10 @@ import {
   getCotizacionPorFecha,
   crearConcepto,
   actualizarConcepto,
-  desactivarConcepto
+  desactivarConcepto,
+  crearMedioPago,
+  actualizarMedioPago,
+  desactivarMedioPago
 } from "./services/api";
 
 // Utils
@@ -43,6 +46,14 @@ import VencimientosView from "./components/VencimientosView";
 
 
 const COLORES = ["#4ade80","#f87171","#60a5fa","#a78bfa","#fbbf24","#94a3b8","#fb923c","#f472b6","#34d399","#38bdf8","#e879f9","#facc15"];
+const TIPOS_MEDIO_PAGO = [
+  { id:"banco", label:"Banco" },
+  { id:"billetera", label:"Billetera" },
+  { id:"efectivo", label:"Efectivo" },
+  { id:"tarjeta", label:"Tarjeta" },
+  { id:"cuenta", label:"Cuenta" },
+  { id:"otro", label:"Otro" },
+];
 
 // Config fallback temporal. La configuración principal ya viene desde Neon.
 const DEFAULT_CONFIG = {
@@ -277,9 +288,12 @@ export default function App() {
   const [subconceptosGasto,setSubconceptosGasto]=useState(null); // gasto en edición de subconceptos
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
-  const [cfgTab,setCfgTab]=useState("categorias");
+  const [cfgTab,setCfgTab]=useState("conceptos");
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
   const [editConcepto,setEditConcepto]=useState(null);
+  const [busquedaMedioCfg,setBusquedaMedioCfg]=useState("");
+  const [editMedio,setEditMedio]=useState(null);
+  const [nuevoMedio,setNuevoMedio]=useState({ nombre:"", tipo:"banco", color:"#60a5fa", ordenVisual:"" });
   const [tcInput,setTcInput]=useState("");
   const [showCotizador,setShowCotizador]=useState(false);
   const [gestionServModal,setGestionServModal]=useState(null); // catId para gestionar servicios inline
@@ -1230,6 +1244,55 @@ const eliminar = async (tipo, id) => {
   const conceptosConfigFiltrados = (cfg.conceptos || [])
     .filter((c) => String(c.nombre || "").toLowerCase().includes(busquedaConceptoCfg.trim().toLowerCase()))
     .sort((a,b)=>String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
+
+  const mediosConfigFiltrados = (cfg.mediosPago || [])
+    .filter((m) => String(m.nombre || "").toLowerCase().includes(busquedaMedioCfg.trim().toLowerCase()))
+    .sort((a,b)=>(Number(a.ordenVisual||99)-Number(b.ordenVisual||99)) || String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
+
+  const abrirEditarMedio = (medio) => {
+    setEditMedio({
+      id: medio.id,
+      nombre: medio.nombre || "",
+      tipo: medio.tipo || "otro",
+      color: medio.color || "#64748b",
+      ordenVisual: medio.ordenVisual ?? 99,
+      activo: true,
+    });
+  };
+
+  const crearMedioPagoCfg = async () => {
+    const nombre = String(nuevoMedio.nombre || "").trim();
+    if (!nombre) { toast_("Ingresá un nombre para el medio de pago", "err"); return; }
+    try {
+      await crearMedioPago({ nombre, tipo: nuevoMedio.tipo || "banco", color: nuevoMedio.color || "#60a5fa", ordenVisual: nuevoMedio.ordenVisual ? Number(nuevoMedio.ordenVisual) : undefined, workspaceId: "ws_default" });
+      await refrescarCatalogos();
+      setNuevoMedio({ nombre:"", tipo:"banco", color:"#60a5fa", ordenVisual:"" });
+      toast_("✅ Medio de pago creado");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo crear el medio de pago", "err"); }
+  };
+
+  const guardarMedioEditado = async () => {
+    if (!editMedio?.id) return;
+    if (!String(editMedio.nombre || "").trim()) { toast_("Ingresá un nombre para el medio de pago", "err"); return; }
+    try {
+      await actualizarMedioPago({ medioPagoId: editMedio.id, nombre: editMedio.nombre.trim(), tipo: editMedio.tipo || "otro", color: editMedio.color || "#64748b", ordenVisual: Number(editMedio.ordenVisual || 99), activo: true });
+      await refrescarCatalogos();
+      setEditMedio(null);
+      toast_("✅ Medio de pago actualizado");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar el medio de pago", "err"); }
+  };
+
+  const desactivarMedioPagoCfg = async (medio) => {
+    if (!medio?.id) return;
+    const ok = window.confirm(`¿Desactivar el medio de pago "${medio.nombre}"? No se borran gastos históricos.`);
+    if (!ok) return;
+    try {
+      await desactivarMedioPago(medio.id);
+      await refrescarCatalogos();
+      if (editMedio?.id === medio.id) setEditMedio(null);
+      toast_("Medio de pago desactivado", "err");
+    } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar el medio de pago", "err"); }
+  };
 
 const ultimoDiaDelMes = (year, monthIndex) => {
   return new Date(year, monthIndex + 1, 0).getDate();
@@ -2583,7 +2646,7 @@ const GastoRow=({item})=>{
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
-          <div style={{ display:"flex",gap:6,marginBottom:18,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["categorias","🏷️ Cats"],["formas","💳 Pagos"],["servicios","📝 Servs"],["fuentes","💰 Fuentes"],["tc","💵 Cambio"],["backup","💾 Datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
+          <div style={{ display:"flex",gap:6,marginBottom:18,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["medios","💳 Medios"],["categorias","🏷️ Cats"],["formas","💳 Formas"],["servicios","📝 Servs"],["fuentes","💰 Fuentes"],["tc","💵 Cambio"],["backup","💾 Datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
           {cfgTab==="conceptos"&&(
             <>
               <div className="card">
@@ -2627,6 +2690,43 @@ const GastoRow=({item})=>{
                   <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{cg?.nombre||"Sin categoría"} · {mp?.nombre||"Sin medio"} · {ins?.nombre||"Sin instrumento"} · {con.monedaDefault||"ARS"}</div>{tags.length>0&&<div style={{ display:"flex",gap:5,flexWrap:"wrap",marginTop:7 }}>{tags.map(t=><span key={t} style={{ fontSize:10,background:"#1e1e2e",color:"#94a3b8",borderRadius:999,padding:"3px 7px" }}>{t}</span>)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarConcepto(con)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarConceptoCfg(con)}>✕</button></div></div></div>
                 );})}
                 {conceptosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay conceptos con ese filtro.</div>}
+              </div>
+            </>
+          )}
+          {cfgTab==="medios"&&(
+            <>
+              <div className="card" style={{ border:"1px solid #1e3a5f",background:"#0f172a" }}>
+                <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>💳 Medios de pago</div>
+                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6 }}>Administrá bancos, billeteras, efectivo o cuentas propias. Los cambios impactan en carga, edición, conceptos y análisis.</div>
+              </div>
+              <div className="card"><span style={lbl}>CREAR MEDIO DE PAGO</span>
+                <input className="inf" placeholder="Ej: Galicia, BBVA, Ualá, Cuenta negocio" value={nuevoMedio.nombre} onChange={e=>setNuevoMedio(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
+                <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
+                  <select className="inf" value={nuevoMedio.tipo} onChange={e=>setNuevoMedio(p=>({...p,tipo:e.target.value}))}>{TIPOS_MEDIO_PAGO.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
+                  <input className="inf" type="number" placeholder="Orden" value={nuevoMedio.ordenVisual} onChange={e=>setNuevoMedio(p=>({...p,ordenVisual:e.target.value}))}/>
+                </div>
+                <span style={lbl}>COLOR</span>
+                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNuevoMedio(p=>({...p,color:c}))} style={{ background:c,borderColor:nuevoMedio.color===c?"#fff":"transparent",transform:nuevoMedio.color===c?"scale(1.2)":"none" }}/>)}</div>
+                <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={crearMedioPagoCfg}>+ Crear medio</button>
+              </div>
+              <div className="card"><span style={lbl}>BUSCAR MEDIO</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaMedioCfg} onChange={e=>setBusquedaMedioCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{mediosConfigFiltrados.length} medio(s) activo(s).</div></div>
+              {editMedio&&(
+                <div className="card" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR MEDIO</span>
+                  <input className="inf" value={editMedio.nombre} onChange={e=>setEditMedio(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
+                  <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
+                    <select className="inf" value={editMedio.tipo} onChange={e=>setEditMedio(p=>({...p,tipo:e.target.value}))}>{TIPOS_MEDIO_PAGO.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
+                    <input className="inf" type="number" value={editMedio.ordenVisual} onChange={e=>setEditMedio(p=>({...p,ordenVisual:e.target.value}))}/>
+                  </div>
+                  <span style={lbl}>COLOR</span>
+                  <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setEditMedio(p=>({...p,color:c}))} style={{ background:c,borderColor:editMedio.color===c?"#fff":"transparent",transform:editMedio.color===c?"scale(1.2)":"none" }}/>)}</div>
+                  <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarMedioEditado}>Guardar medio</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarMedioPagoCfg({id:editMedio.id,nombre:editMedio.nombre})}>Desactivar</button></div>
+                </div>
+              )}
+              <div className="card"><span style={lbl}>MEDIOS ACTIVOS</span>
+                {mediosConfigFiltrados.map(mp=>(
+                  <div key={mp.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}><div style={{ display:"flex",alignItems:"center",gap:10,minWidth:0 }}><span style={{ width:14,height:14,borderRadius:"50%",background:mp.color||"#64748b",flexShrink:0 }}/><div style={{ minWidth:0 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{mp.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>{mp.tipo||"otro"} · orden {mp.ordenVisual??"—"}</div></div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarMedio(mp)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarMedioPagoCfg(mp)}>✕</button></div></div></div>
+                ))}
+                {mediosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay medios con ese filtro.</div>}
               </div>
             </>
           )}
