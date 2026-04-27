@@ -47,11 +47,22 @@ function generarId(recurso, nombre) {
 }
 
 async function generarIdUnico(sql, tabla, campoId, idBase) {
+  const tablasPermitidas = {
+    conceptos: "concepto_id",
+    medios_pago: "medio_pago_id",
+    categorias_gasto: "categoria_gasto_id",
+    etiquetas: "etiqueta_id",
+  };
+
+  if (!tablasPermitidas[tabla] || tablasPermitidas[tabla] !== campoId) {
+    throw new Error("Tabla o campo no permitido para generar ID");
+  }
+
   let id = idBase;
   let intento = 1;
 
   while (true) {
-    const rows = await sql(
+    const rows = await sql.query(
       `SELECT ${campoId} AS id FROM ${tabla} WHERE ${campoId} = $1 LIMIT 1`,
       [id]
     );
