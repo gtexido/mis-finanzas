@@ -217,3 +217,57 @@ export async function desactivarConcepto(conceptoId) {
 
   return json.data;
 }
+
+export async function crearMedioPago(payload) {
+  const res = await fetch("/api/medios-pago", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al crear medio de pago");
+  }
+
+  return json.data;
+}
+
+export async function actualizarMedioPago(payload) {
+  const res = await fetch("/api/medios-pago", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al actualizar medio de pago");
+  }
+
+  return json.data;
+}
+
+export async function desactivarMedioPago(medioPagoId) {
+  const res = await fetch("/api/medios-pago", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ medioPagoId }),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al desactivar medio de pago");
+  }
+
+  return json.data;
+}
