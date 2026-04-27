@@ -15,7 +15,9 @@ import {
   eliminarIngreso,
   guardarSueldoNeon,
   getCotizacionPorFecha,
-  crearConcepto
+  crearConcepto,
+  actualizarConcepto,
+  desactivarConcepto
 } from "./services/api";
 
 // Utils
@@ -276,6 +278,8 @@ export default function App() {
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
   const [cfgTab,setCfgTab]=useState("categorias");
+  const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
+  const [editConcepto,setEditConcepto]=useState(null);
   const [tcInput,setTcInput]=useState("");
   const [showCotizador,setShowCotizador]=useState(false);
   const [gestionServModal,setGestionServModal]=useState(null); // catId para gestionar servicios inline
@@ -1144,6 +1148,88 @@ const eliminar = async (tipo, id) => {
   const saveFuente=()=>{if(!editFuente?.val.trim())return;setCfg(p=>{const f=[...p.fuentesIngreso];f[editFuente.idx]=editFuente.val.trim();return{...p,fuentesIngreso:f};});setEditFuente(null);toast_("Actualizado");};
   const delFuente=(idx)=>{setCfg(p=>({...p,fuentesIngreso:p.fuentesIngreso.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
   const guardarTC=()=>{if(!tcInput)return;setCfg(p=>({...p,tipoCambio:Number(tcInput)}));setTcInput("");toast_("TC actualizado");};
+
+  const refrescarCatalogos = async () => {
+    const catalogosApi = await getCatalogos();
+    const cfgActualizada = mapCatalogosDesdeApi(catalogosApi, tc);
+    setCfg(cfgActualizada);
+    return cfgActualizada;
+  };
+
+  const abrirEditarConcepto = (concepto) => {
+    setEditConcepto({
+      id: concepto.id,
+      nombre: concepto.nombre || "",
+      categoriaGastoId: concepto.categoriaGastoId || "cg_otros",
+      medioPagoId: concepto.medioPagoId || "mp_sin_definir",
+      instrumentoId: concepto.instrumentoId || "ins_manual",
+      monedaDefault: concepto.monedaDefault || "ARS",
+      etiquetasIds: Array.isArray(concepto.etiquetasIds) ? concepto.etiquetasIds : [],
+      activo: true,
+    });
+  };
+
+  const toggleEtiquetaConceptoEdit = (etiquetaId) => {
+    setEditConcepto((p) => {
+      if (!p) return p;
+      const actuales = p.etiquetasIds || [];
+      const existe = actuales.includes(etiquetaId);
+      return {
+        ...p,
+        etiquetasIds: existe
+          ? actuales.filter((id) => id !== etiquetaId)
+          : [...actuales, etiquetaId],
+      };
+    });
+  };
+
+  const guardarConceptoEditado = async () => {
+    if (!editConcepto?.id) return;
+    if (!String(editConcepto.nombre || "").trim()) {
+      toast_("Ingresá un nombre para el concepto", "err");
+      return;
+    }
+
+    try {
+      await actualizarConcepto({
+        conceptoId: editConcepto.id,
+        nombre: editConcepto.nombre.trim(),
+        categoriaGastoId: editConcepto.categoriaGastoId || "cg_otros",
+        medioPagoId: editConcepto.medioPagoId || "mp_sin_definir",
+        instrumentoId: editConcepto.instrumentoId || "ins_manual",
+        monedaDefault: editConcepto.monedaDefault || "ARS",
+        etiquetasIds: editConcepto.etiquetasIds || [],
+        activo: true,
+      });
+
+      await refrescarCatalogos();
+      setEditConcepto(null);
+      toast_("✅ Concepto actualizado");
+    } catch (e) {
+      console.error(e);
+      toast_(e.message || "No se pudo actualizar el concepto", "err");
+    }
+  };
+
+  const desactivarConceptoCfg = async (concepto) => {
+    if (!concepto?.id) return;
+    const ok = window.confirm(`¿Desactivar el concepto "${concepto.nombre}"? No se borran gastos históricos.`);
+    if (!ok) return;
+
+    try {
+      await desactivarConcepto(concepto.id);
+      await refrescarCatalogos();
+      if (editConcepto?.id === concepto.id) setEditConcepto(null);
+      toast_("Concepto desactivado", "err");
+    } catch (e) {
+      console.error(e);
+      toast_(e.message || "No se pudo desactivar el concepto", "err");
+    }
+  };
+
+  const conceptosConfigFiltrados = (cfg.conceptos || [])
+    .filter((c) => String(c.nombre || "").toLowerCase().includes(busquedaConceptoCfg.trim().toLowerCase()))
+    .sort((a,b)=>String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
 
 const ultimoDiaDelMes = (year, monthIndex) => {
   return new Date(year, monthIndex + 1, 0).getDate();
@@ -2497,7 +2583,53 @@ const GastoRow=({item})=>{
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
-          <div style={{ display:"flex",gap:6,marginBottom:18,flexWrap:"wrap" }}>{[["categorias","🏷️ Cats"],["formas","💳 Pagos"],["servicios","📝 Servs"],["fuentes","💰 Fuentes"],["tc","💵 Cambio"],["backup","💾 Datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
+          <div style={{ display:"flex",gap:6,marginBottom:18,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["categorias","🏷️ Cats"],["formas","💳 Pagos"],["servicios","📝 Servs"],["fuentes","💰 Fuentes"],["tc","💵 Cambio"],["backup","💾 Datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
+          {cfgTab==="conceptos"&&(
+            <>
+              <div className="card">
+                <span style={lbl}>BUSCAR CONCEPTO</span>
+                <input className="inf" placeholder="Buscar: alquiler, netflix, super..." value={busquedaConceptoCfg} onChange={e=>setBusquedaConceptoCfg(e.target.value)} />
+                <div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{conceptosConfigFiltrados.length} concepto(s) activo(s). Para crear uno nuevo, usá la pantalla Cargar.</div>
+              </div>
+
+              {editConcepto&&(
+                <div className="card" style={{ border:"1px solid #7c3aed55" }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+                    <div style={{ fontWeight:800,fontSize:15 }}>✏️ Editar concepto</div>
+                    <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 10px" }} onClick={()=>setEditConcepto(null)}>✕</button>
+                  </div>
+                  <span style={lbl}>NOMBRE</span>
+                  <input className="inf" value={editConcepto.nombre} onChange={e=>setEditConcepto(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:12 }}/>
+                  <span style={lbl}>MEDIO SUGERIDO</span>
+                  <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
+                    {(cfg.mediosPago||[]).map(mp=><button key={mp.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,medioPagoId:mp.id}))} style={{ background:editConcepto.medioPagoId===mp.id?(mp.color||"#7c3aed"):"#1e1e2e",color:editConcepto.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{mp.nombre}</button>)}
+                  </div>
+                  <span style={lbl}>INSTRUMENTO SUGERIDO</span>
+                  <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
+                    {(cfg.instrumentosPago||[]).map(ins=><button key={ins.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,instrumentoId:ins.id}))} style={{ background:editConcepto.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:editConcepto.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{ins.nombre}</button>)}
+                  </div>
+                  <span style={lbl}>CATEGORÍA REAL</span>
+                  <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
+                    {(cfg.categoriasGasto||[]).map(cg=><button key={cg.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,categoriaGastoId:cg.id}))} style={{ background:editConcepto.categoriaGastoId===cg.id?(cg.color||"#7c3aed"):"#1e1e2e",color:editConcepto.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{cg.nombre}</button>)}
+                  </div>
+                  <span style={lbl}>MONEDA DEFAULT</span>
+                  <div style={{ display:"flex",gap:8,marginBottom:12 }}>{["ARS","USD"].map(mon=><button key={mon} className="pb" onClick={()=>setEditConcepto(p=>({...p,monedaDefault:mon}))} style={{ background:editConcepto.monedaDefault===mon?(mon==="USD"?"#1e3a5f":"#14532d"):"#1e1e2e",color:editConcepto.monedaDefault===mon?(mon==="USD"?"#38bdf8":"#4ade80"):"#94a3b8" }}>{mon}</button>)}</div>
+                  <span style={lbl}>ETIQUETAS SUGERIDAS</span>
+                  <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:14 }}>
+                    {(cfg.etiquetas||[]).map(tag=>{ const activo=(editConcepto.etiquetasIds||[]).includes(tag.id); return <button key={tag.id} className="pb" onClick={()=>toggleEtiquetaConceptoEdit(tag.id)} style={{ background:activo?(tag.color||"#7c3aed"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{tag.nombre}</button>; })}
+                  </div>
+                  <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarConceptoEditado}>Guardar concepto</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarConceptoCfg({id:editConcepto.id,nombre:editConcepto.nombre})}>Desactivar</button></div>
+                </div>
+              )}
+
+              <div className="card"><span style={lbl}>CONCEPTOS ACTIVOS</span>
+                {conceptosConfigFiltrados.slice(0,80).map(con=>{ const cg=(cfg.categoriasGasto||[]).find(x=>x.id===con.categoriaGastoId); const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); const tags=(con.etiquetasIds||[]).map(id=>(cfg.etiquetas||[]).find(t=>t.id===id)?.nombre).filter(Boolean); return(
+                  <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{cg?.nombre||"Sin categoría"} · {mp?.nombre||"Sin medio"} · {ins?.nombre||"Sin instrumento"} · {con.monedaDefault||"ARS"}</div>{tags.length>0&&<div style={{ display:"flex",gap:5,flexWrap:"wrap",marginTop:7 }}>{tags.map(t=><span key={t} style={{ fontSize:10,background:"#1e1e2e",color:"#94a3b8",borderRadius:999,padding:"3px 7px" }}>{t}</span>)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarConcepto(con)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarConceptoCfg(con)}>✕</button></div></div></div>
+                );})}
+                {conceptosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay conceptos con ese filtro.</div>}
+              </div>
+            </>
+          )}
           {cfgTab==="tc"&&(<div className="card"><span style={lbl}>TIPO DE CAMBIO USD → ARS</span><div style={{ fontSize:13,color:"#64748b",marginBottom:10 }}>Actual: <strong style={{ color:"#38bdf8" }}>${tc.toLocaleString("es-AR")}</strong></div><div style={{ display:"flex",gap:10,marginBottom:12 }}><input className="inf" type="number" placeholder="Ej: 1415" value={tcInput} onChange={e=>setTcInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/><button className="pb" style={{ background:"#38bdf8",color:"#0a0a0f",fontWeight:700 }} onClick={guardarTC}>OK</button></div><CotizadorWidget onSelectTC={(valor,tipo)=>{ setCfg(p=>({...p,tipoCambio:valor})); toast_(`TC ${tipo}: $${valor.toLocaleString("es-AR")}`); }}/></div>)}
           {cfgTab==="categorias"&&(<><div className="card"><span style={lbl}>NUEVA</span><input className="inf" placeholder="Nombre" value={newCatLabel} onChange={e=>setNewCatLabel(e.target.value)} style={{ marginBottom:10 }}/><span style={{ ...lbl,marginTop:4 }}>COLOR</span><div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNewCatColor(c)} style={{ background:c,borderColor:newCatColor===c?"#fff":"transparent",transform:newCatColor===c?"scale(1.2)":"none" }}/>)}</div><button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={addCat}>+ Agregar</button></div><div className="card"><span style={lbl}>ACTUALES</span>{cfg.categorias.map(cat=>(<div key={cat.id}>{editCat?.id===cat.id?(<div style={{ padding:"10px 0",borderBottom:"1px solid #1e1e2e" }}><input className="ei" value={editCat.label} onChange={e=>setEditCat(ec=>({...ec,label:e.target.value}))} style={{ width:"100%",marginBottom:8 }}/><div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:8 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setEditCat(ec=>({...ec,color:c}))} style={{ background:c,borderColor:editCat.color===c?"#fff":"transparent",transform:editCat.color===c?"scale(1.2)":"none" }}/>)}</div><div style={{ display:"flex",gap:8 }}><button style={ib("#14532d","#4ade80")} onClick={saveCat}>✓ Guardar</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditCat(null)}>Cancelar</button></div></div>):(<div style={rowS}><div style={{ display:"flex",alignItems:"center",gap:10 }}><div style={{ width:14,height:14,borderRadius:"50%",background:cat.color,flexShrink:0 }}/><span style={{ fontSize:14,fontWeight:500 }}>{cat.label}</span></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditCat({...cat})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delCat(cat.id)}>✕</button></div></div>)}</div>))}</div></>)}
           {cfgTab==="formas"&&(<><div className="card"><span style={lbl}>NUEVA</span><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Ej: Crédito BBVA" value={newForma} onChange={e=>setNewForma(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={addForma}>+</button></div></div><div className="card"><span style={lbl}>ACTUALES</span>{cfg.formasPago.map((fp,idx)=>(<div key={idx}>{editForma?.idx===idx?(<div style={{ display:"flex",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e",alignItems:"center" }}><input className="ei" value={editForma.val} onChange={e=>setEditForma(ef=>({...ef,val:e.target.value}))}/><button style={ib("#14532d","#4ade80")} onClick={saveForma}>✓</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditForma(null)}>✕</button></div>):(<div style={rowS}><span style={{ fontSize:14 }}>{fp}</span><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditForma({idx,val:fp})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delForma(idx)}>✕</button></div></div>)}</div>))}</div></>)}
@@ -2653,7 +2785,7 @@ const GastoRow=({item})=>{
 
       {/* BOTTOM NAV */}
       <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d0d14",borderTop:"1px solid #1e1e2e",display:"flex",padding:"8px 0 12px" }}>
-        {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"analisis",icon:"🔎",label:"Análisis"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Variación"},{id:"ingresos",icon:"💰",label:"Ingresos"}].map(nav=>(
+        {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"analisis",icon:"🔎",label:"Análisis"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Variación"},{id:"ingresos",icon:"💰",label:"Ingresos"},{id:"config",icon:"⚙️",label:"Config"}].map(nav=>(
           <div key={nav.id} className="ni" style={{ position:"relative" }} onClick={()=>setView(nav.id)}>
             <div style={{ fontSize:18 }}>{nav.icon}</div>
             <div style={{ fontSize:9,fontWeight:view===nav.id?700:400,color:view===nav.id?"#7c3aed":"#64748b" }}>{nav.label}</div>
