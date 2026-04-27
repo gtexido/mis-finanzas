@@ -164,9 +164,9 @@ export async function guardarCotizacion(payload) {
   return json.data;
 }
 
-export async function crearConcepto(payload) {
-  const res = await fetch("/api/conceptos", {
-    method: "POST",
+async function catalogosAdminRequest(method, payload) {
+  const res = await fetch("/api/catalogos-admin", {
+    method,
     headers: {
       "Content-Type": "application/json",
     },
@@ -176,206 +176,92 @@ export async function crearConcepto(payload) {
   const json = await res.json();
 
   if (!json.ok) {
-    throw new Error(json.error || "Error al crear concepto");
+    throw new Error(json.error || "Error administrando catálogo");
   }
 
   return json.data;
+}
+
+export async function crearConcepto(payload) {
+  return catalogosAdminRequest("POST", {
+    ...payload,
+    recurso: "concepto",
+  });
 }
 
 export async function actualizarConcepto(payload) {
-  const res = await fetch("/api/conceptos", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return catalogosAdminRequest("PUT", {
+    ...payload,
+    recurso: "concepto",
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al actualizar concepto");
-  }
-
-  return json.data;
 }
 
 export async function desactivarConcepto(conceptoId) {
-  const res = await fetch("/api/conceptos", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ conceptoId }),
+  return catalogosAdminRequest("DELETE", {
+    recurso: "concepto",
+    conceptoId,
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al desactivar concepto");
-  }
-
-  return json.data;
 }
 
 export async function crearMedioPago(payload) {
-  const res = await fetch("/api/medios-pago", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return catalogosAdminRequest("POST", {
+    ...payload,
+    recurso: "medio_pago",
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al crear medio de pago");
-  }
-
-  return json.data;
 }
 
 export async function actualizarMedioPago(payload) {
-  const res = await fetch("/api/medios-pago", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return catalogosAdminRequest("PUT", {
+    ...payload,
+    recurso: "medio_pago",
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al actualizar medio de pago");
-  }
-
-  return json.data;
 }
 
 export async function desactivarMedioPago(medioPagoId) {
-  const res = await fetch("/api/medios-pago", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ medioPagoId }),
+  return catalogosAdminRequest("DELETE", {
+    recurso: "medio_pago",
+    medioPagoId,
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al desactivar medio de pago");
-  }
-
-  return json.data;
 }
 
 export async function crearCategoriaGasto(payload) {
-  const res = await fetch("/api/categorias-gasto", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return catalogosAdminRequest("POST", {
+    ...payload,
+    recurso: "categoria_gasto",
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al crear categoría");
-  }
-
-  return json.data;
 }
 
 export async function actualizarCategoriaGasto(payload) {
-  const res = await fetch("/api/categorias-gasto", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return catalogosAdminRequest("PUT", {
+    ...payload,
+    recurso: "categoria_gasto",
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al actualizar categoría");
-  }
-
-  return json.data;
 }
 
 export async function desactivarCategoriaGasto(categoriaGastoId) {
-  const res = await fetch("/api/categorias-gasto", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ categoriaGastoId }),
+  return catalogosAdminRequest("DELETE", {
+    recurso: "categoria_gasto",
+    categoriaGastoId,
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al desactivar categoría");
-  }
-
-  return json.data;
 }
 
 export async function crearEtiqueta(payload) {
-  const res = await fetch("/api/etiquetas", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return catalogosAdminRequest("POST", {
+    ...payload,
+    recurso: "etiqueta",
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al crear etiqueta");
-  }
-
-  return json.data;
 }
 
 export async function actualizarEtiqueta(payload) {
-  const res = await fetch("/api/etiquetas", {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
+  return catalogosAdminRequest("PUT", {
+    ...payload,
+    recurso: "etiqueta",
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al actualizar etiqueta");
-  }
-
-  return json.data;
 }
 
 export async function desactivarEtiqueta(etiquetaId) {
-  const res = await fetch("/api/etiquetas", {
-    method: "DELETE",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ etiquetaId }),
+  return catalogosAdminRequest("DELETE", {
+    recurso: "etiqueta",
+    etiquetaId,
   });
-
-  const json = await res.json();
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al desactivar etiqueta");
-  }
-
-  return json.data;
 }
