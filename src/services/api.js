@@ -181,3 +181,39 @@ export async function crearConcepto(payload) {
 
   return json.data;
 }
+
+export async function actualizarConcepto(payload) {
+  const res = await fetch("/api/conceptos", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al actualizar concepto");
+  }
+
+  return json.data;
+}
+
+export async function desactivarConcepto(conceptoId) {
+  const res = await fetch("/api/conceptos", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ conceptoId }),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al desactivar concepto");
+  }
+
+  return json.data;
+}
