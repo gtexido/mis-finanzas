@@ -271,3 +271,111 @@ export async function desactivarMedioPago(medioPagoId) {
 
   return json.data;
 }
+
+export async function crearCategoriaGasto(payload) {
+  const res = await fetch("/api/categorias-gasto", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al crear categoría");
+  }
+
+  return json.data;
+}
+
+export async function actualizarCategoriaGasto(payload) {
+  const res = await fetch("/api/categorias-gasto", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al actualizar categoría");
+  }
+
+  return json.data;
+}
+
+export async function desactivarCategoriaGasto(categoriaGastoId) {
+  const res = await fetch("/api/categorias-gasto", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ categoriaGastoId }),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al desactivar categoría");
+  }
+
+  return json.data;
+}
+
+export async function crearEtiqueta(payload) {
+  const res = await fetch("/api/etiquetas", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al crear etiqueta");
+  }
+
+  return json.data;
+}
+
+export async function actualizarEtiqueta(payload) {
+  const res = await fetch("/api/etiquetas", {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al actualizar etiqueta");
+  }
+
+  return json.data;
+}
+
+export async function desactivarEtiqueta(etiquetaId) {
+  const res = await fetch("/api/etiquetas", {
+    method: "DELETE",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ etiquetaId }),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al desactivar etiqueta");
+  }
+
+  return json.data;
+}
