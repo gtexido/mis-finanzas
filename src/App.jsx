@@ -396,6 +396,7 @@ useEffect(() => {
   const gastosFiltrados=filtroEstado==="todos"?gastosDelMes:gastosDelMes.filter(g=>g.estado===filtroEstado);
   const gastosPorCatF=cfg.categorias.map(cat=>({...cat,items:gastosFiltrados.filter(g=>g.categoria===cat.id),total:gastosFiltrados.filter(g=>g.categoria===cat.id).reduce((a,g)=>a+toARS_(g),0)}));
   const [busqueda,setBusqueda]=useState("");
+  const [mostrarTodosConceptos,setMostrarTodosConceptos]=useState(false);
   const gastosPorCatFiltrado2=cfg.categorias
     .filter(cat=>!filtroCatInicio||cat.id===filtroCatInicio)
     .map(cat=>({
@@ -1383,6 +1384,20 @@ const GastoRow=({item})=>{
 
   const esDolar_form = esDolarConcepto(form.servicio);
 
+  const textoConcepto = String(form.servicio || "").trim();
+  const textoConceptoLower = textoConcepto.toLowerCase();
+  const conceptosDisponibles = cfg.conceptos || [];
+  const conceptosFiltrados = conceptosDisponibles.filter((concepto) => {
+    if (!textoConceptoLower) return true;
+    return String(concepto.nombre || "").toLowerCase().includes(textoConceptoLower);
+  });
+  const conceptoExacto = conceptosDisponibles.find(
+    (concepto) => String(concepto.nombre || "").toLowerCase() === textoConceptoLower
+  );
+  const conceptosVisibles = mostrarTodosConceptos
+    ? conceptosFiltrados
+    : conceptosFiltrados.slice(0, textoConceptoLower ? 8 : 10);
+
 
 // ======================================================
 // 🎨 RENDER PRINCIPAL
@@ -1641,60 +1656,152 @@ const GastoRow=({item})=>{
             <div style={{ marginBottom:14 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
                 <span style={lbl}>CONCEPTO</span>
-                <span style={{ fontSize:11,color:"#64748b" }}>elige o escribe uno</span>
+                <span style={{ fontSize:11,color:"#64748b" }}>
+                  buscá o escribí uno
+                </span>
+              </div>
+
+              <div style={{ position:"relative", marginBottom:10 }}>
+                <input
+                  className="inf"
+                  placeholder="Buscar o escribir concepto..."
+                  value={form.servicio}
+                  onChange={e=>{
+                    const val=e.target.value;
+                    setMostrarTodosConceptos(false);
+                    setForm(f=>({
+                      ...f,
+                      conceptoId:"",
+                      servicio:val,
+                      categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(val),
+                      etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(val),
+                      categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
+                      formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
+                      decisionManual:false
+                    }));
+                  }}
+                  style={{ paddingRight: form.servicio ? 42 : undefined }}
+                />
+
+                {form.servicio && (
+                  <button
+                    type="button"
+                    onClick={()=>{
+                      setMostrarTodosConceptos(false);
+                      setForm(f=>({
+                        ...f,
+                        conceptoId:"",
+                        servicio:"",
+                        etiquetasIds:[],
+                        decisionManual:false
+                      }));
+                    }}
+                    style={{
+                      position:"absolute",
+                      right:8,
+                      top:"50%",
+                      transform:"translateY(-50%)",
+                      border:"none",
+                      borderRadius:10,
+                      background:"#1e1e2e",
+                      color:"#94a3b8",
+                      width:28,
+                      height:28,
+                      cursor:"pointer",
+                      fontWeight:800
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
               </div>
 
               {(cfg.conceptos || []).length > 0 && (
-                <div style={{ display:"flex",flexWrap:"wrap",gap:6,marginBottom:8,maxHeight:140,overflowY:"auto",paddingRight:4 }}>
-                  {(cfg.conceptos || []).map(concepto=>(
+                <div style={{ background:"#0b1220",border:"1px solid #1e293b",borderRadius:14,padding:10 }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                    <span style={{ fontSize:11,color:"#64748b",fontWeight:700 }}>
+                      {textoConceptoLower ? `Coincidencias (${conceptosFiltrados.length})` : "Sugeridos"}
+                    </span>
+
+                    {conceptosFiltrados.length > conceptosVisibles.length && (
+                      <button
+                        className="pb"
+                        onClick={()=>setMostrarTodosConceptos(true)}
+                        style={{ background:"transparent",color:"#38bdf8",fontSize:11,padding:"2px 4px" }}
+                      >
+                        Ver todos
+                      </button>
+                    )}
+                  </div>
+
+                  {conceptosVisibles.length > 0 ? (
+                    <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
+                      {conceptosVisibles.map(concepto=>(
+                        <button
+                          key={concepto.id}
+                          className="pb"
+                          onClick={()=>{
+                            setMostrarTodosConceptos(false);
+                            setForm(f=>({
+                              ...f,
+                              conceptoId: concepto.id,
+                              servicio: concepto.nombre,
+                              medioPagoId: concepto.medioPagoId || f.medioPagoId || "mp_sin_definir",
+                              instrumentoId: concepto.instrumentoId || f.instrumentoId || "ins_manual",
+                              categoriaGastoId: concepto.categoriaGastoId || f.categoriaGastoId || "cg_otros",
+                              etiquetasIds: concepto.etiquetasIds?.length ? concepto.etiquetasIds : (f.etiquetasIds || []),
+                              moneda: concepto.monedaDefault || f.moneda || "ARS",
+                              categoria: categoriaLegacyDesdeMedioPagoId(concepto.medioPagoId || f.medioPagoId),
+                              formaPago: formaPagoLegacyDesdeInstrumentoId(concepto.instrumentoId || f.instrumentoId),
+                              decisionManual:false
+                            }));
+                          }}
+                          style={{
+                            background:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#1e3a5f":"#1e4032"):"#1e1e2e",
+                            color:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#38bdf8":"#4ade80"):"#94a3b8",
+                            fontSize:12,
+                            padding:"6px 10px",
+                            border:concepto.monedaDefault==="USD"?"1px solid #38bdf833":"none"
+                          }}
+                        >
+                          {concepto.nombre}{concepto.monedaDefault==="USD"?" 💵":""}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize:12,color:"#64748b",lineHeight:1.45 }}>
+                      No hay coincidencias. Podés guardar el texto escrito como concepto manual.
+                    </div>
+                  )}
+
+                  {textoConcepto && !conceptoExacto && (
                     <button
-                      key={concepto.id}
                       className="pb"
                       onClick={()=>setForm(f=>({
                         ...f,
-                        conceptoId: concepto.id,
-                        servicio: concepto.nombre,
-                        medioPagoId: concepto.medioPagoId || f.medioPagoId || "mp_sin_definir",
-                        instrumentoId: concepto.instrumentoId || f.instrumentoId || "ins_manual",
-                        categoriaGastoId: concepto.categoriaGastoId || f.categoriaGastoId || "cg_otros",
-                        etiquetasIds: concepto.etiquetasIds?.length ? concepto.etiquetasIds : (f.etiquetasIds || []),
-                        moneda: concepto.monedaDefault || f.moneda || "ARS",
-                        categoria: categoriaLegacyDesdeMedioPagoId(concepto.medioPagoId || f.medioPagoId),
-                        formaPago: formaPagoLegacyDesdeInstrumentoId(concepto.instrumentoId || f.instrumentoId),
-                        decisionManual:false
+                        conceptoId:"",
+                        servicio:textoConcepto,
+                        medioPagoId:f.medioPagoId || "mp_sin_definir",
+                        instrumentoId:f.instrumentoId || "ins_manual",
+                        categoriaGastoId:f.categoriaGastoId || "cg_otros",
+                        categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId || "mp_sin_definir"),
+                        formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId || "ins_manual"),
+                        decisionManual:true
                       }))}
                       style={{
-                        background:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#1e3a5f":"#1e4032"):"#1e1e2e",
-                        color:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#38bdf8":"#4ade80"):"#94a3b8",
+                        width:"100%",
+                        background:"#1a1230",
+                        color:"#a78bfa",
+                        border:"1px dashed #7c3aed66",
                         fontSize:12,
-                        padding:"6px 10px",
-                        border:concepto.monedaDefault==="USD"?"1px solid #38bdf833":"none"
+                        marginTop:10
                       }}
                     >
-                      {concepto.nombre}{concepto.monedaDefault==="USD"?" 💵":""}
+                      + Usar “{textoConcepto}” como concepto manual
                     </button>
-                  ))}
+                  )}
                 </div>
               )}
-
-              <input
-                className="inf"
-                placeholder="O escribí el concepto..."
-                value={form.servicio}
-                onChange={e=>{
-                  const val=e.target.value;
-                  setForm(f=>({
-                    ...f,
-                    conceptoId:"",
-                    servicio:val,
-                    categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(val),
-                    etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(val),
-                    categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
-                    formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
-                    decisionManual:false
-                  }));
-                }}
-              />
             </div>
 
             <div style={{ marginBottom:12 }}>
