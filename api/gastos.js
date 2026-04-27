@@ -183,10 +183,14 @@ export default async function handler(req, res) {
       dia,
       categoria,
       formaPago,
+
+      // Nuevo modelo multidimensional
+      conceptoId,
       medioPagoId,
       instrumentoId,
       categoriaGastoId,
       etiquetasIds = [],
+
       servicio,
       monto,
       moneda,
@@ -213,12 +217,18 @@ export default async function handler(req, res) {
     const servicioId = mapServicioId(servicio);
     const conceptoManual = servicioId ? null : servicio || null;
     const monedaMovimiento = normalizarMoneda(moneda || "ARS");
+
     const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
     const usuarioIdCreador = body.usuarioIdCreador || body.usuario_id_creador || "usr_default";
+
+    const conceptoNuevoId = conceptoId || body.concepto_id || null;
     const medioPagoNuevoId = medioPagoId || body.medio_pago_id || null;
     const instrumentoNuevoId = instrumentoId || body.instrumento_id || null;
     const categoriaGastoNuevoId = categoriaGastoId || body.categoria_gasto_id || null;
-    const etiquetasNormalizadas = normalizarListaIds(etiquetasIds.length ? etiquetasIds : body.etiquetas || body.etiquetas_ids);
+
+    const etiquetasNormalizadas = normalizarListaIds(
+      etiquetasIds.length ? etiquetasIds : body.etiquetas || body.etiquetas_ids
+    );
 
     const detallesNormalizados = [];
 
@@ -261,6 +271,7 @@ export default async function handler(req, res) {
         fuente_ingreso_id,
         workspace_id,
         usuario_id_creador,
+        concepto_id,
         medio_pago_id,
         instrumento_id,
         categoria_gasto_id,
@@ -285,6 +296,7 @@ export default async function handler(req, res) {
         ${null},
         ${workspaceId},
         ${usuarioIdCreador},
+        ${conceptoNuevoId},
         ${medioPagoNuevoId},
         ${instrumentoNuevoId},
         ${categoriaGastoNuevoId},

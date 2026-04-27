@@ -19,19 +19,21 @@ export default async function handler(req, res) {
       });
     }
 
-    // 1) Borra detalles nuevos
+    await sql`
+      DELETE FROM movimiento_etiquetas
+      WHERE movimiento_id = ${movimientoId};
+    `;
+
     await sql`
       DELETE FROM detalle_movimiento
       WHERE movimiento_id = ${movimientoId};
     `;
 
-    // 2) Borra detalles legacy, si existen
     await sql`
       DELETE FROM subconceptos_usd
       WHERE movimiento_id = ${movimientoId};
     `;
 
-    // 3) Borra cabecera del movimiento
     await sql`
       DELETE FROM movimientos
       WHERE movimiento_id = ${movimientoId};

@@ -14,10 +14,6 @@ export const mapCatalogosDesdeApi = (catalogos, tipoCambioActual = 1415) => {
     servicios[catId].push(s.nombre);
   });
 
-  const conceptosDolar = (catalogos.servicios || [])
-    .filter((s) => s.usa_subconceptos_usd === true || s.tipo_moneda_default === "USD")
-    .map((s) => s.nombre);
-
   const fuentesIngreso = (catalogos.fuentesIngreso || []).map((f) => f.nombre);
 
   const tipoCambioParam = (catalogos.parametros || []).find(
@@ -57,6 +53,44 @@ export const mapCatalogosDesdeApi = (catalogos, tipoCambioActual = 1415) => {
     ordenVisual: Number(e.orden_visual || 0),
   }));
 
+  const conceptoEtiquetasPorId = (catalogos.conceptoEtiquetas || []).reduce((acc, item) => {
+    if (!acc[item.concepto_id]) acc[item.concepto_id] = [];
+    acc[item.concepto_id].push({
+      id: item.etiqueta_id,
+      etiquetaId: item.etiqueta_id,
+      nombre: item.nombre,
+      color: item.color || "#64748b",
+      ordenVisual: Number(item.orden_visual || 0),
+    });
+    return acc;
+  }, {});
+
+  const conceptos = (catalogos.conceptos || []).map((c) => ({
+    id: c.concepto_id,
+    conceptoId: c.concepto_id,
+    workspaceId: c.workspace_id,
+    nombre: c.nombre,
+    label: c.nombre,
+    tipoMovimiento: c.tipo_movimiento || "GASTO",
+    categoriaGastoId: c.categoria_gasto_id || "",
+    medioPagoId: c.medio_pago_id || "",
+    instrumentoId: c.instrumento_id || "",
+    monedaDefault: c.moneda_default || "ARS",
+    etiquetas: conceptoEtiquetasPorId[c.concepto_id] || [],
+    etiquetasIds: (conceptoEtiquetasPorId[c.concepto_id] || []).map((e) => e.id),
+  }));
+
+  const conceptosDolarLegacy = (catalogos.servicios || [])
+    .filter((s) => s.usa_subconceptos_usd === true || s.tipo_moneda_default === "USD")
+    .map((s) => s.nombre);
+
+  const conceptosDolar = Array.from(
+    new Set([
+      ...conceptosDolarLegacy,
+      ...conceptos.filter((c) => c.monedaDefault === "USD").map((c) => c.nombre),
+    ])
+  );
+
   return {
     categorias,
     formasPago,
@@ -65,10 +99,12 @@ export const mapCatalogosDesdeApi = (catalogos, tipoCambioActual = 1415) => {
     fuentesIngreso,
     tipoCambio: tipoCambioParam ? Number(tipoCambioParam.valor) : tipoCambioActual,
 
-    // Nuevo modelo multidimensional.
     mediosPago,
     instrumentosPago,
     categoriasGasto,
     etiquetas,
+
+    conceptos,
+    conceptoEtiquetas: catalogos.conceptoEtiquetas || [],
   };
 };

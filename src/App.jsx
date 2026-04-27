@@ -803,6 +803,7 @@ try {
       dia: gastoEditado.dia,
       categoria: gastoEditado.categoria,
       formaPago: gastoEditado.formaPago,
+	  conceptoId: gastoEditado.conceptoId || gastoEditado.concepto_id || null,
       medioPagoId: gastoEditado.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoEditado.categoria),
       instrumentoId: gastoEditado.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoEditado.formaPago),
       categoriaGastoId: gastoEditado.categoriaGastoId || categoriaGastoDesdeServicio(gastoEditado.servicio),

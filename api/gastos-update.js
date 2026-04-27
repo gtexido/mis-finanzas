@@ -184,10 +184,14 @@ export default async function handler(req, res) {
       dia,
       categoria,
       formaPago,
+
+      // Nuevo modelo multidimensional
+      conceptoId,
       medioPagoId,
       instrumentoId,
       categoriaGastoId,
       etiquetasIds = [],
+
       servicio,
       monto,
       moneda,
@@ -212,12 +216,18 @@ export default async function handler(req, res) {
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
     const fechaConversion = normalizarFecha(vencimiento || fechaOperacion);
     const monedaMovimiento = normalizarMoneda(moneda || "ARS");
+
     const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
     const usuarioIdCreador = body.usuarioIdCreador || body.usuario_id_creador || "usr_default";
+
+    const conceptoNuevoId = conceptoId || body.concepto_id || null;
     const medioPagoNuevoId = medioPagoId || body.medio_pago_id || null;
     const instrumentoNuevoId = instrumentoId || body.instrumento_id || null;
     const categoriaGastoNuevoId = categoriaGastoId || body.categoria_gasto_id || null;
-    const etiquetasNormalizadas = normalizarListaIds(etiquetasIds.length ? etiquetasIds : body.etiquetas || body.etiquetas_ids);
+
+    const etiquetasNormalizadas = normalizarListaIds(
+      etiquetasIds.length ? etiquetasIds : body.etiquetas || body.etiquetas_ids
+    );
 
     const detallesNormalizados = [];
 
@@ -255,11 +265,14 @@ export default async function handler(req, res) {
         forma_pago_id = ${formaPagoId},
         servicio_id = ${servicioId},
         concepto_manual = ${conceptoManual},
+
         workspace_id = COALESCE(workspace_id, ${workspaceId}),
         usuario_id_creador = COALESCE(usuario_id_creador, ${usuarioIdCreador}),
+        concepto_id = ${conceptoNuevoId},
         medio_pago_id = ${medioPagoNuevoId},
         instrumento_id = ${instrumentoNuevoId},
         categoria_gasto_id = ${categoriaGastoNuevoId},
+
         monto = ${montoCabecera},
         moneda = ${monedaMovimiento},
         estado = ${estado || "pendiente"},
