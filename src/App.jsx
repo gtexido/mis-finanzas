@@ -1796,19 +1796,19 @@ const GastoRow=({item})=>{
 // 🎨 RENDER PRINCIPAL
 // ======================================================
   return (
-    <div style={{ fontFamily:"'DM Sans',sans-serif",background:"#0a0a0f",minHeight:"100vh",color:"#e2e8f0",maxWidth:480,margin:"0 auto",paddingBottom:88 }}>
+    <div style={{ fontFamily:"'DM Sans',sans-serif",background:"#0a0a0f",minHeight:"100vh",color:"#e2e8f0",maxWidth:480,margin:"0 auto",paddingBottom:"calc(76px + env(safe-area-inset-bottom, 0px))" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
         input,select{font-family:'DM Sans',sans-serif;}
         ::-webkit-scrollbar{display:none;}
-        .pb{border:none;border-radius:12px;padding:10px 16px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;font-size:14px;transition:all 0.15s;}
+        .pb{border:none;border-radius:12px;padding:9px 14px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:700;font-size:13px;transition:all 0.15s;}
         .pb:active{transform:scale(0.96);}
-        .card{background:#13131a;border-radius:20px;padding:18px;margin-bottom:12px;border:1px solid #1e1e2e;}
+        .card{background:#13131a;border-radius:18px;padding:14px;margin-bottom:10px;border:1px solid #1e1e2e;}
         .inf{width:100%;background:#1a1a24;border:1.5px solid #2a2a3e;border-radius:12px;padding:11px 13px;color:#e2e8f0;font-size:15px;outline:none;}
         .inf:focus{border-color:#7c3aed;}
         select.inf option{background:#1a1a24;}
-        .ni{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:8px 0;border-radius:12px;}
+        .ni{display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;flex:1;min-width:0;padding:5px 0;border-radius:12px;}
         .ni:active{background:#1e1e2e;}
         .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999;padding:12px 24px;border-radius:40px;font-weight:600;font-size:14px;animation:fio 2.4s ease;white-space:nowrap;}
         @keyframes fio{0%{opacity:0;transform:translateX(-50%) translateY(-8px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}80%{opacity:1}100%{opacity:0}}
@@ -1819,7 +1819,7 @@ const GastoRow=({item})=>{
         .tb{border:none;border-radius:10px;padding:7px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;transition:all 0.15s;}
         .cd{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;flex-shrink:0;}
         .ei{background:#1a1a24;border:1.5px solid #7c3aed;border-radius:10px;padding:7px 10px;color:#e2e8f0;font-size:14px;outline:none;flex:1;font-family:'DM Sans',sans-serif;}
-        .stat-box{flex:1;background:#13131a;border-radius:16px;padding:12px 14px;border:1px solid #1e1e2e;}
+        .stat-box{flex:1;background:#13131a;border-radius:15px;padding:10px 12px;border:1px solid #1e1e2e;}
       `}</style>
 
       {toast&&<div className="toast" style={{ background:toast.type==="err"?"#7f1d1d":"#14532d",color:toast.type==="err"?"#fca5a5":"#86efac" }}>{toast.msg}</div>}
@@ -1928,10 +1928,10 @@ const GastoRow=({item})=>{
       )}
 
       {/* HEADER */}
-      <div style={{ padding:"18px 14px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+      <div style={{ padding:"12px 12px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <div>
-          <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-          <div style={{ fontSize:18,fontWeight:700 }}>{view==="config"?"Ajustes":view==="analisis"?"Análisis":view==="variacion"?"Evolución":view==="vencimientos"?"Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
+          <div style={{ fontFamily:"'Space Mono',monospace",fontSize:10,color:"#7c3aed",letterSpacing:1.7,textTransform:"uppercase" }}>Mis Finanzas</div>
+          <div style={{ fontSize:17,fontWeight:800,lineHeight:1.15 }}>{view==="config"?"Ajustes":view==="analisis"?"Análisis":view==="variacion"?"Evolución":view==="vencimientos"?"Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
         </div>
         {!["config","variacion","vencimientos"].includes(view)&&(
           <div style={{ display:"flex",gap:8 }}>
@@ -1941,37 +1941,37 @@ const GastoRow=({item})=>{
         )}
       </div>
 
-      <div style={{ padding:"12px 12px 0" }}>
+      <div style={{ padding:"10px 10px 0" }}>
 
         {/* HOME */}
         {view==="home"&&(<>
-          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#7c3aed55 0%,transparent 36%),linear-gradient(135deg,#111827 0%,#1a1230 52%,#0f172a 100%)",border:`1px solid ${saludFinanciera.color}55`,boxShadow:"0 12px 32px rgba(0,0,0,0.24)",padding:14,borderRadius:18,marginBottom:10 }}>
+          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#7c3aed55 0%,transparent 36%),linear-gradient(135deg,#111827 0%,#1a1230 52%,#0f172a 100%)",border:`1px solid ${saludFinanciera.color}55`,boxShadow:"0 12px 32px rgba(0,0,0,0.24)",padding:12,borderRadius:17,marginBottom:8 }}>
             <div style={{ position:"absolute",right:-36,top:-44,width:108,height:108,borderRadius:"50%",background:`${saludFinanciera.color}18` }}/>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,position:"relative" }}>
               <div>
                 <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",marginBottom:4 }}>Resumen del mes</div>
                 <div style={{ fontSize:12,color:"#cbd5e1",marginBottom:3 }}>Disponible estimado</div>
-                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:32,lineHeight:1.05,fontWeight:700,color:saldoColor }}>{fmtARS(saldo)}</div>
+                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:29,lineHeight:1.04,fontWeight:800,color:saldoColor }}>{fmtARS(saldo)}</div>
               </div>
-              <div style={{ background:`${saludFinanciera.color}1f`,border:`1px solid ${saludFinanciera.color}55`,borderRadius:14,padding:"7px 8px",minWidth:78,textAlign:"center" }}>
-                <div style={{ fontSize:15 }}>{saludFinanciera.icon}</div>
+              <div style={{ background:`${saludFinanciera.color}1f`,border:`1px solid ${saludFinanciera.color}55`,borderRadius:13,padding:"6px 7px",minWidth:72,textAlign:"center" }}>
+                <div style={{ fontSize:14 }}>{saludFinanciera.icon}</div>
                 <div style={{ fontSize:10,fontWeight:800,color:saludFinanciera.color,marginTop:1 }}>{saludFinanciera.label}</div>
               </div>
             </div>
 
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12,position:"relative" }}>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:7,marginTop:10,position:"relative" }}>
+              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"7px 8px",borderRadius:12 }}>
                 <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>INGRESOS</div>
-                <div style={{ fontSize:14,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalIngresos)}</div>
+                <div style={{ fontSize:13,fontWeight:900,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalIngresos)}</div>
               </div>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
+              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"7px 8px",borderRadius:12 }}>
                 <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>GASTOS</div>
-                <div style={{ fontSize:14,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{fmtARS(totalGastos)}</div>
+                <div style={{ fontSize:13,fontWeight:900,color:"#f87171",whiteSpace:"nowrap" }}>{fmtARS(totalGastos)}</div>
               </div>
             </div>
 
             {totalIngresos>0&&<>
-              <div className="pgb" style={{ height:6,marginTop:10,background:"rgba(30,30,46,0.9)" }}>
+              <div className="pgb" style={{ height:5,marginTop:9,background:"rgba(30,30,46,0.9)" }}>
                 <div className="pgf" style={{ width:`${Math.min(porcentajeUsoIngreso,100)}%`,background:saludFinanciera.color }}/>
               </div>
               <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:"#94a3b8",marginTop:5 }}>
@@ -1981,34 +1981,34 @@ const GastoRow=({item})=>{
             </>}
           </div>
 
-          <div className="card" style={{ background:"#101827",border:"1px solid #1e293b",padding:"10px 11px",borderRadius:16,marginBottom:9 }}>
+          <div className="card" style={{ background:"#101827",border:"1px solid #1e293b",padding:"9px 10px",borderRadius:15,marginBottom:8 }}>
             <div style={{ display:"flex",alignItems:"flex-start",gap:9 }}>
-              <div style={{ width:26,height:26,borderRadius:10,background:"#38bdf822",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>💡</div>
+              <div style={{ width:24,height:24,borderRadius:9,background:"#38bdf822",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>💡</div>
               <div style={{ flex:1,minWidth:0 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:3 }}>
                   <div style={{ fontSize:10,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Diagnóstico</div>
                   <div style={{ width:5,height:5,borderRadius:"50%",background:saludFinanciera.color }}/>
                 </div>
-                <div style={{ fontSize:12,color:"#e2e8f0",lineHeight:1.32,fontWeight:700 }}>{recomendacionHome}</div>
+                <div style={{ fontSize:11.5,color:"#e2e8f0",lineHeight:1.28,fontWeight:800 }}>{recomendacionHome}</div>
               </div>
             </div>
           </div>
 
 
-          {accionesHome.length>0&&<div className="card" style={{ padding:"10px 11px",borderRadius:16,marginBottom:9,border:"1px solid #2a1a4e",background:"linear-gradient(135deg,#15111f,#101827)" }}>
+          {accionesHome.length>0&&<div className="card" style={{ padding:"9px 10px",borderRadius:15,marginBottom:8,border:"1px solid #2a1a4e",background:"linear-gradient(135deg,#15111f,#101827)" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8 }}>
               <div>
                 <div style={{ fontSize:10,color:"#c4b5fd",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Qué conviene hacer ahora</div>
-                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Dos focos para avanzar sin ruido</div>
+                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Máximo dos acciones concretas</div>
               </div>
-              <div style={{ width:28,height:28,borderRadius:10,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15 }}>🎯</div>
+              <div style={{ width:25,height:25,borderRadius:9,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15 }}>🎯</div>
             </div>
             <div style={{ display:"grid",gap:6 }}>
               {accionesHome.map((accion,idx)=>(
-                <div key={`${accion.titulo}-${idx}`} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:12,background:"#0b1020",border:"1px solid #1e293b" }}>
-                  <div style={{ width:26,height:26,borderRadius:9,background:"#1e1b4b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>{accion.icon}</div>
+                <div key={`${accion.titulo}-${idx}`} style={{ display:"flex",alignItems:"center",gap:7,padding:"6px 7px",borderRadius:11,background:"#0b1020",border:"1px solid #1e293b" }}>
+                  <div style={{ width:24,height:24,borderRadius:8,background:"#1e1b4b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>{accion.icon}</div>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0" }}>{accion.titulo}</div>
+                    <div style={{ fontSize:11.5,fontWeight:900,color:"#e2e8f0" }}>{accion.titulo}</div>
                     <div style={{ fontSize:10,color:"#94a3b8",lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{accion.detalle}</div>
                   </div>
                 </div>
@@ -2016,37 +2016,37 @@ const GastoRow=({item})=>{
             </div>
           </div>}
 
-          <div style={{ display:"grid",gridTemplateColumns:totalUSD_>0?"1fr 1fr 1fr":"1fr 1fr",gap:6,marginBottom:10 }}>
-            <div className="stat-box" style={{ border:"1px solid #14532d",background:"#0f1f17",padding:"8px 9px",borderRadius:13 }}>
+          <div style={{ display:"grid",gridTemplateColumns:totalUSD_>0?"1fr 1fr 1fr":"1fr 1fr",gap:5,marginBottom:8 }}>
+            <div className="stat-box" style={{ border:"1px solid #14532d",background:"#0f1f17",padding:"7px 8px",borderRadius:12 }}>
               <div style={{ fontSize:10,color:"#86efac",marginBottom:2,fontWeight:800 }}>PAGADO</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalPagado)}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:10.5,fontWeight:900,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalPagado)}</div>
               <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{pagosRealizadosPct}%</div>
             </div>
-            <div className="stat-box" style={{ border:"1px solid #422006",background:"#21160b",padding:"8px 9px",borderRadius:13 }}>
+            <div className="stat-box" style={{ border:"1px solid #422006",background:"#21160b",padding:"7px 8px",borderRadius:12 }}>
               <div style={{ fontSize:10,color:"#fdba74",marginBottom:2,fontWeight:800 }}>PENDIENTE</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#fb923c",whiteSpace:"nowrap" }}>{fmtARS(totalPendiente)}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:10.5,fontWeight:900,color:"#fb923c",whiteSpace:"nowrap" }}>{fmtARS(totalPendiente)}</div>
               <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{gastosDelMes.filter(g=>g.estado==="pendiente").length} ítems</div>
             </div>
-            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f",background:"#0b1726",padding:"8px 9px",borderRadius:13 }}>
+            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f",background:"#0b1726",padding:"7px 8px",borderRadius:12 }}>
               <div style={{ fontSize:10,color:"#7dd3fc",marginBottom:2,fontWeight:800 }}>USD</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div>
               <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>incluido en ARS</div>
             </div>}
           </div>
 
-          <div className="card" style={{ padding:"9px 11px",borderRadius:15,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
+          <div className="card" style={{ padding:"8px 10px",borderRadius:14,marginBottom:8,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
             <div style={{ minWidth:0 }}>
               <div style={{ fontSize:10,color:"#64748b",fontWeight:800,letterSpacing:0.6,textTransform:"uppercase" }}>Actividad del mes</div>
               <div style={{ fontSize:11,color:"#94a3b8",marginTop:3 }}>{totalOperacionesMes} operaciones · ticket prom. <span style={{ color:"#e2e8f0",fontWeight:800 }}>{fmtARS(ticketPromedioMes)}</span></div>
             </div>
-            <div onClick={()=>gastoMayorDelMes&&setView("resumen")} style={{ minWidth:105,textAlign:"right",cursor:gastoMayorDelMes?"pointer":"default" }}>
+            <div onClick={()=>gastoMayorDelMes&&setView("resumen")} style={{ minWidth:96,textAlign:"right",cursor:gastoMayorDelMes?"pointer":"default" }}>
               <div style={{ fontSize:10,color:"#64748b",fontWeight:800 }}>MAYOR GASTO</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{gastoMayorDelMes?fmtARS(toARS_(gastoMayorDelMes)):fmtARS(0)}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:10.5,fontWeight:900,color:"#f87171",whiteSpace:"nowrap" }}>{gastoMayorDelMes?fmtARS(toARS_(gastoMayorDelMes)):fmtARS(0)}</div>
             </div>
           </div>
 
           {cantidadAlertasProximas > 0 && (
-            <div className="card" onClick={() => setView("vencimientos")} style={{ border:"1px solid #f8717144",background:"linear-gradient(135deg,#1a1010,#241111)",cursor:"pointer",padding:12,borderRadius:16,marginBottom:10 }}>
+            <div className="card" onClick={() => setView("vencimientos")} style={{ border:"1px solid #f8717144",background:"linear-gradient(135deg,#1a1010,#241111)",cursor:"pointer",padding:10,borderRadius:15,marginBottom:8 }}>
               <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
                 <div style={{ fontSize:18 }}>⚠️</div>
                 <div style={{ fontSize:12, fontWeight:800, color:"#fca5a5", flex:1 }}>Vencimientos próximos: {cantidadAlertasProximas}</div>
@@ -2057,7 +2057,7 @@ const GastoRow=({item})=>{
             </div>
           )}
 
-          {topCategoriasHome.length>0&&<div className="card" style={{ padding:12,borderRadius:16,marginBottom:10 }}>
+          {topCategoriasHome.length>0&&<div className="card" style={{ padding:10,borderRadius:15,marginBottom:8 }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
               <div>
                 <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase" }}>Principales categorías</div>
@@ -2072,11 +2072,11 @@ const GastoRow=({item})=>{
                   <div style={{ display:"flex",alignItems:"center",gap:9,minWidth:0 }}>
                     <div style={{ width:19,height:19,borderRadius:7,background:`${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:cat.color }}>{idx+1}</div>
                     <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
+                      <div style={{ fontSize:11.5,fontWeight:900,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
                       <div style={{ fontSize:10,color:"#64748b" }}>{cat.items.length} ítems · {pctCat}% del gasto</div>
                     </div>
                   </div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap",textAlign:"right" }}>{fmtARS(cat.total)}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:10.5,fontWeight:900,color:cat.color,whiteSpace:"nowrap",textAlign:"right" }}>{fmtARS(cat.total)}</div>
                 </div>
                 <div style={{ height:4,borderRadius:4,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",width:`${Math.min(pctCat,100)}%`,background:cat.color,borderRadius:4 }}/></div>
               </div>);
@@ -2084,35 +2084,35 @@ const GastoRow=({item})=>{
           </div>}
 
           {/* Card replicar mes */}
-          {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#15111f 0%,#0f172a 100%)",border:"1px solid #2a1a4e",borderRadius:16,padding:"10px 11px",marginBottom:10 }}>
+          {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#15111f 0%,#0f172a 100%)",border:"1px solid #2a1a4e",borderRadius:15,padding:"9px 10px",marginBottom:8 }}>
             <div style={{ display:"flex",alignItems:"center",gap:9,marginBottom:10 }}>
-              <div style={{ width:26,height:26,borderRadius:9,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>📋</div>
+              <div style={{ width:24,height:24,borderRadius:8,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>📋</div>
               <div>
-                <div style={{ fontWeight:800,fontSize:12 }}>Preparar próximo mes</div>
+                <div style={{ fontWeight:900,fontSize:11.5 }}>Preparar próximo mes</div>
                 <div style={{ fontSize:10,color:"#94a3b8",marginTop:1 }}>Copiá los gastos recurrentes de {MESES[mes.m]}</div>
               </div>
             </div>
             <div style={{ display:"flex",gap:10 }}>
-              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:12,padding:"8px 10px" }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>Replicar gastos</button>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:12,padding:"8px 10px" }} onClick={()=>setPrepararMesOculto(mesKey)}>Ahora no</button>
+              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:11.5,padding:"7px 9px" }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>Replicar gastos</button>
+              <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:11.5,padding:"7px 9px" }} onClick={()=>setPrepararMesOculto(mesKey)}>Ahora no</button>
             </div>
           </div>}
 
           {categoriasConGasto.map(cat=>{
             const pendCat=cat.items.filter(i=>i.estado==="pendiente");
             const pctGastado=totalIngresos>0?Math.round((cat.total/totalIngresos)*100):0;
-            return(<div key={cat.id} className="card" style={{ padding:"10px 12px",borderRadius:15,cursor:"pointer",transition:"all 0.15s",border:"1px solid #1e1e2e" }}
+            return(<div key={cat.id} className="card" style={{ padding:"9px 10px",borderRadius:14,cursor:"pointer",transition:"all 0.15s",border:"1px solid #1e1e2e" }}
               onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }}
               onMouseEnter={e=>e.currentTarget.style.border=`1px solid ${cat.color}44`}
               onMouseLeave={e=>e.currentTarget.style.border="1px solid #1e1e2e"}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                   <div style={{ width:10,height:10,borderRadius:"50%",background:cat.color }}/>
-                  <span style={{ fontWeight:700,fontSize:13 }}>{cat.label}</span>
+                  <span style={{ fontWeight:800,fontSize:12.5 }}>{cat.label}</span>
                   <span style={{ fontSize:10,color:"#64748b" }}>{cat.items.length}</span>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap" }}>{fmtARS(cat.total)}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:10.5,fontWeight:900,color:cat.color,whiteSpace:"nowrap" }}>{fmtARS(cat.total)}</div>
                   <span style={{ fontSize:11,color:"#64748b" }}>›</span>
                 </div>
               </div>
@@ -2121,7 +2121,7 @@ const GastoRow=({item})=>{
             </div>);
           })}
           {gastosDelMes.length===0&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:40,marginBottom:12 }}>💸</div><div style={{ fontWeight:600 }}>Sin gastos este mes</div><div style={{ fontSize:12,marginTop:6 }}>Cargá el primer gasto y el resumen se arma automáticamente.</div></div>}
-          <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#94a3b8",marginTop:6,padding:"8px 12px",fontSize:12 }} onClick={exportCSV}>Exportar CSV</button>
+          <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#94a3b8",marginTop:4,padding:"7px 10px",fontSize:11.5 }} onClick={exportCSV}>Exportar CSV</button>
         </>)}
 
         {/* CARGAR */}
@@ -3225,12 +3225,12 @@ const GastoRow=({item})=>{
       )}
 
       {/* BOTTOM NAV */}
-      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d0d14",borderTop:"1px solid #1e1e2e",display:"flex",padding:"7px 0 11px" }}>
+      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"rgba(13,13,20,0.96)",borderTop:"1px solid #1e1e2e",display:"flex",padding:"5px 0 calc(8px + env(safe-area-inset-bottom, 0px))",backdropFilter:"blur(10px)",boxShadow:"0 -10px 28px rgba(0,0,0,0.28)" }}>
         {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"analisis",icon:"🔎",label:"Analizar"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Evol."},{id:"ingresos",icon:"💰",label:"Ingresos"},{id:"config",icon:"⚙️",label:"Ajustes"}].map(nav=>(
           <div key={nav.id} className="ni" style={{ position:"relative" }} onClick={()=>setView(nav.id)}>
-            <div style={{ fontSize:17,lineHeight:1 }}>{nav.icon}</div>
-            <div style={{ fontSize:9,fontWeight:view===nav.id?800:500,color:view===nav.id?"#7c3aed":"#64748b",marginTop:2 }}>{nav.label}</div>
-            {view===nav.id&&<div style={{ position:"absolute",bottom:-4,width:16,height:3,background:"#7c3aed",borderRadius:2 }}/>}
+            <div style={{ fontSize:15,lineHeight:1 }}>{nav.icon}</div>
+            <div style={{ fontSize:8.5,fontWeight:view===nav.id?900:600,color:view===nav.id?"#7c3aed":"#64748b",marginTop:2 }}>{nav.label}</div>
+            {view===nav.id&&<div style={{ position:"absolute",bottom:-2,width:14,height:3,background:"#7c3aed",borderRadius:2 }}/>}
             {nav.id==="vencimientos"&&vencUrgentes>0&&<div style={{ position:"absolute",top:2,right:6,background:"#f87171",borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff" }}>{vencUrgentes}</div>}
           </div>
         ))}
