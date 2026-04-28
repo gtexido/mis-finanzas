@@ -111,8 +111,48 @@ async function crearConcepto(sql, body) {
   `;
 
   if (existente.length > 0) {
-    return { data: existente[0], alreadyExists: true };
-  }
+  const conceptoId = existente[0].concepto_id;
+
+  const categoriaGastoId =
+    body.categoriaGastoId || body.categoria_gasto_id || existente[0].categoria_gasto_id || "cg_otros";
+
+  const medioPagoId =
+    body.medioPagoId || body.medio_pago_id || existente[0].medio_pago_id || "mp_sin_definir";
+
+  const instrumentoId =
+    body.instrumentoId || body.instrumento_id || existente[0].instrumento_id || "ins_manual";
+
+  const monedaDefault = String(
+    body.monedaDefault || body.moneda_default || existente[0].moneda_default || "ARS"
+  ).trim().toUpperCase();
+
+  const etiquetasIds = normalizarListaIds(
+    body.etiquetasIds || body.etiquetas_ids || body.etiquetas
+  );
+
+  const updated = await sql`
+    UPDATE conceptos
+    SET
+      nombre = ${nombre},
+      tipo_movimiento = ${tipoMovimiento},
+      categoria_gasto_id = ${categoriaGastoId},
+      medio_pago_id = ${medioPagoId},
+      instrumento_id = ${instrumentoId},
+      moneda_default = ${monedaDefault},
+      activo = true,
+      updated_at = NOW()
+    WHERE concepto_id = ${conceptoId}
+    RETURNING *;
+  `;
+
+  await reemplazarEtiquetasConcepto(sql, conceptoId, etiquetasIds);
+
+  return {
+    data: updated[0],
+    alreadyExists: true,
+    reactivated: !existente[0].activo,
+  };
+}
 
   const idBase =
     body.conceptoId ||
