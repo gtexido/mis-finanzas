@@ -646,7 +646,7 @@ const calcularTotalARSDetalle = (items = []) => {
 const tieneSubconceptosValidos = (items = []) => Array.isArray(items) && items.length > 0;
 
 const guardarGasto = async (extra = {}) => {
-  const f = { ...form, ...extra };
+  let f = { ...form, ...extra };
 
   if (!f.servicio) {
     toast_("Completá el concepto", "err");
@@ -742,6 +742,7 @@ const guardarGasto = async (extra = {}) => {
         tipoGasto: "simple",
         accionCompuesto: "nuevo",
         decisionManual: false,
+        crearConceptoPendiente: false,
       });
 
       toast_("✅ Gasto actualizado");
@@ -752,6 +753,64 @@ const guardarGasto = async (extra = {}) => {
       return;
     }
   }
+
+if (!f.conceptoId && f.crearConceptoPendiente && !f.decisionManual) {
+  try {
+    const nombreConcepto = String(f.servicio || "").trim();
+
+    if (!nombreConcepto) {
+      toast_("Escribí el nombre del concepto", "err");
+      return;
+    }
+
+    const conceptoCreado = await crearConcepto({
+      nombre: nombreConcepto,
+      workspaceId: "ws_default",
+      tipoMovimiento: "GASTO",
+      categoriaGastoId: f.categoriaGastoId || "cg_otros",
+      medioPagoId: f.medioPagoId || "mp_sin_definir",
+      instrumentoId: f.instrumentoId || "ins_manual",
+      monedaDefault: f.moneda || "ARS",
+      etiquetasIds: f.etiquetasIds?.length ? f.etiquetasIds : ["tag_variable"],
+    });
+
+    const catalogosApi = await getCatalogos();
+    const cfgActualizada = mapCatalogosDesdeApi(catalogosApi, tc);
+    setCfg(cfgActualizada);
+
+    const conceptoActualizado =
+      (cfgActualizada.conceptos || []).find((c) => c.id === conceptoCreado.concepto_id) ||
+      (cfgActualizada.conceptos || []).find(
+        (c) => String(c.nombre || "").trim().toLowerCase() === nombreConcepto.toLowerCase()
+      );
+
+    if (conceptoActualizado) {
+      f = {
+        ...f,
+        conceptoId: conceptoActualizado.id,
+        servicio: conceptoActualizado.nombre,
+        medioPagoId: conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir",
+        instrumentoId: conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual",
+        categoriaGastoId: conceptoActualizado.categoriaGastoId || f.categoriaGastoId || "cg_otros",
+        etiquetasIds: conceptoActualizado.etiquetasIds?.length
+          ? conceptoActualizado.etiquetasIds
+          : f.etiquetasIds || [],
+        moneda: conceptoActualizado.monedaDefault || f.moneda || "ARS",
+        categoria: categoriaLegacyDesdeMedioPagoId(
+          conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir"
+        ),
+        formaPago: formaPagoLegacyDesdeInstrumentoId(
+          conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual"
+        ),
+        crearConceptoPendiente: false,
+      };
+    }
+  } catch (e) {
+    console.error(e);
+    toast_(e.message || "No se pudo crear el concepto", "err");
+    return;
+  }
+}
 
 try {
   const subconceptosPayload = f.subconceptos || [];
@@ -818,6 +877,7 @@ try {
       tipoGasto: "simple",
       accionCompuesto: "nuevo",
       decisionManual: false,
+      crearConceptoPendiente: false,
     });
 
     toast_("¡Gasto guardado en Neon!");
@@ -1656,7 +1716,7 @@ const GastoRow=({item})=>{
     ? conceptosFiltrados
     : conceptosFiltrados.slice(0, textoConceptoLower ? 8 : 10);
  
- const crearConceptoDesdeTexto = async () => {
+ const crearConceptoDesdeTexto = () => {
   const nombre = String(form.servicio || "").trim();
 
   if (!nombre) {
@@ -1664,58 +1724,15 @@ const GastoRow=({item})=>{
     return;
   }
 
-  try {
-    const conceptoCreado = await crearConcepto({
-      nombre,
-      workspaceId: "ws_default",
-      tipoMovimiento: "GASTO",
-      categoriaGastoId: form.categoriaGastoId || "cg_otros",
-      medioPagoId: form.medioPagoId || "mp_sin_definir",
-      instrumentoId: form.instrumentoId || "ins_manual",
-      monedaDefault: form.moneda || "ARS",
-      etiquetasIds: form.etiquetasIds?.length ? form.etiquetasIds : ["tag_variable"],
-    });
+  setForm((f) => ({
+    ...f,
+    servicio: nombre,
+    conceptoId: "",
+    crearConceptoPendiente: true,
+    decisionManual: false,
+  }));
 
-    const catalogosApi = await getCatalogos();
-    const cfgActualizada = mapCatalogosDesdeApi(catalogosApi, tc);
-
-    setCfg(cfgActualizada);
-
-    const conceptoActualizado =
-      (cfgActualizada.conceptos || []).find(
-        (c) => c.id === conceptoCreado.concepto_id
-      ) ||
-      (cfgActualizada.conceptos || []).find(
-        (c) => String(c.nombre || "").trim().toLowerCase() === nombre.toLowerCase()
-      );
-
-    if (conceptoActualizado) {
-      setForm((f) => ({
-        ...f,
-        conceptoId: conceptoActualizado.id,
-        servicio: conceptoActualizado.nombre,
-        medioPagoId: conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir",
-        instrumentoId: conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual",
-        categoriaGastoId: conceptoActualizado.categoriaGastoId || f.categoriaGastoId || "cg_otros",
-        etiquetasIds: conceptoActualizado.etiquetasIds?.length
-          ? conceptoActualizado.etiquetasIds
-          : f.etiquetasIds || [],
-        moneda: conceptoActualizado.monedaDefault || f.moneda || "ARS",
-        categoria: categoriaLegacyDesdeMedioPagoId(
-          conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir"
-        ),
-        formaPago: formaPagoLegacyDesdeInstrumentoId(
-          conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual"
-        ),
-        decisionManual: false,
-      }));
-    }
-
-    toast_(conceptoCreado ? `✅ Concepto "${nombre}" creado` : "✅ Concepto creado");
-  } catch (e) {
-    console.error(e);
-    toast_(e.message || "No se pudo crear el concepto", "err");
-  }
+  toast_("Concepto preparado. Elegí medio, instrumento, categoría y guardá el gasto.");
 };
 
 // ======================================================
@@ -2072,7 +2089,8 @@ const GastoRow=({item})=>{
                               moneda: concepto.monedaDefault || f.moneda || "ARS",
                               categoria: categoriaLegacyDesdeMedioPagoId(concepto.medioPagoId || f.medioPagoId),
                               formaPago: formaPagoLegacyDesdeInstrumentoId(concepto.instrumentoId || f.instrumentoId),
-                              decisionManual:false
+                              decisionManual:false,
+                              crearConceptoPendiente:false
                             }));
                           }}
                           style={{
@@ -2093,7 +2111,7 @@ const GastoRow=({item})=>{
                     </div>
                   )}
 
-                  {textoConcepto && !conceptoExacto && (
+                  {textoConcepto && !conceptoExacto && conceptosFiltrados.length === 0 && (
   <div style={{ display:"grid",gap:8,marginTop:10 }}>
     <button
       className="pb"
@@ -2120,7 +2138,8 @@ const GastoRow=({item})=>{
         categoriaGastoId:f.categoriaGastoId || "cg_otros",
         categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId || "mp_sin_definir"),
         formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId || "ins_manual"),
-        decisionManual:true
+        decisionManual:true,
+        crearConceptoPendiente:false
       }))}
       style={{
         width:"100%",

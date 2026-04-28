@@ -99,7 +99,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
   {g.observacion ? ` · ${g.observacion}` : ""}
 </div>
 
-                  {g.formaPago === "Débito automático" && (
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                     <span
                       style={{
                         display: "inline-flex",
@@ -109,16 +109,35 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
                         borderRadius: 20,
                         fontSize: 10,
                         fontWeight: 700,
-                        background: "#1e2a3e",
-                        color: "#60a5fa",
-                        border: "1px solid #60a5fa33",
+                        background: g.estado === "pagado" ? "#052e16" : "#2a1a0a",
+                        color: g.estado === "pagado" ? "#4ade80" : "#fb923c",
+                        border: `1px solid ${g.estado === "pagado" ? "#4ade80" : "#fb923c"}33`,
                       }}
                     >
-                      🏦 Débito auto.
+                      {g.estado === "pagado" ? "✅ Pagado" : "⏳ Pendiente"}
                     </span>
-                  )}
 
-                  {s && <VencBadge fecha={g.vencimiento} estado={g.estado} />}
+                    {g.formaPago === "Débito automático" && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                          padding: "2px 7px",
+                          borderRadius: 20,
+                          fontSize: 10,
+                          fontWeight: 700,
+                          background: "#1e2a3e",
+                          color: "#60a5fa",
+                          border: "1px solid #60a5fa33",
+                        }}
+                      >
+                        🏦 Débito auto.
+                      </span>
+                    )}
+
+                    {s && <VencBadge fecha={g.vencimiento} estado={g.estado} />}
+                  </div>
                 </div>
 
                 <div style={{ textAlign: "right", marginLeft: 12 }}>
@@ -172,7 +191,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
       fontSize: 11,
     }}
   >
-    ✅ Pagado
+    ✅ Marcar pagado
   </button>
 </div>
                 </div>
