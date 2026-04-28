@@ -31,6 +31,24 @@ import {
 
 // Utils
 import { fmtARS, fmtUSD, fmtFecha } from "./utils/formatters";
+const fmtARSCompact = (valor) => {
+  const n = Number(valor || 0);
+  const signo = n < 0 ? "-" : "";
+  const abs = Math.abs(n);
+
+  if (abs >= 1000000) {
+    return `${signo}$ ${(abs / 1000000).toLocaleString("es-AR", {
+      maximumFractionDigits: 1,
+    })} M`;
+  }
+
+  if (abs >= 1000) {
+    return `${signo}$ ${Math.round(abs / 1000).toLocaleString("es-AR")} mil`;
+  }
+
+  return fmtARS(n);
+};
+
 import { diasRestantes, getGrupoVencimiento, semaforo } from "./utils/dates";
 import { montoReal, montoUSDReal } from "./utils/money";
 
@@ -482,6 +500,14 @@ const recomendacionHome =
       : totalPendiente > 0
         ? `Tenés ${fmtARS(totalPendiente)} pendiente. Conviene priorizar vencimientos antes de sumar nuevos gastos.`
         : `Cierre prolijo: te queda ${fmtARS(saldo)} disponible. Buen momento para separar ahorro.`;
+const accionesHome = [
+  totalIngresos <= 0 && { icon:"💰", titulo:"Cargar ingresos", detalle:"Activá el diagnóstico completo del mes." },
+  saldo < 0 && { icon:"🧯", titulo:"Bajar presión", detalle:"Revisá gastos grandes antes de seguir cargando compromisos." },
+  cantidadAlertasProximas > 0 && { icon:"⚠️", titulo:"Resolver vencimientos", detalle:`Hay ${cantidadAlertasProximas} vencimiento${cantidadAlertasProximas > 1 ? "s" : ""} urgente${cantidadAlertasProximas > 1 ? "s" : ""}.` },
+  totalPendiente > 0 && { icon:"⏳", titulo:"Ordenar pendientes", detalle:`Quedan ${fmtARS(totalPendiente)} sin pagar.` },
+  categoriaMayorDelMes && { icon:"🔎", titulo:"Mirar principal fuga", detalle:`${categoriaMayorDelMes.label} explica ${totalGastos > 0 ? Math.round((categoriaMayorDelMes.total / totalGastos) * 100) : 0}% del gasto.` },
+  saldo > 0 && totalPendiente === 0 && { icon:"🏦", titulo:"Separar ahorro", detalle:`Reservá una parte de ${fmtARS(saldo)} antes del próximo mes.` },
+].filter(Boolean).slice(0, 2);
 const topCategoriasHome = categoriasConGasto.slice(0, 3);
 
 
@@ -1674,7 +1700,7 @@ const GastoRow=({item})=>{
   const totalUSDDetalle = montoUSDReal(item);
 
   return(
-    <div style={{ padding:"10px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
+    <div style={{ padding:"7px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
         <div style={{ flex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
@@ -1901,178 +1927,200 @@ const GastoRow=({item})=>{
       )}
 
       {/* HEADER */}
-      <div style={{ padding:"28px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+      <div style={{ padding:"18px 14px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
         <div>
           <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-          <div style={{ fontSize:20,fontWeight:700 }}>{view==="config"?"Configuración":view==="analisis"?"📊 Análisis":view==="variacion"?"Variación":view==="vencimientos"?"📅 Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
+          <div style={{ fontSize:18,fontWeight:700 }}>{view==="config"?"Configuración":view==="analisis"?"📊 Análisis":view==="variacion"?"Variación":view==="vencimientos"?"📅 Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
         </div>
         {!["config","variacion","vencimientos"].includes(view)&&(
           <div style={{ display:"flex",gap:8 }}>
-            <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"8px 14px" }} onClick={()=>cambiarMes(-1)}>‹</button>
-            <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"8px 14px" }} onClick={()=>cambiarMes(1)}>›</button>
+            <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(-1)}>‹</button>
+            <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(1)}>›</button>
           </div>
         )}
       </div>
 
-      <div style={{ padding:"20px 16px 0" }}>
+      <div style={{ padding:"12px 12px 0" }}>
 
         {/* HOME */}
         {view==="home"&&(<>
-          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#7c3aed55 0%,transparent 36%),linear-gradient(135deg,#111827 0%,#1a1230 52%,#0f172a 100%)",border:`1px solid ${saludFinanciera.color}55`,boxShadow:"0 18px 45px rgba(0,0,0,0.28)" }}>
-            <div style={{ position:"absolute",right:-38,top:-42,width:130,height:130,borderRadius:"50%",background:`${saludFinanciera.color}18` }}/>
+          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#7c3aed55 0%,transparent 36%),linear-gradient(135deg,#111827 0%,#1a1230 52%,#0f172a 100%)",border:`1px solid ${saludFinanciera.color}55`,boxShadow:"0 12px 32px rgba(0,0,0,0.24)",padding:14,borderRadius:18,marginBottom:10 }}>
+            <div style={{ position:"absolute",right:-36,top:-44,width:108,height:108,borderRadius:"50%",background:`${saludFinanciera.color}18` }}/>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,position:"relative" }}>
               <div>
-                <div style={{ fontSize:11,color:"#94a3b8",fontWeight:800,letterSpacing:1.4,textTransform:"uppercase",marginBottom:6 }}>Home Premium</div>
-                <div style={{ fontSize:13,color:"#cbd5e1",marginBottom:4 }}>Saldo disponible estimado</div>
+                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",marginBottom:4 }}>Home Premium</div>
+                <div style={{ fontSize:12,color:"#cbd5e1",marginBottom:3 }}>Saldo disponible estimado</div>
                 <div style={{ fontFamily:"'Space Mono',monospace",fontSize:34,lineHeight:1.05,fontWeight:700,color:saldoColor }}>{fmtARS(saldo)}</div>
               </div>
-              <div style={{ background:`${saludFinanciera.color}1f`,border:`1px solid ${saludFinanciera.color}55`,borderRadius:16,padding:"8px 10px",minWidth:96,textAlign:"center" }}>
-                <div style={{ fontSize:18 }}>{saludFinanciera.icon}</div>
-                <div style={{ fontSize:11,fontWeight:800,color:saludFinanciera.color,marginTop:2 }}>{saludFinanciera.label}</div>
+              <div style={{ background:`${saludFinanciera.color}1f`,border:`1px solid ${saludFinanciera.color}55`,borderRadius:14,padding:"7px 8px",minWidth:78,textAlign:"center" }}>
+                <div style={{ fontSize:15 }}>{saludFinanciera.icon}</div>
+                <div style={{ fontSize:10,fontWeight:800,color:saludFinanciera.color,marginTop:1 }}>{saludFinanciera.label}</div>
               </div>
             </div>
 
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:18,position:"relative" }}>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)" }}>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12,position:"relative" }}>
+              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
                 <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>INGRESOS</div>
-                <div style={{ fontSize:16,fontWeight:800,color:"#4ade80" }}>{fmtARS(totalIngresos)}</div>
+                <div style={{ fontSize:14,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalIngresos)}</div>
               </div>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)" }}>
+              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
                 <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>GASTOS</div>
-                <div style={{ fontSize:16,fontWeight:800,color:"#f87171" }}>{fmtARS(totalGastos)}</div>
+                <div style={{ fontSize:14,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{fmtARS(totalGastos)}</div>
               </div>
             </div>
 
             {totalIngresos>0&&<>
-              <div className="pgb" style={{ height:8,marginTop:14,background:"rgba(30,30,46,0.9)" }}>
+              <div className="pgb" style={{ height:6,marginTop:10,background:"rgba(30,30,46,0.9)" }}>
                 <div className="pgf" style={{ width:`${Math.min(porcentajeUsoIngreso,100)}%`,background:saludFinanciera.color }}/>
               </div>
-              <div style={{ display:"flex",justifyContent:"space-between",fontSize:11,color:"#94a3b8",marginTop:6 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:"#94a3b8",marginTop:5 }}>
                 <span>{porcentajeUsoIngreso}% del ingreso utilizado</span>
                 <span>{porcentajeSaldoIngreso}% libre</span>
               </div>
             </>}
           </div>
 
-          <div className="card" style={{ background:"#101827",border:"1px solid #1e293b" }}>
-            <div style={{ display:"flex",alignItems:"flex-start",gap:10 }}>
-              <div style={{ width:34,height:34,borderRadius:12,background:"#38bdf822",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,flexShrink:0 }}>💡</div>
-              <div style={{ flex:1 }}>
-                <div style={{ fontSize:12,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase",marginBottom:4 }}>Lectura inteligente</div>
-                <div style={{ fontSize:14,color:"#e2e8f0",lineHeight:1.45,fontWeight:600 }}>{recomendacionHome}</div>
-                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45,marginTop:6 }}>{saludFinanciera.detalle}</div>
+          <div className="card" style={{ background:"#101827",border:"1px solid #1e293b",padding:"10px 11px",borderRadius:16,marginBottom:9 }}>
+            <div style={{ display:"flex",alignItems:"flex-start",gap:9 }}>
+              <div style={{ width:26,height:26,borderRadius:10,background:"#38bdf822",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>💡</div>
+              <div style={{ flex:1,minWidth:0 }}>
+                <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:3 }}>
+                  <div style={{ fontSize:10,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Lectura inteligente</div>
+                  <div style={{ width:5,height:5,borderRadius:"50%",background:saludFinanciera.color }}/>
+                </div>
+                <div style={{ fontSize:12,color:"#e2e8f0",lineHeight:1.32,fontWeight:700 }}>{recomendacionHome}</div>
               </div>
             </div>
           </div>
 
-          <div style={{ display:"grid",gridTemplateColumns:totalUSD_>0?"1fr 1fr 1fr":"1fr 1fr",gap:8,marginBottom:12 }}>
-            <div className="stat-box" style={{ border:"1px solid #14532d",background:"#0f1f17" }}>
+
+          {accionesHome.length>0&&<div className="card" style={{ padding:"10px 11px",borderRadius:16,marginBottom:9,border:"1px solid #2a1a4e",background:"linear-gradient(135deg,#15111f,#101827)" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8 }}>
+              <div>
+                <div style={{ fontSize:10,color:"#c4b5fd",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Prioridades del mes</div>
+                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Acciones simples para no perder el control</div>
+              </div>
+              <div style={{ width:28,height:28,borderRadius:10,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15 }}>🎯</div>
+            </div>
+            <div style={{ display:"grid",gap:6 }}>
+              {accionesHome.map((accion,idx)=>(
+                <div key={`${accion.titulo}-${idx}`} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:12,background:"#0b1020",border:"1px solid #1e293b" }}>
+                  <div style={{ width:26,height:26,borderRadius:9,background:"#1e1b4b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>{accion.icon}</div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0" }}>{accion.titulo}</div>
+                    <div style={{ fontSize:10,color:"#94a3b8",lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{accion.detalle}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>}
+
+          <div style={{ display:"grid",gridTemplateColumns:totalUSD_>0?"1fr 1fr 1fr":"1fr 1fr",gap:6,marginBottom:10 }}>
+            <div className="stat-box" style={{ border:"1px solid #14532d",background:"#0f1f17",padding:"8px 9px",borderRadius:13 }}>
               <div style={{ fontSize:10,color:"#86efac",marginBottom:2,fontWeight:800 }}>✅ PAGADO</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#4ade80" }}>{fmtARS(totalPagado)}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalPagado)}</div>
               <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{pagosRealizadosPct}%</div>
             </div>
-            <div className="stat-box" style={{ border:"1px solid #422006",background:"#21160b" }}>
+            <div className="stat-box" style={{ border:"1px solid #422006",background:"#21160b",padding:"8px 9px",borderRadius:13 }}>
               <div style={{ fontSize:10,color:"#fdba74",marginBottom:2,fontWeight:800 }}>⏳ PENDIENTE</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#fb923c" }}>{fmtARS(totalPendiente)}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#fb923c",whiteSpace:"nowrap" }}>{fmtARS(totalPendiente)}</div>
               <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{gastosDelMes.filter(g=>g.estado==="pendiente").length} ítems</div>
             </div>
-            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f",background:"#0b1726" }}>
+            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f",background:"#0b1726",padding:"8px 9px",borderRadius:13 }}>
               <div style={{ fontSize:10,color:"#7dd3fc",marginBottom:2,fontWeight:800 }}>💵 USD</div>
               <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div>
               <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>incluido en ARS</div>
             </div>}
           </div>
 
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12 }}>
-            <div className="card" style={{ marginBottom:0,padding:14 }}>
-              <div style={{ fontSize:10,color:"#64748b",fontWeight:800,marginBottom:4 }}>OPERACIONES</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:800,color:"#e2e8f0" }}>{totalOperacionesMes}</div>
-              <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>Ticket prom. {fmtARS(ticketPromedioMes)}</div>
+          <div className="card" style={{ padding:"9px 11px",borderRadius:15,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:10,color:"#64748b",fontWeight:800,letterSpacing:0.6,textTransform:"uppercase" }}>Resumen rápido</div>
+              <div style={{ fontSize:11,color:"#94a3b8",marginTop:3 }}>{totalOperacionesMes} operaciones · ticket prom. <span style={{ color:"#e2e8f0",fontWeight:800 }}>{fmtARS(ticketPromedioMes)}</span></div>
             </div>
-            <div className="card" style={{ marginBottom:0,padding:14,cursor:gastoMayorDelMes?"pointer":"default" }} onClick={()=>gastoMayorDelMes&&setView("resumen")}>
-              <div style={{ fontSize:10,color:"#64748b",fontWeight:800,marginBottom:4 }}>MAYOR GASTO</div>
-              <div style={{ fontSize:13,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{gastoMayorDelMes?.servicio || "Sin datos"}</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:800,color:"#f87171",marginTop:4 }}>{gastoMayorDelMes?fmtARS(toARS_(gastoMayorDelMes)):fmtARS(0)}</div>
+            <div onClick={()=>gastoMayorDelMes&&setView("resumen")} style={{ minWidth:105,textAlign:"right",cursor:gastoMayorDelMes?"pointer":"default" }}>
+              <div style={{ fontSize:10,color:"#64748b",fontWeight:800 }}>MAYOR</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{gastoMayorDelMes?fmtARS(toARS_(gastoMayorDelMes)):fmtARS(0)}</div>
             </div>
           </div>
 
           {cantidadAlertasProximas > 0 && (
-            <div className="card" onClick={() => setView("vencimientos")} style={{ border:"1px solid #f8717144",background:"linear-gradient(135deg,#1a1010,#241111)",cursor:"pointer" }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+            <div className="card" onClick={() => setView("vencimientos")} style={{ border:"1px solid #f8717144",background:"linear-gradient(135deg,#1a1010,#241111)",cursor:"pointer",padding:12,borderRadius:16,marginBottom:10 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
                 <div style={{ fontSize:18 }}>⚠️</div>
-                <div style={{ fontSize:14, fontWeight:800, color:"#fca5a5", flex:1 }}>Tenés {cantidadAlertasProximas} vencimiento{cantidadAlertasProximas > 1 ? "s" : ""} en los próximos 3 días</div>
+                <div style={{ fontSize:12, fontWeight:800, color:"#fca5a5", flex:1 }}>Tenés {cantidadAlertasProximas} vencimiento{cantidadAlertasProximas > 1 ? "s" : ""} en los próximos 3 días</div>
                 <div style={{ fontSize:20, color:"#fca5a5" }}>›</div>
               </div>
-              <div style={{ fontSize:13, color:"#cbd5e1", marginBottom:6 }}>Total comprometido: <span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(totalAlertasProximas)}</span></div>
-              {mayorAlertaProxima && (<div style={{ fontSize:12, color:"#94a3b8" }}>Mayor próximo: <span style={{ color:"#e2e8f0", fontWeight:700 }}>{mayorAlertaProxima.servicio}</span>{" · "}<span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(mayorAlertaProxima.montoARS)}</span>{" · "}<span>{mayorAlertaProxima.dias === 0 ? "vence hoy" : `vence en ${mayorAlertaProxima.dias} día${mayorAlertaProxima.dias > 1 ? "s" : ""}`}</span></div>)}
+              <div style={{ fontSize:11, color:"#cbd5e1", marginBottom:4 }}>Total comprometido: <span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(totalAlertasProximas)}</span></div>
+              {mayorAlertaProxima && (<div style={{ fontSize:10, color:"#94a3b8" }}>Mayor próximo: <span style={{ color:"#e2e8f0", fontWeight:700 }}>{mayorAlertaProxima.servicio}</span>{" · "}<span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(mayorAlertaProxima.montoARS)}</span>{" · "}<span>{mayorAlertaProxima.dias === 0 ? "vence hoy" : `vence en ${mayorAlertaProxima.dias} día${mayorAlertaProxima.dias > 1 ? "s" : ""}`}</span></div>)}
             </div>
           )}
 
-          {topCategoriasHome.length>0&&<div className="card" style={{ padding:16 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+          {topCategoriasHome.length>0&&<div className="card" style={{ padding:12,borderRadius:16,marginBottom:10 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
               <div>
-                <div style={{ fontSize:12,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase" }}>Top categorías</div>
-                <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>Dónde se está yendo la plata</div>
+                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase" }}>Top categorías</div>
+                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Dónde se está yendo la plata</div>
               </div>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",fontSize:12,padding:"7px 10px" }} onClick={()=>setView("analisis")}>Ver análisis</button>
+              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",fontSize:11,padding:"6px 8px" }} onClick={()=>setView("analisis")}>Ver análisis</button>
             </div>
             {topCategoriasHome.map((cat,idx)=>{
               const pctCat=totalGastos>0?Math.round((cat.total/totalGastos)*100):0;
-              return(<div key={cat.id} onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }} style={{ padding:"10px 0",borderBottom:idx<topCategoriasHome.length-1?"1px solid #1e1e2e":"none",cursor:"pointer" }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:6 }}>
+              return(<div key={cat.id} onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }} style={{ padding:"7px 0",borderBottom:idx<topCategoriasHome.length-1?"1px solid #1e1e2e":"none",cursor:"pointer" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:5 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:9,minWidth:0 }}>
-                    <div style={{ width:22,height:22,borderRadius:8,background:`${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:800,color:cat.color }}>{idx+1}</div>
+                    <div style={{ width:19,height:19,borderRadius:7,background:`${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:cat.color }}>{idx+1}</div>
                     <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:14,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
-                      <div style={{ fontSize:11,color:"#64748b" }}>{cat.items.length} ítems · {pctCat}% del gasto</div>
+                      <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
+                      <div style={{ fontSize:10,color:"#64748b" }}>{cat.items.length} ítems · {pctCat}% del gasto</div>
                     </div>
                   </div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:800,color:cat.color,whiteSpace:"nowrap" }}>{fmtARS(cat.total)}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap",textAlign:"right" }}>{fmtARS(cat.total)}</div>
                 </div>
-                <div style={{ height:5,borderRadius:4,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",width:`${Math.min(pctCat,100)}%`,background:cat.color,borderRadius:4 }}/></div>
+                <div style={{ height:4,borderRadius:4,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",width:`${Math.min(pctCat,100)}%`,background:cat.color,borderRadius:4 }}/></div>
               </div>);
             })}
           </div>}
 
           {/* Card replicar mes */}
-          {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#1a1230 0%,#0f1a2e 100%)",border:"1px solid #7c3aed44",borderRadius:20,padding:18,marginBottom:12 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:14 }}>
-              <div style={{ width:40,height:40,borderRadius:12,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0 }}>📋</div>
+          {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#15111f 0%,#0f172a 100%)",border:"1px solid #2a1a4e",borderRadius:16,padding:"10px 11px",marginBottom:10 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:9,marginBottom:10 }}>
+              <div style={{ width:26,height:26,borderRadius:9,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>📋</div>
               <div>
-                <div style={{ fontWeight:700,fontSize:15 }}>¿Pasamos a {mesNombreSig()}?</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>Replicá todos los gastos de {MESES[mes.m]} como base para el mes siguiente</div>
+                <div style={{ fontWeight:800,fontSize:12 }}>Preparar {mesNombreSig()}</div>
+                <div style={{ fontSize:10,color:"#94a3b8",marginTop:1 }}>Usá {MESES[mes.m]} como base del próximo mes</div>
               </div>
             </div>
             <div style={{ display:"flex",gap:10 }}>
-              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:13 }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>📋 Replicar a {mesNombreSig()}</button>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:13,padding:"10px 14px" }} onClick={()=>{ /* ocultar temporalmente */ }}>Omitir</button>
+              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:12,padding:"8px 10px" }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>Replicar a {mesNombreSig()}</button>
+              <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:12,padding:"8px 10px" }} onClick={()=>{ /* ocultar temporalmente */ }}>Omitir</button>
             </div>
           </div>}
 
           {categoriasConGasto.map(cat=>{
             const pendCat=cat.items.filter(i=>i.estado==="pendiente");
             const pctGastado=totalIngresos>0?Math.round((cat.total/totalIngresos)*100):0;
-            return(<div key={cat.id} className="card" style={{ padding:"13px 16px",cursor:"pointer",transition:"all 0.15s",border:"1px solid #1e1e2e" }}
+            return(<div key={cat.id} className="card" style={{ padding:"10px 12px",borderRadius:15,cursor:"pointer",transition:"all 0.15s",border:"1px solid #1e1e2e" }}
               onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }}
               onMouseEnter={e=>e.currentTarget.style.border=`1px solid ${cat.color}44`}
               onMouseLeave={e=>e.currentTarget.style.border="1px solid #1e1e2e"}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                   <div style={{ width:10,height:10,borderRadius:"50%",background:cat.color }}/>
-                  <span style={{ fontWeight:600,fontSize:15 }}>{cat.label}</span>
-                  <span style={{ fontSize:12,color:"#64748b" }}>{cat.items.length} ítems</span>
+                  <span style={{ fontWeight:700,fontSize:13 }}>{cat.label}</span>
+                  <span style={{ fontSize:10,color:"#64748b" }}>{cat.items.length}</span>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:700,color:cat.color }}>{fmtARS(cat.total)}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap" }}>{fmtARS(cat.total)}</div>
                   <span style={{ fontSize:11,color:"#64748b" }}>›</span>
                 </div>
               </div>
               {totalIngresos>0&&<div style={{ height:3,borderRadius:2,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",borderRadius:2,background:cat.color,width:`${Math.min(pctGastado,100)}%`,opacity:0.6 }}/></div>}
-              {pendCat.length>0&&<div style={{ marginTop:6,display:"flex",alignItems:"center",gap:6 }}><span style={{ fontSize:11,color:"#fb923c" }}>⏳ {pendCat.length} pendiente(s): </span><span style={{ fontSize:11,color:"#fb923c",fontWeight:700 }}>{fmtARS(pendCat.reduce((a,g)=>a+toARS_(g),0))}</span></div>}
+              {pendCat.length>0&&<div style={{ marginTop:5,display:"flex",alignItems:"center",gap:5 }}><span style={{ fontSize:11,color:"#fb923c" }}>⏳ {pendCat.length} pendiente(s): </span><span style={{ fontSize:11,color:"#fb923c",fontWeight:700 }}>{fmtARS(pendCat.reduce((a,g)=>a+toARS_(g),0))}</span></div>}
             </div>);
           })}
           {gastosDelMes.length===0&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:40,marginBottom:12 }}>💸</div><div style={{ fontWeight:600 }}>Sin gastos este mes</div><div style={{ fontSize:12,marginTop:6 }}>Cargá el primer gasto y el Home se arma solo. Magia no, React con café.</div></div>}
-          <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#94a3b8",marginTop:8 }} onClick={exportCSV}>📥 Exportar CSV</button>
+          <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#94a3b8",marginTop:6,padding:"8px 12px",fontSize:12 }} onClick={exportCSV}>📥 Exportar CSV</button>
         </>)}
 
         {/* CARGAR */}
@@ -2659,7 +2707,7 @@ const GastoRow=({item})=>{
           <input className="inf" placeholder="🔍 Buscar concepto..." value={busqueda} onChange={e=>setBusqueda(e.target.value)} style={{ marginBottom:12 }}/>
           <div style={{ fontSize:12,color:"#64748b",marginBottom:12 }}>💡 Tocá cualquier fila para editar</div>
           {filtroEstado!=="todos"&&<div style={{ fontSize:13,color:"#64748b",marginBottom:12 }}>{filtroEstado==="pendiente"?"⏳ ":"✅ "}<strong style={{ color:filtroEstado==="pendiente"?"#fb923c":"#4ade80" }}>{fmtARS(filtroEstado==="pendiente"?totalPendiente:totalPagado)}</strong></div>}
-          {gastosPorCatFiltrado2.filter(c=>c.items.length>0).map(cat=>(<div key={cat.id} className="card"><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}><div style={{ fontWeight:700,fontSize:15,color:cat.color }}>{cat.label}</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:cat.color }}>{fmtARS(cat.total)}</div></div>{cat.items.map(item=>(<GastoRow key={item.id} item={item}/>))}</div>))}
+          {gastosPorCatFiltrado2.filter(c=>c.items.length>0).map(cat=>(<div key={cat.id} className="card"><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}><div style={{ fontWeight:700,fontSize:13,color:cat.color }}>{cat.label}</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:cat.color }}>{fmtARS(cat.total)}</div></div>{cat.items.map(item=>(<GastoRow key={item.id} item={item}/>))}</div>))}
           {gastosPorCatFiltrado2.every(c=>c.items.length===0)&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:32,marginBottom:10 }}>📋</div><div style={{ fontSize:14,fontWeight:600 }}>Sin registros</div></div>}
         </>)}
 
@@ -2743,7 +2791,7 @@ const GastoRow=({item})=>{
                     <div style={{ fontSize:14,fontWeight:700 }}>{mayorAnalisis.nombre}</div>
                     <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:800,color:"#e2e8f0" }}>{fmtARS(mayorAnalisis.total)}</div>
                   </div>
-                  <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
+                  <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>
                     {totalGastos>0?`${Math.round((mayorAnalisis.total/totalGastos)*100)}% del gasto mensual`:"Sin gastos cargados"}
                   </div>
                 </div>
@@ -2882,7 +2930,7 @@ const GastoRow=({item})=>{
 
               {editConcepto&&(
                 <div className="card" style={{ border:"1px solid #7c3aed55" }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
                     <div style={{ fontWeight:800,fontSize:15 }}>✏️ Editar concepto</div>
                     <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 10px" }} onClick={()=>setEditConcepto(null)}>✕</button>
                   </div>
@@ -3111,7 +3159,7 @@ const GastoRow=({item})=>{
                       <span style={{ fontSize:14,fontWeight:500 }}>{g.servicio}</span>
                       {g.moneda==="USD"&&<span style={{ fontSize:10,color:"#38bdf8",background:"#1e3a5f",padding:"1px 5px",borderRadius:8 }}>💵</span>}
                     </div>
-                    <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>{cat?.label}</div>
+                    <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>{cat?.label}</div>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:700,color:montoReal(g,tc)>0?"#e2e8f0":"#64748b" }}>{usd>0?fmtUSD(usd):montoReal(g,tc)>0?fmtARS(montoReal(g,tc)):"$ —"}</div>
