@@ -437,6 +437,72 @@ useEffect(() => {
   cargarDesdeApi();
 }, []);
 
+// Carga bajo demanda los meses necesarios para la pantalla Evolución.
+useEffect(() => {
+  if (view !== "variacion") return;
+
+  let cancelado = false;
+
+  const getMesesVariacion = () => {
+    const meses = [];
+    for (let i = mesesAtrasVar - 1; i >= 0; i--) {
+      let m = mes.m - i;
+      let y = mes.y;
+      if (m < 0) {
+        m += 12;
+        y--;
+      }
+      meses.push(getMesKey(y, m));
+    }
+    return meses;
+  };
+
+  const cargarMesesVariacion = async () => {
+    const keys = getMesesVariacion();
+
+    // IMPORTANTE:
+    // Para Evolución no alcanza con revisar si existe data.gastos[key],
+    // porque localStorage puede tener el mes creado como [] y eso hacía
+    // que no se consultara Neon. Por eso, al entrar a Evolución refrescamos
+    // siempre los meses visibles desde la API.
+    try {
+      const resultados = await Promise.all(
+        keys.map(async (key) => {
+          const movimientosApi = await getMovimientos(key);
+          return [key, mapMovimientosDesdeApi(movimientosApi, key)];
+        })
+      );
+
+      if (cancelado) return;
+
+      setData((prev) => {
+        const siguiente = {
+          ...prev,
+          gastos: { ...(prev.gastos || {}) },
+          ingresos: { ...(prev.ingresos || {}) },
+          sueldo: { ...(prev.sueldo || {}) },
+        };
+
+        resultados.forEach(([key, nuevoData]) => {
+          siguiente.gastos[key] = nuevoData.gastos[key] || [];
+          siguiente.ingresos[key] = nuevoData.ingresos[key] || [];
+          siguiente.sueldo[key] = nuevoData.sueldo[key] || 0;
+        });
+
+        return siguiente;
+      });
+    } catch (e) {
+      console.error("Error cargando histórico de evolución:", e);
+    }
+  };
+
+  cargarMesesVariacion();
+
+  return () => {
+    cancelado = true;
+  };
+}, [view, mesesAtrasVar, mes.m, mes.y]);
+
   const toast_=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),2400); };
 
   const gastosDelMes=data.gastos[mesKey]||[];
@@ -2909,32 +2975,162 @@ const GastoRow=({item})=>{
           const toARS__=(g,t)=>montoReal(g,t);
           const pct_=(a,b)=>b===0?null:Math.round(((a-b)/b)*100);
           const getMeses_=()=>{ const r=[]; for(let i=mesesAtrasVar-1;i>=0;i--){let m=mes.m-i,y=mes.y;if(m<0){m+=12;y--;}r.push({y,m,key:getMesKey(y,m),label:MESES[m].slice(0,3)});} return r; };
-          const ml=getMeses_(); const mak=ml[ml.length-1].key; const mant=ml.length>=2?ml[ml.length-2].key:null;
-          const vc=(v)=>v===null?"#64748b":v>10?"#f87171":v<-10?"#4ade80":"#fbbf24";
-          const vi=(v)=>v===null?"—":v>0?`▲ ${v}%`:v<0?`▼ ${Math.abs(v)}%`:"=0%";
-          const conceptos=Object.entries(ml.reduce((acc,{key})=>{ (data.gastos[key]||[]).forEach(g=>{const k=(g.servicio||"").trim();if(!acc[k])acc[k]={};acc[k][key]=(acc[k][key]||0)+toARS__(g,tc);}); return acc; },{})).sort((a,b)=>Object.values(b[1]).reduce((s,v)=>s+v,0)-Object.values(a[1]).reduce((s,v)=>s+v,0));
+          const ml=getMeses_();
+          const mak=ml[ml.length-1].key;
+          const mant=ml.length>=2?ml[ml.length-2].key:null;
+          const totalMesVar=(key)=>(data.gastos[key]||[]).reduce((acc,g)=>acc+toARS__(g,tc),0);
+          const totalActualVar=totalMesVar(mak);
+          const totalAnteriorVar=mant?totalMesVar(mant):0;
+          const deltaTotal=totalActualVar-totalAnteriorVar;
+          const pctTotal=pct_(totalActualVar,totalAnteriorVar);
+          const hayComparacion=!!mant && totalAnteriorVar>0;
+          const fmtDelta=(v)=>`${v>=0?"+":"-"} ${fmtARS(Math.abs(v))}`;
+          const colorDelta=(v)=>v>0?"#f87171":v<0?"#4ade80":"#94a3b8";
+          const textoPct=pctTotal===null?"Sin base":pctTotal>0?`▲ ${pctTotal}%`:pctTotal<0?`▼ ${Math.abs(pctTotal)}%`:"= 0%";
+
+          const mapaConceptos=ml.reduce((acc,{key})=>{
+            (data.gastos[key]||[]).forEach(g=>{
+              const k=(g.servicio||"Sin concepto").trim()||"Sin concepto";
+              if(!acc[k]) acc[k]={};
+              acc[k][key]=(acc[k][key]||0)+toARS__(g,tc);
+            });
+            return acc;
+          },{});
+
+          const conceptos=Object.entries(mapaConceptos)
+            .map(([nombre,vals])=>({
+              nombre,
+              vals,
+              actual: vals[mak]||0,
+              anterior: mant?(vals[mant]||0):0,
+              total: Object.values(vals).reduce((s,v)=>s+v,0)
+            }))
+            .map(r=>({...r,delta:r.actual-r.anterior,pct:mant?pct_(r.actual,r.anterior):null}))
+            .sort((a,b)=>b.total-a.total);
+
+          const subidas=conceptos.filter(r=>r.anterior>0&&r.actual>0&&r.delta>0).sort((a,b)=>b.delta-a.delta).slice(0,4);
+          const bajas=conceptos.filter(r=>r.anterior>0&&r.actual>0&&r.delta<0).sort((a,b)=>a.delta-b.delta).slice(0,4);
+          const nuevos=conceptos.filter(r=>r.actual>0&&r.anterior===0).sort((a,b)=>b.actual-a.actual).slice(0,5);
+          const desaparecidos=conceptos.filter(r=>r.actual===0&&r.anterior>0).sort((a,b)=>b.anterior-a.anterior).slice(0,5);
+          const mesesConDatos=ml.filter(({key})=>totalMesVar(key)>0).length;
+          const minTabla=150+(ml.length*96);
+
+          const bloqueVariacion=(titulo,icono,items,tipo)=>(
+            <div className="card" style={{ padding:12 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                <div style={{ fontWeight:900,fontSize:14 }}>{icono} {titulo}</div>
+                <div style={{ fontSize:11,color:"#64748b" }}>{items.length} item{items.length!==1?"s":""}</div>
+              </div>
+              {items.length===0 ? (
+                <div style={{ fontSize:12,color:"#64748b",padding:"8px 0" }}>Sin movimientos para mostrar.</div>
+              ) : items.map((item,idx)=>(
+                <div key={`${titulo}-${item.nombre}`} style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",padding:"8px 0",borderBottom:idx<items.length-1?"1px solid #1e1e2e":"none" }}>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.nombre}</div>
+                    <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
+                      {tipo==="nuevo" ? `Nuevo en ${MESES[mes.m].slice(0,3)}` : tipo==="baja" ? "Sin gasto este mes" : `Antes ${fmtARS(item.anterior)}`}
+                    </div>
+                  </div>
+                  <div style={{ textAlign:"right",flexShrink:0 }}>
+                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:tipo==="baja"?"#4ade80":tipo==="sube"?"#f87171":"#e2e8f0" }}>
+                      {tipo==="nuevo"?fmtARS(item.actual):tipo==="baja"?`- ${fmtARS(item.anterior)}`:fmtDelta(item.delta)}
+                    </div>
+                    {item.pct!==null&&tipo!=="nuevo"&&tipo!=="baja"&&(
+                      <div style={{ fontSize:10,color:"#64748b",fontWeight:700 }}>{item.pct>0?"+":""}{item.pct}%</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+
           return(
             <div>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-                <div style={{ fontWeight:700,fontSize:18 }}>Variación</div>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
+                <div>
+                  <div style={{ fontSize:11,color:"#7c3aed",fontWeight:900,letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
+                  <div style={{ fontWeight:900,fontSize:21,lineHeight:1.1 }}>Evolución</div>
+                  <div style={{ fontSize:13,color:"#94a3b8",marginTop:4 }}>{ml[0]?.label} · {ml[ml.length-1]?.label} {mes.y}</div>
+                </div>
                 <div style={{ display:"flex",gap:6 }}>
-                  {[3,4,6].map(n=>(<button key={n} onClick={()=>setMesesAtrasVar(n)} style={{ background:mesesAtrasVar===n?"#7c3aed":"#1e1e2e",border:"none",color:mesesAtrasVar===n?"#fff":"#94a3b8",borderRadius:10,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:600 }}>{n}M</button>))}
+                  {[3,4,6].map(n=>(<button key={n} onClick={()=>setMesesAtrasVar(n)} style={{ background:mesesAtrasVar===n?"#7c3aed":"#1e1e2e",border:"none",color:mesesAtrasVar===n?"#fff":"#94a3b8",borderRadius:10,padding:"7px 9px",cursor:"pointer",fontSize:12,fontWeight:800 }}>{n}M</button>))}
                 </div>
               </div>
-              <div style={{ background:"#13131a",borderRadius:16,overflow:"hidden",border:"1px solid #1e1e2e",marginBottom:14 }}>
-                <div style={{ display:"grid",gridTemplateColumns:`1fr repeat(${ml.length},85px)`,borderBottom:"1px solid #1e1e2e" }}>
-                  <div style={{ padding:"10px 12px",fontSize:11,color:"#64748b",fontWeight:700 }}>CONCEPTO</div>
-                  {ml.map(({key,label})=>(<div key={key} style={{ padding:"10px 8px",fontSize:11,color:key===mak?"#7c3aed":"#64748b",fontWeight:700,textAlign:"right" }}>{label}</div>))}
-                </div>
-                {conceptos.map(([nombre,vals],idx)=>{ const actual=vals[mak]||0,anterior=mant?(vals[mant]||0):0,v=mant?pct_(actual,anterior):null; return(
-                  <div key={nombre} style={{ display:"grid",gridTemplateColumns:`1fr repeat(${ml.length},80px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none",background:idx%2===0?"#13131a":"#0f0f18" }}>
-                    <div style={{ padding:"10px 12px",overflow:"hidden" }}>
-                      <div style={{ fontSize:12,fontWeight:500,color:"#e2e8f0",wordBreak:"break-word",lineHeight:1.3 }}>{nombre}</div>
-                      {v!==null&&<div style={{ fontSize:11,color:vc(v),fontWeight:700,marginTop:2 }}>{vi(v)}</div>}
+
+              <div className="card" style={{ background:"linear-gradient(135deg,#111827 0%,#1f1235 100%)",border:"1px solid #7c3aed66",padding:14 }}>
+                <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start" }}>
+                  <div>
+                    <span style={lbl}>GASTO ACTUAL</span>
+                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:26,fontWeight:900,color:"#f87171",lineHeight:1.1 }}>{fmtARS(totalActualVar)}</div>
+                    <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>
+                      {hayComparacion ? `${fmtDelta(deltaTotal)} vs mes anterior` : mesesConDatos<2 ? "Cargá 2 meses para comparar" : "Sin base anterior"}
                     </div>
-                    {ml.map(({key})=>(<div key={key} style={{ padding:"10px 6px",textAlign:"right" }}>{vals[key]?<div style={{ fontFamily:"'Space Mono',monospace",fontSize:10,color:key===mak?"#e2e8f0":"#64748b" }}>{fmtARS(vals[key])}</div>:<div style={{ color:"#2a2a3e",fontSize:10 }}>—</div>}</div>))}
                   </div>
-                );})}
+                  <div style={{ minWidth:78,textAlign:"right" }}>
+                    <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,textTransform:"uppercase" }}>Variación</div>
+                    <div style={{ fontSize:20,fontWeight:900,color:colorDelta(deltaTotal) }}>{textoPct}</div>
+                    <div style={{ fontSize:10,color:"#64748b" }}>mes anterior</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
+                <div className="card" style={{ padding:11 }}><span style={lbl}>SUBIERON</span><div style={{ fontSize:17,fontWeight:900,color:"#f87171" }}>{subidas.length}</div></div>
+                <div className="card" style={{ padding:11 }}><span style={lbl}>BAJARON</span><div style={{ fontSize:17,fontWeight:900,color:"#4ade80" }}>{bajas.length}</div></div>
+                <div className="card" style={{ padding:11 }}><span style={lbl}>NUEVOS</span><div style={{ fontSize:17,fontWeight:900,color:"#38bdf8" }}>{nuevos.length}</div></div>
+                <div className="card" style={{ padding:11 }}><span style={lbl}>SIN GASTO</span><div style={{ fontSize:17,fontWeight:900,color:"#a78bfa" }}>{desaparecidos.length}</div></div>
+              </div>
+
+              <div className="card" style={{ border:"1px solid #2563eb55",background:"#0f172a",padding:11 }}>
+                <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
+                  <div style={{ width:28,height:28,borderRadius:11,display:"grid",placeItems:"center",background:"#1e3a8a",fontSize:15 }}>💡</div>
+                  <div style={{ minWidth:0 }}>
+                    <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Resumen de evolución</div>
+                    <div style={{ fontSize:13,fontWeight:800,lineHeight:1.35,marginTop:2 }}>
+                      {hayComparacion
+                        ? deltaTotal>0
+                          ? `Este mes gastaste ${fmtDelta(deltaTotal)} más que el mes anterior.`
+                          : deltaTotal<0
+                            ? `Este mes gastaste ${fmtARS(Math.abs(deltaTotal))} menos que el mes anterior.`
+                            : "Este mes se mantiene igual al mes anterior."
+                        : "Cuando haya al menos dos meses con gastos, vas a ver subidas, bajas y nuevos gastos."}
+                    </div>
+                    <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
+                      {nuevos.length>0 ? `${nuevos.length} gasto${nuevos.length!==1?"s":""} nuevo${nuevos.length!==1?"s":""} detectado${nuevos.length!==1?"s":""}.` : "Sin gastos nuevos detectados."}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {bloqueVariacion("Más subieron","📈",subidas,"sube")}
+              {bloqueVariacion("Más bajaron","📉",bajas,"baja")}
+              {bloqueVariacion("Nuevos este mes","🆕",nuevos,"nuevo")}
+
+              <div className="card" style={{ padding:0,overflow:"hidden" }}>
+                <div style={{ padding:"12px 12px 8px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+                  <div>
+                    <div style={{ fontWeight:900,fontSize:14 }}>Detalle histórico</div>
+                    <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>Comparación por concepto.</div>
+                  </div>
+                  <div style={{ fontSize:11,color:"#64748b" }}>{conceptos.length} conceptos</div>
+                </div>
+                <div style={{ overflowX:"auto" }}>
+                  <div style={{ minWidth:minTabla }}>
+                    <div style={{ display:"grid",gridTemplateColumns:`150px repeat(${ml.length},96px)`,borderTop:"1px solid #1e1e2e",borderBottom:"1px solid #1e1e2e" }}>
+                      <div style={{ padding:"9px 12px",fontSize:11,color:"#64748b",fontWeight:800 }}>CONCEPTO</div>
+                      {ml.map(({key,label})=>(<div key={key} style={{ padding:"9px 8px",fontSize:11,color:key===mak?"#a78bfa":"#64748b",fontWeight:800,textAlign:"right" }}>{label}</div>))}
+                    </div>
+                    {conceptos.map((row,idx)=>(
+                      <div key={row.nombre} style={{ display:"grid",gridTemplateColumns:`150px repeat(${ml.length},96px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none",background:idx%2===0?"#13131a":"#0f0f18" }}>
+                        <div style={{ padding:"9px 12px",overflow:"hidden" }}>
+                          <div style={{ fontSize:12,fontWeight:700,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{row.nombre}</div>
+                          {row.pct!==null&&<div style={{ fontSize:10,color:colorDelta(row.delta),fontWeight:800,marginTop:2 }}>{row.delta>0?"▲":row.delta<0?"▼":"="} {row.pct===null?"":`${Math.abs(row.pct)}%`}</div>}
+                        </div>
+                        {ml.map(({key})=>(<div key={key} style={{ padding:"9px 8px",textAlign:"right" }}>{row.vals[key]?<div style={{ fontFamily:"'Space Mono',monospace",fontSize:10,color:key===mak?"#e2e8f0":"#94a3b8" }}>{fmtARS(row.vals[key])}</div>:<div style={{ color:"#2a2a3e",fontSize:10 }}>—</div>}</div>))}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           );
