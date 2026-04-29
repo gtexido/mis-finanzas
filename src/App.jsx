@@ -31,24 +31,6 @@ import {
 
 // Utils
 import { fmtARS, fmtUSD, fmtFecha } from "./utils/formatters";
-const fmtARSCompact = (valor) => {
-  const n = Number(valor || 0);
-  const signo = n < 0 ? "-" : "";
-  const abs = Math.abs(n);
-
-  if (abs >= 1000000) {
-    return `${signo}$ ${(abs / 1000000).toLocaleString("es-AR", {
-      maximumFractionDigits: 1,
-    })} M`;
-  }
-
-  if (abs >= 1000) {
-    return `${signo}$ ${Math.round(abs / 1000).toLocaleString("es-AR")} mil`;
-  }
-
-  return fmtARS(n);
-};
-
 import { diasRestantes, getGrupoVencimiento, semaforo } from "./utils/dates";
 import { montoReal, montoUSDReal } from "./utils/money";
 
@@ -136,25 +118,12 @@ const DEFAULT_CONFIG = {
   },
   // Conceptos que son "tarjeta dólares" — se manejan como subconceptos
   conceptosDolar: ["Tarjeta Santander Dólares"],
-  fuentesIngreso: ["Hogar","Ventas","Trabajo Diario","Otros"],
+  fuentesIngreso: ["Vane","Anses","Descartables V&G"],
   tipoCambio: 1415,
 };
 
 // Subconceptos sugeridos para tarjeta dólares
 const SUBCONCEPTOS_USD_SUGERIDOS = ["Google One","YouTube","ChatGPT","Netflix","Spotify","Microsoft 365","Apple","Amazon","iCloud","Disney+","HBO","Canva","Notion","Dropbox","Otro"];
-
-const FUENTES_INGRESO_GENERICAS = ["Hogar", "Ventas", "Trabajo Diario", "Otros"];
-const MAPA_FUENTES_INGRESO_LEGACY = {
-  Vane: "Hogar",
-  Anses: "Trabajo Diario",
-  "Descartables V&G": "Ventas",
-};
-const normalizarFuenteIngreso = (fuente = "") => {
-  const nombre = String(fuente || "").trim();
-  if (!nombre) return "Otros";
-  return MAPA_FUENTES_INGRESO_LEGACY[nombre] || (FUENTES_INGRESO_GENERICAS.includes(nombre) ? nombre : "Otros");
-};
-
 
 const ABRIL_GASTOS = []; // Sin datos precargados — se cargan desde Google Sheets
 
@@ -343,7 +312,6 @@ export default function App() {
   const [gestionCatModal,setGestionCatModal]=useState(false);
   const [nuevoServInline,setNuevoServInline]=useState("");
   const [replicarStep,setReplicarStep]=useState(null); // null | 'modal' | 'confirmar' | 'done'
-  const [prepararMesOculto,setPrepararMesOculto]=useState(null);
   const [excluirReplicar,setExcluirReplicar]=useState(new Set());
   const [filtCatReplicar,setFiltCatReplicar]=useState("todos");
   const [mesesAtrasVar,setMesesAtrasVar]=useState(3);
@@ -437,72 +405,6 @@ useEffect(() => {
   cargarDesdeApi();
 }, []);
 
-// Carga bajo demanda los meses necesarios para la pantalla Evolución.
-useEffect(() => {
-  if (view !== "variacion") return;
-
-  let cancelado = false;
-
-  const getMesesVariacion = () => {
-    const meses = [];
-    for (let i = mesesAtrasVar - 1; i >= 0; i--) {
-      let m = mes.m - i;
-      let y = mes.y;
-      if (m < 0) {
-        m += 12;
-        y--;
-      }
-      meses.push(getMesKey(y, m));
-    }
-    return meses;
-  };
-
-  const cargarMesesVariacion = async () => {
-    const keys = getMesesVariacion();
-
-    // IMPORTANTE:
-    // Para Evolución no alcanza con revisar si existe data.gastos[key],
-    // porque localStorage puede tener el mes creado como [] y eso hacía
-    // que no se consultara Neon. Por eso, al entrar a Evolución refrescamos
-    // siempre los meses visibles desde la API.
-    try {
-      const resultados = await Promise.all(
-        keys.map(async (key) => {
-          const movimientosApi = await getMovimientos(key);
-          return [key, mapMovimientosDesdeApi(movimientosApi, key)];
-        })
-      );
-
-      if (cancelado) return;
-
-      setData((prev) => {
-        const siguiente = {
-          ...prev,
-          gastos: { ...(prev.gastos || {}) },
-          ingresos: { ...(prev.ingresos || {}) },
-          sueldo: { ...(prev.sueldo || {}) },
-        };
-
-        resultados.forEach(([key, nuevoData]) => {
-          siguiente.gastos[key] = nuevoData.gastos[key] || [];
-          siguiente.ingresos[key] = nuevoData.ingresos[key] || [];
-          siguiente.sueldo[key] = nuevoData.sueldo[key] || 0;
-        });
-
-        return siguiente;
-      });
-    } catch (e) {
-      console.error("Error cargando histórico de evolución:", e);
-    }
-  };
-
-  cargarMesesVariacion();
-
-  return () => {
-    cancelado = true;
-  };
-}, [view, mesesAtrasVar, mes.m, mes.y]);
-
   const toast_=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),2400); };
 
   const gastosDelMes=data.gastos[mesKey]||[];
@@ -512,27 +414,65 @@ const sueldoDelMes=data.sueldo[mesKey]||0;
 useEffect(() => {
   setSueldoInput(sueldoDelMes ? String(sueldoDelMes) : "");
 }, [sueldoDelMes, mesKey]);
+
+// Refrescar meses visibles de Evolución para comparar datos reales por período.
+useEffect(() => {
+  if (view !== "variacion") return;
+
+  let cancelado = false;
+
+  const mesesVisibles = [];
+  for (let i = mesesAtrasVar - 1; i >= 0; i--) {
+    let m = mes.m - i;
+    let y = mes.y;
+    if (m < 0) {
+      m += 12;
+      y -= 1;
+    }
+    mesesVisibles.push(getMesKey(y, m));
+  }
+
+  const cargarHistorico = async () => {
+    for (const periodo of mesesVisibles) {
+      try {
+        const movimientosApi = await getMovimientos(periodo);
+        const nuevoData = mapMovimientosDesdeApi(movimientosApi, periodo);
+
+        if (cancelado) return;
+
+        setData((prev) => ({
+          ...prev,
+          gastos: {
+            ...prev.gastos,
+            [periodo]: nuevoData.gastos[periodo] || [],
+          },
+          ingresos: {
+            ...prev.ingresos,
+            [periodo]: nuevoData.ingresos[periodo] || [],
+          },
+          sueldo: {
+            ...prev.sueldo,
+            [periodo]: nuevoData.sueldo[periodo] || 0,
+          },
+        }));
+      } catch (e) {
+        console.error(`No se pudo cargar histórico ${periodo}`, e);
+      }
+    }
+  };
+
+  cargarHistorico();
+
+  return () => {
+    cancelado = true;
+  };
+}, [view, mesesAtrasVar, mes.y, mes.m]);
   const toARS_=(g)=>montoReal(g,tc);
   const totalGastos=gastosDelMes.reduce((a,g)=>a+toARS_(g),0);
   const totalPagado=gastosDelMes.filter(g=>g.estado==="pagado").reduce((a,g)=>a+toARS_(g),0);
   const totalPendiente=gastosDelMes.filter(g=>g.estado==="pendiente").reduce((a,g)=>a+toARS_(g),0);
   const totalUSD_=gastosDelMes.reduce((a,g)=>a+montoUSDReal(g),0);
-  const totalIngresosExtras=ingresosDelMes.reduce((a,i)=>a+Number(i.monto),0);
-  const totalIngresos=totalIngresosExtras+Number(sueldoDelMes);
-  const diaActualMes = mes.y === now.getFullYear() && mes.m === now.getMonth() ? now.getDate() : new Date(mes.y, mes.m + 1, 0).getDate();
-  const diasDelMes = new Date(mes.y, mes.m + 1, 0).getDate();
-  const ingresosHoy = ingresosDelMes.filter(i=>Number(i.dia)===diaActualMes).reduce((a,i)=>a+Number(i.monto||0),0);
-  const movimientosIngresosMes = ingresosDelMes.length + (Number(sueldoDelMes)>0 ? 1 : 0);
-  const promedioDiarioIngresos = diaActualMes > 0 ? totalIngresos / diaActualMes : 0;
-  const proyeccionIngresosMes = promedioDiarioIngresos * diasDelMes;
-  const metaIngresosMes = Math.max(Number(sueldoDelMes || 0), totalIngresos, 1);
-  const avanceIngresosPct = Math.min(100, Math.round((totalIngresos / metaIngresosMes) * 100));
-  const ingresosPorFuente = (cfg.fuentesIngreso || FUENTES_INGRESO_GENERICAS).map((fuente, idx)=>{
-    const items = ingresosDelMes.filter(i=>normalizarFuenteIngreso(i.fuente)===fuente);
-    const total = items.reduce((a,i)=>a+Number(i.monto||0),0);
-    return { fuente, total, items, color: COLORES[idx % COLORES.length] };
-  }).filter(f=>f.total>0 || f.fuente===ingForm.fuente);
-  const fuenteMayorIngreso = ingresosPorFuente.filter(f=>f.total>0).sort((a,b)=>b.total-a.total)[0] || null;
+  const totalIngresos=ingresosDelMes.reduce((a,i)=>a+Number(i.monto),0)+Number(sueldoDelMes);
   const saldo=totalIngresos-totalGastos;
   const saldoColor=saldo>=0?"#4ade80":"#f87171";
   const gastosPorCat=cfg.categorias.map(cat=>({...cat,total:gastosDelMes.filter(g=>g.categoria===cat.id).reduce((a,g)=>a+toARS_(g),0),items:gastosDelMes.filter(g=>g.categoria===cat.id)}));
@@ -566,44 +506,6 @@ useEffect(() => {
 const cantidadAlertasProximas = alertasProximas.length;
 const totalAlertasProximas = alertasProximas.reduce((acc, g) => acc + g.montoARS, 0);
 const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : null;
-
-// ── Home Premium: métricas ejecutivas del mes ───────────────────────────────
-const porcentajeUsoIngreso = totalIngresos > 0 ? Math.round((totalGastos / totalIngresos) * 100) : 0;
-const porcentajeSaldoIngreso = totalIngresos > 0 ? Math.round((saldo / totalIngresos) * 100) : 0;
-const gastosOrdenadosPorMonto = [...gastosDelMes].sort((a, b) => toARS_(b) - toARS_(a));
-const gastoMayorDelMes = gastosOrdenadosPorMonto[0] || null;
-const categoriasConGasto = gastosPorCat.filter((cat) => cat.total > 0).sort((a, b) => b.total - a.total);
-const categoriaMayorDelMes = categoriasConGasto[0] || null;
-const totalOperacionesMes = gastosDelMes.length;
-const ticketPromedioMes = totalOperacionesMes > 0 ? totalGastos / totalOperacionesMes : 0;
-const pagosRealizadosPct = totalGastos > 0 ? Math.round((totalPagado / totalGastos) * 100) : 0;
-const saludFinanciera =
-  totalIngresos <= 0
-    ? { label: "Sin ingresos cargados", color: "#94a3b8", icon: "🧭", detalle: "Cargá ingresos para calcular tu margen real." }
-    : saldo >= 0 && porcentajeUsoIngreso <= 70
-      ? { label: "Muy saludable", color: "#4ade80", icon: "🟢", detalle: "Hay margen para ahorrar o anticipar pagos." }
-      : saldo >= 0 && porcentajeUsoIngreso <= 90
-        ? { label: "Controlado", color: "#fbbf24", icon: "🟡", detalle: "Venís bien; mantené bajo control los gastos principales." }
-        : saldo >= 0
-          ? { label: "Ajustado", color: "#fb923c", icon: "🟠", detalle: "Queda poco margen: priorizá pagos y evitá gastos nuevos." }
-          : { label: "En rojo", color: "#f87171", icon: "🔴", detalle: "Los gastos superan los ingresos: toca ordenar prioridades." };
-const recomendacionHome =
-  totalIngresos <= 0
-    ? "Cargá tus ingresos para ver capacidad real de ahorro y presión de gastos."
-    : saldo < 0
-      ? `Revisá primero ${categoriaMayorDelMes?.label || "la categoría principal"}: concentra ${categoriaMayorDelMes ? fmtARS(categoriaMayorDelMes.total) : fmtARS(0)}.`
-      : totalPendiente > 0
-        ? `Tenés ${fmtARS(totalPendiente)} pendiente. Conviene priorizar vencimientos antes de sumar nuevos gastos.`
-        : `Cierre prolijo: te queda ${fmtARS(saldo)} disponible. Buen momento para separar ahorro.`;
-const accionesHome = [
-  totalIngresos <= 0 && { icon:"💰", titulo:"Cargar ingresos", detalle:"Sumalos para medir tu margen real." },
-  saldo < 0 && { icon:"🧯", titulo:"Reducir presión", detalle:"Revisá primero los gastos más altos." },
-  cantidadAlertasProximas > 0 && { icon:"⚠️", titulo:"Atender vencimientos", detalle:`Hay ${cantidadAlertasProximas} vencimiento${cantidadAlertasProximas > 1 ? "s" : ""} urgente${cantidadAlertasProximas > 1 ? "s" : ""}.` },
-  totalPendiente > 0 && { icon:"⏳", titulo:"Ordenar pagos pendientes", detalle:`Quedan ${fmtARS(totalPendiente)} sin pagar.` },
-  categoriaMayorDelMes && { icon:"🔎", titulo:"Revisar mayor foco", detalle:`${categoriaMayorDelMes.label} explica ${totalGastos > 0 ? Math.round((categoriaMayorDelMes.total / totalGastos) * 100) : 0}% del gasto.` },
-  saldo > 0 && totalPendiente === 0 && { icon:"🏦", titulo:"Reservar ahorro", detalle:`Reservá una parte de ${fmtARS(saldo)} antes del próximo mes.` },
-].filter(Boolean).slice(0, 2);
-const topCategoriasHome = categoriasConGasto.slice(0, 3);
 
 
 const crearRankingAnalisis = (items, obtenerClave, obtenerMeta = () => ({})) => {
@@ -1675,7 +1577,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
   const yaHayMesSiguiente=()=> !!(data.gastos[mesKeySiguiente()]?.length);
-  const mostrarReplicar=()=> gastosDelMes.length>0 && !yaHayMesSiguiente() && prepararMesOculto !== mesKey;
+  const mostrarReplicar=()=> gastosDelMes.length>0 && !yaHayMesSiguiente();
   const gastosFuenteReplicar= gastosDelMes;
   const gastosIncluidos= gastosFuenteReplicar.filter(g=>!excluirReplicar.has(g.id));
   const toggleExcluir=(id)=>setExcluirReplicar(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
@@ -1795,7 +1697,7 @@ const GastoRow=({item})=>{
   const totalUSDDetalle = montoUSDReal(item);
 
   return(
-    <div style={{ padding:"7px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
+    <div style={{ padding:"10px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
       <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
         <div style={{ flex:1 }}>
           <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
@@ -2022,202 +1924,112 @@ const GastoRow=({item})=>{
       )}
 
       {/* HEADER */}
-      {view!=="ingresos"&&(
-        <div style={{ padding:"18px 14px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-          <div>
-            <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-            <div style={{ fontSize:18,fontWeight:700 }}>{view==="config"?"Ajustes":view==="analisis"?"Análisis":view==="variacion"?"Evolución":view==="vencimientos"?"Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
-          </div>
-          {!["config","variacion","vencimientos"].includes(view)&&(
-            <div style={{ display:"flex",gap:8 }}>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(-1)}>‹</button>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(1)}>›</button>
-            </div>
-          )}
+      {view!=="variacion"&&(
+      <div style={{ padding:"28px 20px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+        <div>
+          <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
+          <div style={{ fontSize:20,fontWeight:700 }}>{view==="config"?"Configuración":view==="analisis"?"📊 Análisis":view==="variacion"?"Variación":view==="vencimientos"?"📅 Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
         </div>
+        {!["config","variacion","vencimientos"].includes(view)&&(
+          <div style={{ display:"flex",gap:8 }}>
+            <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"8px 14px" }} onClick={()=>cambiarMes(-1)}>‹</button>
+            <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"8px 14px" }} onClick={()=>cambiarMes(1)}>›</button>
+          </div>
+        )}
+      </div>
       )}
 
-      <div style={{ padding:view==="ingresos"?"18px 12px 0":"12px 12px 0" }}>
+      <div style={{ padding:"20px 16px 0" }}>
 
         {/* HOME */}
         {view==="home"&&(<>
-          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#7c3aed55 0%,transparent 36%),linear-gradient(135deg,#111827 0%,#1a1230 52%,#0f172a 100%)",border:`1px solid ${saludFinanciera.color}55`,boxShadow:"0 12px 32px rgba(0,0,0,0.24)",padding:14,borderRadius:18,marginBottom:10 }}>
-            <div style={{ position:"absolute",right:-36,top:-44,width:108,height:108,borderRadius:"50%",background:`${saludFinanciera.color}18` }}/>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,position:"relative" }}>
-              <div>
-                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",marginBottom:4 }}>Resumen del mes</div>
-                <div style={{ fontSize:12,color:"#cbd5e1",marginBottom:3 }}>Disponible estimado</div>
-                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:32,lineHeight:1.05,fontWeight:700,color:saldoColor }}>{fmtARS(saldo)}</div>
-              </div>
-              <div style={{ background:`${saludFinanciera.color}1f`,border:`1px solid ${saludFinanciera.color}55`,borderRadius:14,padding:"7px 8px",minWidth:78,textAlign:"center" }}>
-                <div style={{ fontSize:15 }}>{saludFinanciera.icon}</div>
-                <div style={{ fontSize:10,fontWeight:800,color:saludFinanciera.color,marginTop:1 }}>{saludFinanciera.label}</div>
-              </div>
+          <div className="card" style={{ background:"linear-gradient(135deg,#13131a 0%,#1a1230 100%)",border:"1px solid #2a1a4e" }}>
+            <div style={{ fontSize:12,color:"#94a3b8",fontWeight:500,marginBottom:4 }}>SALDO DEL MES</div>
+            <div style={{ fontFamily:"'Space Mono',monospace",fontSize:32,fontWeight:700,color:saldoColor }}>{fmtARS(saldo)}</div>
+            <div style={{ display:"flex",gap:8,marginTop:14 }}>
+              <div className="stat-box"><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>INGRESOS</div><div style={{ fontSize:15,fontWeight:700,color:"#4ade80" }}>{fmtARS(totalIngresos)}</div></div>
+              <div className="stat-box"><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>GASTOS</div><div style={{ fontSize:15,fontWeight:700,color:"#f87171" }}>{fmtARS(totalGastos)}</div></div>
             </div>
-
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12,position:"relative" }}>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
-                <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>INGRESOS</div>
-                <div style={{ fontSize:14,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalIngresos)}</div>
-              </div>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
-                <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>GASTOS</div>
-                <div style={{ fontSize:14,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{fmtARS(totalGastos)}</div>
-              </div>
-            </div>
-
-            {totalIngresos>0&&<>
-              <div className="pgb" style={{ height:6,marginTop:10,background:"rgba(30,30,46,0.9)" }}>
-                <div className="pgf" style={{ width:`${Math.min(porcentajeUsoIngreso,100)}%`,background:saludFinanciera.color }}/>
-              </div>
-              <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:"#94a3b8",marginTop:5 }}>
-                <span>{porcentajeUsoIngreso}% del ingreso utilizado</span>
-                <span>{porcentajeSaldoIngreso}% libre</span>
-              </div>
-            </>}
+            {totalIngresos>0&&<><div className="pgb"><div className="pgf" style={{ width:`${Math.min((totalGastos/totalIngresos)*100,100)}%`,background:saldo>=0?"#7c3aed":"#f87171" }}/></div><div style={{ fontSize:11,color:"#64748b",marginTop:4 }}>{Math.round((totalGastos/totalIngresos)*100)}% del ingreso utilizado</div></>}
           </div>
-
-          <div className="card" style={{ background:"#101827",border:"1px solid #1e293b",padding:"10px 11px",borderRadius:16,marginBottom:9 }}>
-            <div style={{ display:"flex",alignItems:"flex-start",gap:9 }}>
-              <div style={{ width:26,height:26,borderRadius:10,background:"#38bdf822",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>💡</div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:3 }}>
-                  <div style={{ fontSize:10,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Diagnóstico</div>
-                  <div style={{ width:5,height:5,borderRadius:"50%",background:saludFinanciera.color }}/>
-                </div>
-                <div style={{ fontSize:12,color:"#e2e8f0",lineHeight:1.32,fontWeight:700 }}>{recomendacionHome}</div>
-              </div>
-            </div>
+          <div style={{ display:"flex",gap:8,marginBottom:12 }}>
+            <div className="stat-box" style={{ border:"1px solid #14532d" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>✅ PAGADO</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#4ade80" }}>{fmtARS(totalPagado)}</div></div>
+            <div className="stat-box" style={{ border:"1px solid #422006" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>⏳ PENDIENTE</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#fb923c" }}>{fmtARS(totalPendiente)}</div></div>
+            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f" }}><div style={{ fontSize:10,color:"#64748b",marginBottom:2 }}>💵 USD</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div></div>}
           </div>
+		  {cantidadAlertasProximas > 0 && (
+  <div
+    className="card"
+    onClick={() => setView("vencimientos")}
+    style={{
+      border:"1px solid #f8717144",
+      background:"#1a1010",
+      cursor:"pointer"
+    }}
+  >
+    <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
+      <div style={{ fontSize:18 }}>⚠️</div>
 
+      <div style={{ fontSize:14, fontWeight:700, color:"#fca5a5", flex:1 }}>
+        Tenés {cantidadAlertasProximas} vencimiento{cantidadAlertasProximas > 1 ? "s" : ""} en los próximos 3 días
+      </div>
 
-          {accionesHome.length>0&&<div className="card" style={{ padding:"10px 11px",borderRadius:16,marginBottom:9,border:"1px solid #2a1a4e",background:"linear-gradient(135deg,#15111f,#101827)" }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8 }}>
-              <div>
-                <div style={{ fontSize:10,color:"#c4b5fd",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Qué conviene hacer ahora</div>
-                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Dos focos para avanzar sin ruido</div>
-              </div>
-              <div style={{ width:28,height:28,borderRadius:10,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15 }}>🎯</div>
-            </div>
-            <div style={{ display:"grid",gap:6 }}>
-              {accionesHome.map((accion,idx)=>(
-                <div key={`${accion.titulo}-${idx}`} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:12,background:"#0b1020",border:"1px solid #1e293b" }}>
-                  <div style={{ width:26,height:26,borderRadius:9,background:"#1e1b4b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>{accion.icon}</div>
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0" }}>{accion.titulo}</div>
-                    <div style={{ fontSize:10,color:"#94a3b8",lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{accion.detalle}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>}
+      <div style={{ fontSize:20, color:"#fca5a5" }}>›</div>
+    </div>
 
-          <div style={{ display:"grid",gridTemplateColumns:totalUSD_>0?"1fr 1fr 1fr":"1fr 1fr",gap:6,marginBottom:10 }}>
-            <div className="stat-box" style={{ border:"1px solid #14532d",background:"#0f1f17",padding:"8px 9px",borderRadius:13 }}>
-              <div style={{ fontSize:10,color:"#86efac",marginBottom:2,fontWeight:800 }}>PAGADO</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalPagado)}</div>
-              <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{pagosRealizadosPct}%</div>
-            </div>
-            <div className="stat-box" style={{ border:"1px solid #422006",background:"#21160b",padding:"8px 9px",borderRadius:13 }}>
-              <div style={{ fontSize:10,color:"#fdba74",marginBottom:2,fontWeight:800 }}>PENDIENTE</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#fb923c",whiteSpace:"nowrap" }}>{fmtARS(totalPendiente)}</div>
-              <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{gastosDelMes.filter(g=>g.estado==="pendiente").length} ítems</div>
-            </div>
-            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f",background:"#0b1726",padding:"8px 9px",borderRadius:13 }}>
-              <div style={{ fontSize:10,color:"#7dd3fc",marginBottom:2,fontWeight:800 }}>USD</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div>
-              <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>incluido en ARS</div>
-            </div>}
-          </div>
+    <div style={{ fontSize:13, color:"#cbd5e1", marginBottom:6 }}>
+      Total comprometido: <span style={{ color:"#fca5a5", fontWeight:700 }}>{fmtARS(totalAlertasProximas)}</span>
+    </div>
 
-          <div className="card" style={{ padding:"9px 11px",borderRadius:15,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:10,color:"#64748b",fontWeight:800,letterSpacing:0.6,textTransform:"uppercase" }}>Actividad del mes</div>
-              <div style={{ fontSize:11,color:"#94a3b8",marginTop:3 }}>{totalOperacionesMes} operaciones · ticket prom. <span style={{ color:"#e2e8f0",fontWeight:800 }}>{fmtARS(ticketPromedioMes)}</span></div>
-            </div>
-            <div onClick={()=>gastoMayorDelMes&&setView("resumen")} style={{ minWidth:105,textAlign:"right",cursor:gastoMayorDelMes?"pointer":"default" }}>
-              <div style={{ fontSize:10,color:"#64748b",fontWeight:800 }}>MAYOR GASTO</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{gastoMayorDelMes?fmtARS(toARS_(gastoMayorDelMes)):fmtARS(0)}</div>
-            </div>
-          </div>
-
-          {cantidadAlertasProximas > 0 && (
-            <div className="card" onClick={() => setView("vencimientos")} style={{ border:"1px solid #f8717144",background:"linear-gradient(135deg,#1a1010,#241111)",cursor:"pointer",padding:12,borderRadius:16,marginBottom:10 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
-                <div style={{ fontSize:18 }}>⚠️</div>
-                <div style={{ fontSize:12, fontWeight:800, color:"#fca5a5", flex:1 }}>Vencimientos próximos: {cantidadAlertasProximas}</div>
-                <div style={{ fontSize:20, color:"#fca5a5" }}>›</div>
-              </div>
-              <div style={{ fontSize:11, color:"#cbd5e1", marginBottom:4 }}>Total a cubrir: <span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(totalAlertasProximas)}</span></div>
-              {mayorAlertaProxima && (<div style={{ fontSize:10, color:"#94a3b8" }}>Próximo foco: <span style={{ color:"#e2e8f0", fontWeight:700 }}>{mayorAlertaProxima.servicio}</span>{" · "}<span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(mayorAlertaProxima.montoARS)}</span>{" · "}<span>{mayorAlertaProxima.dias === 0 ? "vence hoy" : `vence en ${mayorAlertaProxima.dias} día${mayorAlertaProxima.dias > 1 ? "s" : ""}`}</span></div>)}
-            </div>
-          )}
-
-          {topCategoriasHome.length>0&&<div className="card" style={{ padding:12,borderRadius:16,marginBottom:10 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-              <div>
-                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase" }}>Principales categorías</div>
-                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Dónde se concentra el gasto</div>
-              </div>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",fontSize:11,padding:"6px 8px" }} onClick={()=>setView("analisis")}>Analizar</button>
-            </div>
-            {topCategoriasHome.map((cat,idx)=>{
-              const pctCat=totalGastos>0?Math.round((cat.total/totalGastos)*100):0;
-              return(<div key={cat.id} onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }} style={{ padding:"7px 0",borderBottom:idx<topCategoriasHome.length-1?"1px solid #1e1e2e":"none",cursor:"pointer" }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:5 }}>
-                  <div style={{ display:"flex",alignItems:"center",gap:9,minWidth:0 }}>
-                    <div style={{ width:19,height:19,borderRadius:7,background:`${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:cat.color }}>{idx+1}</div>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
-                      <div style={{ fontSize:10,color:"#64748b" }}>{cat.items.length} ítems · {pctCat}% del gasto</div>
-                    </div>
-                  </div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap",textAlign:"right" }}>{fmtARS(cat.total)}</div>
-                </div>
-                <div style={{ height:4,borderRadius:4,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",width:`${Math.min(pctCat,100)}%`,background:cat.color,borderRadius:4 }}/></div>
-              </div>);
-            })}
-          </div>}
-
+    {mayorAlertaProxima && (
+      <div style={{ fontSize:12, color:"#94a3b8" }}>
+        Mayor próximo: <span style={{ color:"#e2e8f0", fontWeight:600 }}>{mayorAlertaProxima.servicio}</span>
+        {" · "}
+        <span style={{ color:"#fca5a5", fontWeight:700 }}>{fmtARS(mayorAlertaProxima.montoARS)}</span>
+        {" · "}
+        <span>{mayorAlertaProxima.dias === 0 ? "vence hoy" : `vence en ${mayorAlertaProxima.dias} día${mayorAlertaProxima.dias > 1 ? "s" : ""}`}</span>
+      </div>
+    )}
+  </div>
+)}
           {/* Card replicar mes */}
-          {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#15111f 0%,#0f172a 100%)",border:"1px solid #2a1a4e",borderRadius:16,padding:"10px 11px",marginBottom:10 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:9,marginBottom:10 }}>
-              <div style={{ width:26,height:26,borderRadius:9,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>📋</div>
+          {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#1a1230 0%,#0f1a2e 100%)",border:"1px solid #7c3aed44",borderRadius:20,padding:18,marginBottom:12 }}>
+            <div style={{ display:"flex",alignItems:"center",gap:12,marginBottom:14 }}>
+              <div style={{ width:40,height:40,borderRadius:12,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0 }}>📋</div>
               <div>
-                <div style={{ fontWeight:800,fontSize:12 }}>Preparar próximo mes</div>
-                <div style={{ fontSize:10,color:"#94a3b8",marginTop:1 }}>Copiá los gastos recurrentes de {MESES[mes.m]}</div>
+                <div style={{ fontWeight:700,fontSize:15 }}>¿Pasamos a {mesNombreSig()}?</div>
+                <div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>Replicá todos los gastos de {MESES[mes.m]} como base para el mes siguiente</div>
               </div>
             </div>
             <div style={{ display:"flex",gap:10 }}>
-              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:12,padding:"8px 10px" }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>Replicar gastos</button>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:12,padding:"8px 10px" }} onClick={()=>setPrepararMesOculto(mesKey)}>Ahora no</button>
+              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:13 }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>📋 Replicar a {mesNombreSig()}</button>
+              <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:13,padding:"10px 14px" }} onClick={()=>{ /* ocultar temporalmente */ }}>Omitir</button>
             </div>
           </div>}
-
-          {categoriasConGasto.map(cat=>{
+          {gastosPorCat.filter(c=>c.total>0).map(cat=>{
             const pendCat=cat.items.filter(i=>i.estado==="pendiente");
             const pctGastado=totalIngresos>0?Math.round((cat.total/totalIngresos)*100):0;
-            return(<div key={cat.id} className="card" style={{ padding:"10px 12px",borderRadius:15,cursor:"pointer",transition:"all 0.15s",border:"1px solid #1e1e2e" }}
+            return(<div key={cat.id} className="card" style={{ padding:"13px 16px",cursor:"pointer",transition:"all 0.15s",border:"1px solid #1e1e2e" }}
               onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }}
               onMouseEnter={e=>e.currentTarget.style.border=`1px solid ${cat.color}44`}
               onMouseLeave={e=>e.currentTarget.style.border="1px solid #1e1e2e"}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
                 <div style={{ display:"flex",alignItems:"center",gap:10 }}>
                   <div style={{ width:10,height:10,borderRadius:"50%",background:cat.color }}/>
-                  <span style={{ fontWeight:700,fontSize:13 }}>{cat.label}</span>
-                  <span style={{ fontSize:10,color:"#64748b" }}>{cat.items.length}</span>
+                  <span style={{ fontWeight:600,fontSize:15 }}>{cat.label}</span>
+                  <span style={{ fontSize:12,color:"#64748b" }}>{cat.items.length} ítems</span>
                 </div>
                 <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap" }}>{fmtARS(cat.total)}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:700,color:cat.color }}>{fmtARS(cat.total)}</div>
                   <span style={{ fontSize:11,color:"#64748b" }}>›</span>
                 </div>
               </div>
               {totalIngresos>0&&<div style={{ height:3,borderRadius:2,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",borderRadius:2,background:cat.color,width:`${Math.min(pctGastado,100)}%`,opacity:0.6 }}/></div>}
-              {pendCat.length>0&&<div style={{ marginTop:5,display:"flex",alignItems:"center",gap:5 }}><span style={{ fontSize:11,color:"#fb923c" }}>⏳ {pendCat.length} pendiente(s): </span><span style={{ fontSize:11,color:"#fb923c",fontWeight:700 }}>{fmtARS(pendCat.reduce((a,g)=>a+toARS_(g),0))}</span></div>}
+              {pendCat.length>0&&<div style={{ marginTop:6,display:"flex",alignItems:"center",gap:6 }}><span style={{ fontSize:11,color:"#fb923c" }}>⏳ {pendCat.length} pendiente(s): </span><span style={{ fontSize:11,color:"#fb923c",fontWeight:700 }}>{fmtARS(pendCat.reduce((a,g)=>a+toARS_(g),0))}</span></div>}
             </div>);
           })}
-          {gastosDelMes.length===0&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:40,marginBottom:12 }}>💸</div><div style={{ fontWeight:600 }}>Sin gastos este mes</div><div style={{ fontSize:12,marginTop:6 }}>Cargá el primer gasto y el resumen se arma automáticamente.</div></div>}
-          <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#94a3b8",marginTop:6,padding:"8px 12px",fontSize:12 }} onClick={exportCSV}>Exportar CSV</button>
+          {gastosDelMes.length===0&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:40,marginBottom:12 }}>💸</div><div style={{ fontWeight:600 }}>Sin gastos este mes</div></div>}
+          <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#94a3b8",marginTop:8 }} onClick={exportCSV}>📥 Exportar CSV</button>
         </>)}
 
         {/* CARGAR */}
@@ -2804,7 +2616,7 @@ const GastoRow=({item})=>{
           <input className="inf" placeholder="🔍 Buscar concepto..." value={busqueda} onChange={e=>setBusqueda(e.target.value)} style={{ marginBottom:12 }}/>
           <div style={{ fontSize:12,color:"#64748b",marginBottom:12 }}>💡 Tocá cualquier fila para editar</div>
           {filtroEstado!=="todos"&&<div style={{ fontSize:13,color:"#64748b",marginBottom:12 }}>{filtroEstado==="pendiente"?"⏳ ":"✅ "}<strong style={{ color:filtroEstado==="pendiente"?"#fb923c":"#4ade80" }}>{fmtARS(filtroEstado==="pendiente"?totalPendiente:totalPagado)}</strong></div>}
-          {gastosPorCatFiltrado2.filter(c=>c.items.length>0).map(cat=>(<div key={cat.id} className="card"><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}><div style={{ fontWeight:700,fontSize:13,color:cat.color }}>{cat.label}</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:cat.color }}>{fmtARS(cat.total)}</div></div>{cat.items.map(item=>(<GastoRow key={item.id} item={item}/>))}</div>))}
+          {gastosPorCatFiltrado2.filter(c=>c.items.length>0).map(cat=>(<div key={cat.id} className="card"><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}><div style={{ fontWeight:700,fontSize:15,color:cat.color }}>{cat.label}</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:cat.color }}>{fmtARS(cat.total)}</div></div>{cat.items.map(item=>(<GastoRow key={item.id} item={item}/>))}</div>))}
           {gastosPorCatFiltrado2.every(c=>c.items.length===0)&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:32,marginBottom:10 }}>📋</div><div style={{ fontSize:14,fontWeight:600 }}>Sin registros</div></div>}
         </>)}
 
@@ -2888,7 +2700,7 @@ const GastoRow=({item})=>{
                     <div style={{ fontSize:14,fontWeight:700 }}>{mayorAnalisis.nombre}</div>
                     <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:800,color:"#e2e8f0" }}>{fmtARS(mayorAnalisis.total)}</div>
                   </div>
-                  <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>
+                  <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
                     {totalGastos>0?`${Math.round((mayorAnalisis.total/totalGastos)*100)}% del gasto mensual`:"Sin gastos cargados"}
                   </div>
                 </div>
@@ -2972,163 +2784,178 @@ const GastoRow=({item})=>{
 
         {/* VARIACIÓN */}
         {view==="variacion"&&(()=>{
-          const toARS__=(g,t)=>montoReal(g,t);
-          const pct_=(a,b)=>b===0?null:Math.round(((a-b)/b)*100);
-          const getMeses_=()=>{ const r=[]; for(let i=mesesAtrasVar-1;i>=0;i--){let m=mes.m-i,y=mes.y;if(m<0){m+=12;y--;}r.push({y,m,key:getMesKey(y,m),label:MESES[m].slice(0,3)});} return r; };
-          const ml=getMeses_();
-          const mak=ml[ml.length-1].key;
-          const mant=ml.length>=2?ml[ml.length-2].key:null;
-          const totalMesVar=(key)=>(data.gastos[key]||[]).reduce((acc,g)=>acc+toARS__(g,tc),0);
-          const totalActualVar=totalMesVar(mak);
-          const totalAnteriorVar=mant?totalMesVar(mant):0;
-          const deltaTotal=totalActualVar-totalAnteriorVar;
-          const pctTotal=pct_(totalActualVar,totalAnteriorVar);
-          const hayComparacion=!!mant && totalAnteriorVar>0;
-          const fmtDelta=(v)=>`${v>=0?"+":"-"} ${fmtARS(Math.abs(v))}`;
-          const colorDelta=(v)=>v>0?"#f87171":v<0?"#4ade80":"#94a3b8";
-          const textoPct=pctTotal===null?"Sin base":pctTotal>0?`▲ ${pctTotal}%`:pctTotal<0?`▼ ${Math.abs(pctTotal)}%`:"= 0%";
+          const toARSVar=(g)=>montoReal(g,tc);
+          const pctVar=(actual,base)=>base===0?null:Math.round(((actual-base)/base)*100);
+          const mesesVisibles=()=>{ const r=[]; for(let i=mesesAtrasVar-1;i>=0;i--){let m=mes.m-i,y=mes.y;if(m<0){m+=12;y--;}r.push({y,m,key:getMesKey(y,m),label:MESES[m].slice(0,3),full:`${MESES[m]} ${y}`});} return r; };
+          const ml=mesesVisibles();
+          const mesActual=ml[ml.length-1];
+          const mesAnterior=ml.length>=2?ml[ml.length-2]:null;
+          const keyActual=mesActual.key;
+          const keyAnterior=mesAnterior?.key;
 
-          const mapaConceptos=ml.reduce((acc,{key})=>{
+          const totalPorMes=ml.reduce((acc,{key})=>{
+            acc[key]=(data.gastos[key]||[]).reduce((s,g)=>s+toARSVar(g),0);
+            return acc;
+          },{});
+
+          const totalActual=totalPorMes[keyActual]||0;
+          const totalAnterior=keyAnterior?(totalPorMes[keyAnterior]||0):0;
+          const diferencia=totalActual-totalAnterior;
+          const variacion=pctVar(totalActual,totalAnterior);
+          const tieneBaseComparacion=!!keyAnterior && totalAnterior>0;
+
+          const conceptosMap=ml.reduce((acc,{key})=>{
             (data.gastos[key]||[]).forEach(g=>{
-              const k=(g.servicio||"Sin concepto").trim()||"Sin concepto";
-              if(!acc[k]) acc[k]={};
-              acc[k][key]=(acc[k][key]||0)+toARS__(g,tc);
+              const nombre=(g.servicio||g.conceptoManual||"Sin concepto").trim()||"Sin concepto";
+              if(!acc[nombre]) acc[nombre]={ nombre, valores:{} };
+              acc[nombre].valores[key]=(acc[nombre].valores[key]||0)+toARSVar(g);
             });
             return acc;
           },{});
 
-          const conceptos=Object.entries(mapaConceptos)
-            .map(([nombre,vals])=>({
-              nombre,
-              vals,
-              actual: vals[mak]||0,
-              anterior: mant?(vals[mant]||0):0,
-              total: Object.values(vals).reduce((s,v)=>s+v,0)
-            }))
-            .map(r=>({...r,delta:r.actual-r.anterior,pct:mant?pct_(r.actual,r.anterior):null}))
-            .sort((a,b)=>b.total-a.total);
+          const conceptos=Object.values(conceptosMap)
+            .map(item=>{
+              const actual=item.valores[keyActual]||0;
+              const anterior=keyAnterior?(item.valores[keyAnterior]||0):0;
+              return { ...item, actual, anterior, diff:actual-anterior, pct:pctVar(actual,anterior), total:ml.reduce((s,{key})=>s+(item.valores[key]||0),0) };
+            })
+            .sort((a,b)=>b.actual-a.actual || b.total-a.total);
 
-          const subidas=conceptos.filter(r=>r.anterior>0&&r.actual>0&&r.delta>0).sort((a,b)=>b.delta-a.delta).slice(0,4);
-          const bajas=conceptos.filter(r=>r.anterior>0&&r.actual>0&&r.delta<0).sort((a,b)=>a.delta-b.delta).slice(0,4);
-          const nuevos=conceptos.filter(r=>r.actual>0&&r.anterior===0).sort((a,b)=>b.actual-a.actual).slice(0,5);
-          const desaparecidos=conceptos.filter(r=>r.actual===0&&r.anterior>0).sort((a,b)=>b.anterior-a.anterior).slice(0,5);
-          const mesesConDatos=ml.filter(({key})=>totalMesVar(key)>0).length;
-          const minTabla=150+(ml.length*96);
+          const subidas=conceptos.filter(c=>c.anterior>0&&c.actual>c.anterior).sort((a,b)=>b.diff-a.diff);
+          const bajas=conceptos.filter(c=>c.anterior>0&&c.actual<c.anterior).sort((a,b)=>a.diff-b.diff);
+          const nuevos=conceptos.filter(c=>c.actual>0&&c.anterior===0).sort((a,b)=>b.actual-a.actual);
+          const sinGasto=conceptos.filter(c=>c.actual===0&&c.anterior>0).sort((a,b)=>b.anterior-a.anterior);
 
-          const bloqueVariacion=(titulo,icono,items,tipo)=>(
+          const colorVar=variacion===null?"#94a3b8":variacion>0?"#f87171":variacion<0?"#4ade80":"#fbbf24";
+          const iconVar=variacion===null?"—":variacion>0?"▲":variacion<0?"▼":"=";
+          const tituloResumen=!tieneBaseComparacion
+            ? "Cargá al menos dos meses con gastos para ver una comparación real."
+            : diferencia>0
+              ? `Este mes gastaste ${fmtARS(Math.abs(diferencia))} más que el mes anterior.`
+              : diferencia<0
+                ? `Este mes gastaste ${fmtARS(Math.abs(diferencia))} menos que el mes anterior.`
+                : "Este mes gastaste prácticamente lo mismo que el mes anterior.";
+          const detalleResumen=tieneBaseComparacion
+            ? subidas.length>0
+              ? `El aumento se explica principalmente por ${subidas.slice(0,2).map(x=>x.nombre).join(" y ")}.`
+              : bajas.length>0
+                ? `La baja se explica principalmente por ${bajas.slice(0,2).map(x=>x.nombre).join(" y ")}.`
+                : "No se detectan grandes movimientos entre meses."
+            : `${conceptos.length} concepto${conceptos.length!==1?"s":""} registrado${conceptos.length!==1?"s":""} en el período visible.`;
+
+          const miniKpi=(titulo,valor,color,sub)=> (
+            <div className="card" style={{ padding:12,minHeight:72 }}>
+              <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>{titulo}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:18,fontWeight:900,color,marginTop:6 }}>{valor}</div>
+              {sub&&<div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{sub}</div>}
+            </div>
+          );
+
+          const bloqueLista=(titulo,icono,items,tipo,empty)=> (
             <div className="card" style={{ padding:12 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                <div style={{ fontWeight:900,fontSize:14 }}>{icono} {titulo}</div>
-                <div style={{ fontSize:11,color:"#64748b" }}>{items.length} item{items.length!==1?"s":""}</div>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8 }}>
+                <div style={{ fontSize:14,fontWeight:900 }}>{icono} {titulo}</div>
+                <div style={{ fontSize:10,color:"#64748b" }}>{items.length} item{items.length!==1?"s":""}</div>
               </div>
-              {items.length===0 ? (
-                <div style={{ fontSize:12,color:"#64748b",padding:"8px 0" }}>Sin movimientos para mostrar.</div>
-              ) : items.map((item,idx)=>(
-                <div key={`${titulo}-${item.nombre}`} style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center",padding:"8px 0",borderBottom:idx<items.length-1?"1px solid #1e1e2e":"none" }}>
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:13,fontWeight:800,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.nombre}</div>
-                    <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
-                      {tipo==="nuevo" ? `Nuevo en ${MESES[mes.m].slice(0,3)}` : tipo==="baja" ? "Sin gasto este mes" : `Antes ${fmtARS(item.anterior)}`}
+              {items.length===0&&<div style={{ fontSize:12,color:"#64748b",padding:"8px 0" }}>{empty}</div>}
+              {items.slice(0,5).map((item,idx)=>{
+                const color=tipo==="sube"?"#f87171":tipo==="baja"?"#4ade80":"#e2e8f0";
+                const valor=tipo==="sube"?`+ ${fmtARS(item.diff)}`:tipo==="baja"?`- ${fmtARS(Math.abs(item.diff))}`:fmtARS(item.actual||item.anterior);
+                const linea=tipo==="nuevo"?`Nuevo en ${mesActual.label}`:tipo==="sin"?`Antes ${fmtARS(item.anterior)}`:`Antes ${fmtARS(item.anterior)}`;
+                return (
+                  <div key={`${tipo}-${item.nombre}-${idx}`} style={{ padding:"9px 0",borderTop:idx===0?"none":"1px solid #1e1e2e",display:"flex",justifyContent:"space-between",gap:10 }}>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:13,fontWeight:850,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.nombre}</div>
+                      <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{linea}</div>
                     </div>
+                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color,flexShrink:0 }}>{valor}</div>
                   </div>
-                  <div style={{ textAlign:"right",flexShrink:0 }}>
-                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:tipo==="baja"?"#4ade80":tipo==="sube"?"#f87171":"#e2e8f0" }}>
-                      {tipo==="nuevo"?fmtARS(item.actual):tipo==="baja"?`- ${fmtARS(item.anterior)}`:fmtDelta(item.delta)}
-                    </div>
-                    {item.pct!==null&&tipo!=="nuevo"&&tipo!=="baja"&&(
-                      <div style={{ fontSize:10,color:"#64748b",fontWeight:700 }}>{item.pct>0?"+":""}{item.pct}%</div>
-                    )}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           );
 
           return(
             <div>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
-                <div>
-                  <div style={{ fontSize:11,color:"#7c3aed",fontWeight:900,letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-                  <div style={{ fontWeight:900,fontSize:21,lineHeight:1.1 }}>Evolución</div>
-                  <div style={{ fontSize:13,color:"#94a3b8",marginTop:4 }}>{ml[0]?.label} · {ml[ml.length-1]?.label} {mes.y}</div>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase",fontWeight:900,marginBottom:3 }}>Mis Finanzas</div>
+                  <div style={{ fontWeight:900,fontSize:22,lineHeight:1.05 }}>Evolución</div>
+                  <div style={{ fontSize:12,color:"#94a3b8",marginTop:4 }}>{ml[0].label} · {mesActual.label} {mesActual.y}</div>
                 </div>
-                <div style={{ display:"flex",gap:6 }}>
-                  {[3,4,6].map(n=>(<button key={n} onClick={()=>setMesesAtrasVar(n)} style={{ background:mesesAtrasVar===n?"#7c3aed":"#1e1e2e",border:"none",color:mesesAtrasVar===n?"#fff":"#94a3b8",borderRadius:10,padding:"7px 9px",cursor:"pointer",fontSize:12,fontWeight:800 }}>{n}M</button>))}
+                <div style={{ display:"flex",gap:6,flexShrink:0,marginTop:2 }}>
+                  {[3,4,6].map(n=>(<button key={n} onClick={()=>setMesesAtrasVar(n)} style={{ background:mesesAtrasVar===n?"#7c3aed":"#1e1e2e",border:"none",color:mesesAtrasVar===n?"#fff":"#94a3b8",borderRadius:10,padding:"6px 10px",cursor:"pointer",fontSize:12,fontWeight:900 }}>{n}M</button>))}
                 </div>
               </div>
 
               <div className="card" style={{ background:"linear-gradient(135deg,#111827 0%,#1f1235 100%)",border:"1px solid #7c3aed66",padding:14 }}>
-                <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
                   <div>
                     <span style={lbl}>GASTO ACTUAL</span>
-                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:26,fontWeight:900,color:"#f87171",lineHeight:1.1 }}>{fmtARS(totalActualVar)}</div>
-                    <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>
-                      {hayComparacion ? `${fmtDelta(deltaTotal)} vs mes anterior` : mesesConDatos<2 ? "Cargá 2 meses para comparar" : "Sin base anterior"}
-                    </div>
+                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:25,fontWeight:900,color:"#f87171",lineHeight:1.1 }}>{fmtARS(totalActual)}</div>
+                    <div style={{ fontSize:11,color:"#94a3b8",marginTop:5 }}>{tieneBaseComparacion ? `${diferencia>=0?"+":"-"} ${fmtARS(Math.abs(diferencia))} vs mes anterior` : "Sin base suficiente para comparar"}</div>
                   </div>
-                  <div style={{ minWidth:78,textAlign:"right" }}>
-                    <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,textTransform:"uppercase" }}>Variación</div>
-                    <div style={{ fontSize:20,fontWeight:900,color:colorDelta(deltaTotal) }}>{textoPct}</div>
+                  <div style={{ textAlign:"right",minWidth:84 }}>
+                    <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,textTransform:"uppercase" }}>Variación</div>
+                    <div style={{ fontSize:22,fontWeight:900,color:colorVar }}>{variacion===null?"Sin base":`${iconVar} ${Math.abs(variacion)}%`}</div>
                     <div style={{ fontSize:10,color:"#64748b" }}>mes anterior</div>
                   </div>
                 </div>
               </div>
 
               <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
-                <div className="card" style={{ padding:11 }}><span style={lbl}>SUBIERON</span><div style={{ fontSize:17,fontWeight:900,color:"#f87171" }}>{subidas.length}</div></div>
-                <div className="card" style={{ padding:11 }}><span style={lbl}>BAJARON</span><div style={{ fontSize:17,fontWeight:900,color:"#4ade80" }}>{bajas.length}</div></div>
-                <div className="card" style={{ padding:11 }}><span style={lbl}>NUEVOS</span><div style={{ fontSize:17,fontWeight:900,color:"#38bdf8" }}>{nuevos.length}</div></div>
-                <div className="card" style={{ padding:11 }}><span style={lbl}>SIN GASTO</span><div style={{ fontSize:17,fontWeight:900,color:"#a78bfa" }}>{desaparecidos.length}</div></div>
+                {miniKpi("Subieron",subidas.length,"#f87171","con más gasto")}
+                {miniKpi("Bajaron",bajas.length,"#4ade80","con menor gasto")}
+                {miniKpi("Nuevos",nuevos.length,"#38bdf8","aparecen este mes")}
+                {miniKpi("Sin gasto",sinGasto.length,"#94a3b8","no aparecen este mes")}
               </div>
 
               <div className="card" style={{ border:"1px solid #2563eb55",background:"#0f172a",padding:11 }}>
                 <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
                   <div style={{ width:28,height:28,borderRadius:11,display:"grid",placeItems:"center",background:"#1e3a8a",fontSize:15 }}>💡</div>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Resumen de evolución</div>
-                    <div style={{ fontSize:13,fontWeight:800,lineHeight:1.35,marginTop:2 }}>
-                      {hayComparacion
-                        ? deltaTotal>0
-                          ? `Este mes gastaste ${fmtDelta(deltaTotal)} más que el mes anterior.`
-                          : deltaTotal<0
-                            ? `Este mes gastaste ${fmtARS(Math.abs(deltaTotal))} menos que el mes anterior.`
-                            : "Este mes se mantiene igual al mes anterior."
-                        : "Cuando haya al menos dos meses con gastos, vas a ver subidas, bajas y nuevos gastos."}
-                    </div>
-                    <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
-                      {nuevos.length>0 ? `${nuevos.length} gasto${nuevos.length!==1?"s":""} nuevo${nuevos.length!==1?"s":""} detectado${nuevos.length!==1?"s":""}.` : "Sin gastos nuevos detectados."}
-                    </div>
+                    <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Resumen de evolución</div>
+                    <div style={{ fontSize:13,fontWeight:850,color:"#e2e8f0",lineHeight:1.35,marginTop:3 }}>{tituloResumen}</div>
+                    <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>{detalleResumen}</div>
                   </div>
                 </div>
               </div>
 
-              {bloqueVariacion("Más subieron","📈",subidas,"sube")}
-              {bloqueVariacion("Más bajaron","📉",bajas,"baja")}
-              {bloqueVariacion("Nuevos este mes","🆕",nuevos,"nuevo")}
+              {bloqueLista("Gastos que más subieron","📈",subidas,"sube","Sin aumentos para mostrar.")}
+              {bloqueLista("Gastos que bajaron","📉",bajas,"baja","Sin bajas para mostrar.")}
+              {bloqueLista("Nuevos en el mes","🆕",nuevos,"nuevo","Sin gastos nuevos en este período.")}
+              {bloqueLista("Sin gasto este mes","🧘",sinGasto,"sin","No hay gastos desaparecidos.")}
 
-              <div className="card" style={{ padding:0,overflow:"hidden" }}>
-                <div style={{ padding:"12px 12px 8px",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
+              <div className="card" style={{ padding:12 }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10 }}>
                   <div>
-                    <div style={{ fontWeight:900,fontSize:14 }}>Detalle histórico</div>
+                    <div style={{ fontSize:14,fontWeight:900 }}>Detalle histórico</div>
                     <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>Comparación por concepto.</div>
                   </div>
-                  <div style={{ fontSize:11,color:"#64748b" }}>{conceptos.length} conceptos</div>
+                  <div style={{ fontSize:10,color:"#64748b" }}>{conceptos.length} concepto{conceptos.length!==1?"s":""}</div>
                 </div>
-                <div style={{ overflowX:"auto" }}>
-                  <div style={{ minWidth:minTabla }}>
-                    <div style={{ display:"grid",gridTemplateColumns:`150px repeat(${ml.length},96px)`,borderTop:"1px solid #1e1e2e",borderBottom:"1px solid #1e1e2e" }}>
-                      <div style={{ padding:"9px 12px",fontSize:11,color:"#64748b",fontWeight:800 }}>CONCEPTO</div>
-                      {ml.map(({key,label})=>(<div key={key} style={{ padding:"9px 8px",fontSize:11,color:key===mak?"#a78bfa":"#64748b",fontWeight:800,textAlign:"right" }}>{label}</div>))}
+                <div style={{ overflowX:"auto",paddingBottom:4 }}>
+                  <div style={{ minWidth: Math.max(360, 150 + ml.length*92) }}>
+                    <div style={{ display:"grid",gridTemplateColumns:`150px repeat(${ml.length},92px)`,borderBottom:"1px solid #1e1e2e" }}>
+                      <div style={{ padding:"9px 6px",fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Concepto</div>
+                      {ml.map(({key,label})=>(<div key={key} style={{ padding:"9px 6px",fontSize:10,color:key===keyActual?"#a78bfa":"#64748b",fontWeight:900,textAlign:"right" }}>{label}</div>))}
                     </div>
-                    {conceptos.map((row,idx)=>(
-                      <div key={row.nombre} style={{ display:"grid",gridTemplateColumns:`150px repeat(${ml.length},96px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none",background:idx%2===0?"#13131a":"#0f0f18" }}>
-                        <div style={{ padding:"9px 12px",overflow:"hidden" }}>
-                          <div style={{ fontSize:12,fontWeight:700,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{row.nombre}</div>
-                          {row.pct!==null&&<div style={{ fontSize:10,color:colorDelta(row.delta),fontWeight:800,marginTop:2 }}>{row.delta>0?"▲":row.delta<0?"▼":"="} {row.pct===null?"":`${Math.abs(row.pct)}%`}</div>}
+                    {conceptos.map((item,idx)=>{
+                      const v=item.pct;
+                      const varColor=v===null?"#64748b":v>0?"#f87171":v<0?"#4ade80":"#fbbf24";
+                      return (
+                        <div key={item.nombre} style={{ display:"grid",gridTemplateColumns:`150px repeat(${ml.length},92px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none" }}>
+                          <div style={{ padding:"9px 6px",overflow:"hidden" }}>
+                            <div style={{ fontSize:12,fontWeight:850,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.nombre}</div>
+                            {v!==null&&item.anterior>0&&<div style={{ fontSize:10,color:varColor,fontWeight:900,marginTop:2 }}>{v>0?"▲":v<0?"▼":"="} {Math.abs(v)}%</div>}
+                          </div>
+                          {ml.map(({key})=>{
+                            const valor=item.valores[key]||0;
+                            return <div key={key} style={{ padding:"9px 6px",textAlign:"right" }}>{valor>0?<div style={{ fontFamily:"'Space Mono',monospace",fontSize:10,color:key===keyActual?"#e2e8f0":"#94a3b8",fontWeight:key===keyActual?900:700 }}>{fmtARS(valor)}</div>:<div style={{ color:"#2a2a3e",fontSize:10 }}>—</div>}</div>;
+                          })}
                         </div>
-                        {ml.map(({key})=>(<div key={key} style={{ padding:"9px 8px",textAlign:"right" }}>{row.vals[key]?<div style={{ fontFamily:"'Space Mono',monospace",fontSize:10,color:key===mak?"#e2e8f0":"#94a3b8" }}>{fmtARS(row.vals[key])}</div>:<div style={{ color:"#2a2a3e",fontSize:10 }}>—</div>}</div>))}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -3138,84 +2965,10 @@ const GastoRow=({item})=>{
 
         {/* INGRESOS */}
         {view==="ingresos"&&(<>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
-            <div>
-              <div style={{ fontSize:11,color:"#7c3aed",fontWeight:900,letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-              <div style={{ fontWeight:900,fontSize:21,lineHeight:1.1 }}>Ingresos</div>
-              <div style={{ fontSize:13,color:"#94a3b8",marginTop:4 }}>{MESES[mes.m]} {mes.y}</div>
-            </div>
-            <div style={{ display:"flex",gap:8 }}>
-              <button className="pb" onClick={()=>cambiarMes(-1)} style={{ background:"#1e1e2e",color:"#c4b5fd",borderRadius:14,padding:"9px 12px" }}>‹</button>
-              <button className="pb" onClick={()=>cambiarMes(1)} style={{ background:"#1e1e2e",color:"#c4b5fd",borderRadius:14,padding:"9px 12px" }}>›</button>
-            </div>
-          </div>
-
-          <div className="card" style={{ background:"linear-gradient(135deg,#111827 0%,#1f1235 100%)",border:"1px solid #7c3aed66",padding:14 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start" }}>
-              <div>
-                <span style={lbl}>INGRESOS DEL MES</span>
-                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:27,fontWeight:900,color:"#4ade80",lineHeight:1.1 }}>{fmtARS(totalIngresos)}</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>{movimientosIngresosMes} movimiento{movimientosIngresosMes!==1?"s":""} este mes · {ingresosHoy>0?`${fmtARS(ingresosHoy)} hoy`:"Hoy sin ingresos"}</div>
-              </div>
-              <div style={{ minWidth:82,textAlign:"right" }}>
-                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,textTransform:"uppercase" }}>Avance</div>
-                <div style={{ fontSize:22,fontWeight:900,color:"#c4b5fd" }}>{avanceIngresosPct}%</div>
-                <div style={{ fontSize:10,color:"#64748b" }}>base actual</div>
-              </div>
-            </div>
-            <div style={{ height:7,background:"#1e1e2e",borderRadius:999,overflow:"hidden",marginTop:12 }}>
-              <div style={{ width:`${avanceIngresosPct}%`,height:"100%",background:"linear-gradient(90deg,#22c55e,#a78bfa)",borderRadius:999 }} />
-            </div>
-          </div>
-
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>SUELDO FIJO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#4ade80" }}>{fmtARS(sueldoDelMes)}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>VARIABLE DEL MES</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#38bdf8" }}>{fmtARS(totalIngresosExtras)}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>PROM. DIARIO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#fbbf24" }}>{fmtARS(promedioDiarioIngresos)}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>PROYECCIÓN</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#a78bfa" }}>{fmtARS(proyeccionIngresosMes)}</div></div>
-          </div>
-
-          <div className="card" style={{ border:"1px solid #2563eb55",background:"#0f172a",padding:11 }}>
-            <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
-              <div style={{ width:28,height:28,borderRadius:11,display:"grid",placeItems:"center",background:"#1e3a8a",fontSize:15 }}>💡</div>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Resumen del mes</div>
-                <div style={{ fontSize:13,fontWeight:800,color:"#e2e8f0",lineHeight:1.35,marginTop:3 }}>
-                  {totalIngresos<=0
-                    ? "Todavía no hay ingresos cargados para este mes."
-                    : totalIngresosExtras>0
-                      ? `Sumaste ${fmtARS(totalIngresosExtras)} en ingresos variables.`
-                      : "Este mes se sostiene principalmente con ingresos fijos."}
-                </div>
-                <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
-                  {totalIngresos>0
-                    ? `El ingreso fijo representa ${sueldoDelMes>0 ? Math.round((sueldoDelMes/totalIngresos)*100) : 0}% del total.`
-                    : "Cargá sueldo o ingresos diarios para ver el avance."}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="card" style={{ padding:12 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-              <div><span style={lbl}>SUELDO DEL MES</span><div style={{ fontSize:11,color:"#64748b" }}>Base fija para calcular saldo y margen.</div></div>
-              {sueldoDelMes>0&&<div style={{ fontSize:12,color:"#4ade80",fontWeight:800 }}>{fmtARS(sueldoDelMes)}</div>}
-            </div>
-            <div style={{ display:"flex",gap:8 }}><input className="inf" type="number" placeholder={sueldoDelMes?String(sueldoDelMes):"Monto sueldo"} value={sueldoInput} onChange={e=>setSueldoInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff",padding:"10px 14px" }} onClick={guardarSueldo}>Guardar</button></div>
-          </div>
-
-          <div className="card" style={{ padding:12,border:"1px solid #22c55e44" }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
-              <div><span style={lbl}>INGRESO RÁPIDO</span><div style={{ fontSize:11,color:"#64748b" }}>Cargá ingresos variables del día: ventas, extras, cobros o trabajos.</div></div><div style={{ fontSize:18 }}>⚡</div>
-            </div>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:10 }}>{[...new Set([...(cfg.fuentesIngreso || []), ...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))].map(f=>(<button key={f} className="pb" onClick={()=>setIngForm(i=>({...i,fuente:f}))} style={{ background:ingForm.fuente===f?"#14532d":"#1e1e2e",color:ingForm.fuente===f?"#4ade80":"#94a3b8",fontSize:12,padding:"7px 10px",border:ingForm.fuente===f?"1px solid #22c55e66":"1px solid #2a2a3e" }}>{f}</button>))}</div>
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 86px",gap:8,marginBottom:10 }}><input className="inf" type="number" placeholder="Monto" value={ingForm.monto} onChange={e=>setIngForm(i=>({...i,monto:e.target.value}))} inputMode="numeric" /><input className="inf" type="number" placeholder="Día" value={ingForm.dia} onChange={e=>setIngForm(i=>({...i,dia:e.target.value}))} inputMode="numeric" /></div>
-            <button className="pb" style={{ width:"100%",background:"linear-gradient(90deg,#15803d,#16a34a)",color:"#dcfce7",fontWeight:900,padding:"11px 12px" }} onClick={guardarIngreso}>+ Registrar ingreso variable</button>
-          </div>
-
-          {ingresosPorFuente.length>0&&(<div className="card" style={{ padding:12 }}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}><div><span style={lbl}>FUENTES VARIABLES</span><div style={{ fontSize:11,color:"#64748b" }}>Acumulado mensual de ingresos diarios o variables.</div></div><div style={{ fontSize:11,color:"#94a3b8" }}>{ingresosPorFuente.filter(f=>f.total>0).length} fuente(s)</div></div>{ingresosPorFuente.filter(f=>f.total>0).map(f=>{ const w = totalIngresosExtras>0 ? Math.min(100,Math.round((f.total/totalIngresosExtras)*100)) : 0; return <div key={f.fuente} style={{ marginBottom:10 }}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10 }}><div style={{ display:"flex",alignItems:"center",gap:8 }}><span style={{ width:8,height:8,borderRadius:999,background:f.color,display:"inline-block" }} /><span style={{ fontSize:13,fontWeight:800 }}>{f.fuente}</span><span style={{ fontSize:10,color:"#64748b" }}>{f.items.length}</span></div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(f.total)}</div></div><div style={{ height:4,background:"#1e1e2e",borderRadius:999,overflow:"hidden",marginTop:6 }}><div style={{ width:`${w}%`,height:"100%",background:f.color,borderRadius:999 }} /></div></div>; })}</div>)}
-
-          {ingresosDelMes.length>0&&(<div className="card" style={{ padding:12 }}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}><div><span style={lbl}>INGRESOS REGISTRADOS</span><div style={{ fontSize:11,color:"#64748b" }}>Ingresos variables cargados este mes.</div></div><div style={{ fontSize:11,color:"#94a3b8" }}>{ingresosDelMes.length} item(s)</div></div>{[...ingresosDelMes].sort((a,b)=>Number(b.dia)-Number(a.dia)).map(item=>(<div key={item.id} style={rowS}><div><div style={{ fontSize:14,fontWeight:800 }}>{normalizarFuenteIngreso(item.fuente)}</div><div style={{ fontSize:11,color:"#64748b" }}>Día {item.dia}</div></div><div style={{ display:"flex",alignItems:"center",gap:10 }}><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:"#4ade80",fontWeight:900 }}>{fmtARS(item.monto)}</div><button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13 }} onClick={()=>setConfirmDel({...item,tipo:"ingresos",servicio:normalizarFuenteIngreso(item.fuente)})}>✕</button></div></div>))}<div style={{ borderTop:"1px solid #1e1e2e",paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between" }}><span style={{ fontSize:13,color:"#64748b" }}>Total ingresos</span><span style={{ fontFamily:"'Space Mono',monospace",fontSize:14,color:"#4ade80",fontWeight:900 }}>{fmtARS(totalIngresos)}</span></div></div>)}
+          <div style={{ fontWeight:700,fontSize:18,marginBottom:16 }}>Ingresos</div>
+          <div className="card"><span style={lbl}>SUELDO DEL MES</span><div style={{ display:"flex",gap:10 }}><input className="inf" type="number" placeholder={sueldoDelMes?String(sueldoDelMes):"Monto"} value={sueldoInput} onChange={e=>setSueldoInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={guardarSueldo}>OK</button></div>{sueldoDelMes>0&&<div style={{ fontSize:13,color:"#4ade80",marginTop:8,fontWeight:600 }}>Registrado: {fmtARS(sueldoDelMes)}</div>}</div>
+          <div className="card"><span style={lbl}>OTROS INGRESOS</span><div style={{ display:"flex",flexWrap:"wrap",gap:8,marginBottom:10 }}>{cfg.fuentesIngreso.map(f=>(<button key={f} className="pb" onClick={()=>setIngForm(i=>({...i,fuente:f}))} style={{ background:ingForm.fuente===f?"#14532d":"#1e1e2e",color:ingForm.fuente===f?"#4ade80":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{f}</button>))}</div><div style={{ display:"flex",gap:10,marginBottom:10 }}><input className="inf" type="number" placeholder="Monto" value={ingForm.monto} onChange={e=>setIngForm(i=>({...i,monto:e.target.value}))} inputMode="numeric" style={{ flex:2 }}/><input className="inf" type="number" placeholder="Día" value={ingForm.dia} onChange={e=>setIngForm(i=>({...i,dia:e.target.value}))} inputMode="numeric" style={{ flex:1 }}/></div><button className="pb" style={{ width:"100%",background:"#14532d",color:"#4ade80" }} onClick={guardarIngreso}>+ Agregar ingreso</button></div>
+          {ingresosDelMes.length>0&&(<div className="card"><span style={lbl}>REGISTRADOS</span>{ingresosDelMes.map(item=>(<div key={item.id} style={rowS}><div><div style={{ fontSize:14,fontWeight:500 }}>{item.fuente}</div><div style={{ fontSize:11,color:"#64748b" }}>Día {item.dia}</div></div><div style={{ display:"flex",alignItems:"center",gap:10 }}><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:"#4ade80",fontWeight:700 }}>{fmtARS(item.monto)}</div><button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13 }} onClick={()=>setConfirmDel({...item,tipo:"ingresos",servicio:item.fuente})}>✕</button></div></div>))}<div style={{ borderTop:"1px solid #1e1e2e",paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between" }}><span style={{ fontSize:13,color:"#64748b" }}>Total</span><span style={{ fontFamily:"'Space Mono',monospace",fontSize:14,color:"#4ade80",fontWeight:700 }}>{fmtARS(totalIngresos)}</span></div></div>)}
         </>)}
 
         {/* CONFIGURACIÓN */}
@@ -3231,7 +2984,7 @@ const GastoRow=({item})=>{
 
               {editConcepto&&(
                 <div className="card" style={{ border:"1px solid #7c3aed55" }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12 }}>
                     <div style={{ fontWeight:800,fontSize:15 }}>✏️ Editar concepto</div>
                     <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 10px" }} onClick={()=>setEditConcepto(null)}>✕</button>
                   </div>
@@ -3460,7 +3213,7 @@ const GastoRow=({item})=>{
                       <span style={{ fontSize:14,fontWeight:500 }}>{g.servicio}</span>
                       {g.moneda==="USD"&&<span style={{ fontSize:10,color:"#38bdf8",background:"#1e3a5f",padding:"1px 5px",borderRadius:8 }}>💵</span>}
                     </div>
-                    <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>{cat?.label}</div>
+                    <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>{cat?.label}</div>
                   </div>
                   <div style={{ textAlign:"right" }}>
                     <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:700,color:montoReal(g,tc)>0?"#e2e8f0":"#64748b" }}>{usd>0?fmtUSD(usd):montoReal(g,tc)>0?fmtARS(montoReal(g,tc)):"$ —"}</div>
@@ -3525,11 +3278,11 @@ const GastoRow=({item})=>{
       )}
 
       {/* BOTTOM NAV */}
-      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d0d14",borderTop:"1px solid #1e1e2e",display:"flex",padding:"7px 0 11px" }}>
-        {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"analisis",icon:"🔎",label:"Analizar"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Evol."},{id:"ingresos",icon:"💰",label:"Ingresos"},{id:"config",icon:"⚙️",label:"Ajustes"}].map(nav=>(
+      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d0d14",borderTop:"1px solid #1e1e2e",display:"flex",padding:"8px 0 12px" }}>
+        {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"analisis",icon:"🔎",label:"Análisis"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Variación"},{id:"ingresos",icon:"💰",label:"Ingresos"},{id:"config",icon:"⚙️",label:"Config"}].map(nav=>(
           <div key={nav.id} className="ni" style={{ position:"relative" }} onClick={()=>setView(nav.id)}>
-            <div style={{ fontSize:17,lineHeight:1 }}>{nav.icon}</div>
-            <div style={{ fontSize:9,fontWeight:view===nav.id?800:500,color:view===nav.id?"#7c3aed":"#64748b",marginTop:2 }}>{nav.label}</div>
+            <div style={{ fontSize:18 }}>{nav.icon}</div>
+            <div style={{ fontSize:9,fontWeight:view===nav.id?700:400,color:view===nav.id?"#7c3aed":"#64748b" }}>{nav.label}</div>
             {view===nav.id&&<div style={{ position:"absolute",bottom:-4,width:16,height:3,background:"#7c3aed",borderRadius:2 }}/>}
             {nav.id==="vencimientos"&&vencUrgentes>0&&<div style={{ position:"absolute",top:2,right:6,background:"#f87171",borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff" }}>{vencUrgentes}</div>}
           </div>
