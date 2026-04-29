@@ -2983,35 +2983,162 @@ const GastoRow=({item})=>{
 
         {/* VARIACIÓN */}
         {view==="variacion"&&(()=>{
-          const toARS__=(g,t)=>montoReal(g,t);
-          const pct_=(a,b)=>b===0?null:Math.round(((a-b)/b)*100);
-          const getMeses_=()=>{ const r=[]; for(let i=mesesAtrasVar-1;i>=0;i--){let m=mes.m-i,y=mes.y;if(m<0){m+=12;y--;}r.push({y,m,key:getMesKey(y,m),label:MESES[m].slice(0,3)});} return r; };
-          const ml=getMeses_(); const mak=ml[ml.length-1].key; const mant=ml.length>=2?ml[ml.length-2].key:null;
-          const vc=(v)=>v===null?"#64748b":v>10?"#f87171":v<-10?"#4ade80":"#fbbf24";
-          const vi=(v)=>v===null?"—":v>0?`▲ ${v}%`:v<0?`▼ ${Math.abs(v)}%`:"=0%";
-          const conceptos=Object.entries(ml.reduce((acc,{key})=>{ (data.gastos[key]||[]).forEach(g=>{const k=(g.servicio||"").trim();if(!acc[k])acc[k]={};acc[k][key]=(acc[k][key]||0)+toARS__(g,tc);}); return acc; },{})).sort((a,b)=>Object.values(b[1]).reduce((s,v)=>s+v,0)-Object.values(a[1]).reduce((s,v)=>s+v,0));
+          const toARS__ = (g,t) => montoReal(g,t);
+          const pct_ = (actual, anterior) => {
+            if (!anterior) return null;
+            return Math.round(((actual - anterior) / anterior) * 100);
+          };
+          const getMeses_ = () => {
+            const r = [];
+            for (let i = mesesAtrasVar - 1; i >= 0; i--) {
+              let m = mes.m - i;
+              let y = mes.y;
+              if (m < 0) { m += 12; y--; }
+              r.push({ y, m, key: getMesKey(y,m), label: MESES[m].slice(0,3) });
+            }
+            return r;
+          };
+          const ml = getMeses_();
+          const actualKey = ml[ml.length - 1].key;
+          const anteriorKey = ml.length >= 2 ? ml[ml.length - 2].key : null;
+          const totalMes = (key) => (data.gastos[key] || []).reduce((s,g)=>s + toARS__(g,tc),0);
+          const totalActual = totalMes(actualKey);
+          const totalAnterior = anteriorKey ? totalMes(anteriorKey) : 0;
+          const diffTotal = totalActual - totalAnterior;
+          const pctTotal = pct_(totalActual,totalAnterior);
+          const tieneBase = totalAnterior > 0;
+          const conceptoMap = ml.reduce((acc,{key})=>{
+            (data.gastos[key] || []).forEach(g=>{
+              const nombre = (g.servicio || g.conceptoManual || "Sin concepto").trim() || "Sin concepto";
+              if (!acc[nombre]) acc[nombre] = {};
+              acc[nombre][key] = (acc[nombre][key] || 0) + toARS__(g,tc);
+            });
+            return acc;
+          },{});
+          const conceptos = Object.entries(conceptoMap)
+            .map(([nombre,vals])=>{
+              const actual = vals[actualKey] || 0;
+              const anterior = anteriorKey ? (vals[anteriorKey] || 0) : 0;
+              return { nombre, vals, actual, anterior, diff: actual - anterior, pct: pct_(actual, anterior) };
+            })
+            .sort((a,b)=>b.actual-a.actual || Math.abs(b.diff)-Math.abs(a.diff));
+          const subieron = conceptos.filter(x=>x.actual>0 && x.anterior>0 && x.diff>0).sort((a,b)=>b.diff-a.diff).slice(0,4);
+          const bajaron = conceptos.filter(x=>x.actual>0 && x.anterior>0 && x.diff<0).sort((a,b)=>a.diff-b.diff).slice(0,4);
+          const nuevos = conceptos.filter(x=>x.actual>0 && x.anterior===0).sort((a,b)=>b.actual-a.actual).slice(0,6);
+          const sinGasto = conceptos.filter(x=>x.actual===0 && x.anterior>0).sort((a,b)=>b.anterior-a.anterior).slice(0,4);
+          const colorVar = !tieneBase ? "#c4b5fd" : diffTotal>0 ? "#f87171" : diffTotal<0 ? "#4ade80" : "#fbbf24";
+          const textoVar = !tieneBase ? "Sin base" : diffTotal>0 ? `▲ ${pctTotal}%` : diffTotal<0 ? `▼ ${Math.abs(pctTotal)}%` : "= 0%";
+          const resumen = !tieneBase
+            ? `Cargá al menos dos meses con gastos para ver una comparación real.`
+            : diffTotal>0
+              ? `Este mes gastaste ${fmtARS(Math.abs(diffTotal))} más que el mes anterior.`
+              : diffTotal<0
+                ? `Este mes gastaste ${fmtARS(Math.abs(diffTotal))} menos que el mes anterior.`
+                : "Este mes gastaste lo mismo que el mes anterior.";
+          const miniCard = (titulo, valor, subtitulo, color) => (
+            <div className="card" style={{ padding:12,marginBottom:0 }}>
+              <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:1,textTransform:"uppercase",marginBottom:6 }}>{titulo}</div>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:20,fontWeight:900,color }}>{valor}</div>
+              <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{subtitulo}</div>
+            </div>
+          );
+          const listaVariacion = (titulo, icono, items, tipo) => (
+            <div className="card" style={{ padding:12 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+                <div style={{ fontSize:14,fontWeight:900 }}>{icono} {titulo}</div>
+                <div style={{ fontSize:10,color:"#64748b" }}>{items.length} item{items.length!==1?"s":""}</div>
+              </div>
+              {items.length===0 ? (
+                <div style={{ fontSize:12,color:"#64748b",padding:"4px 0 2px" }}>{tipo==="up"?"Sin aumentos para mostrar.":tipo==="down"?"Sin bajas para mostrar.":tipo==="new"?"Sin nuevos gastos este mes.":"No hay gastos desaparecidos."}</div>
+              ) : items.map((it,idx)=>(
+                <div key={`${titulo}-${it.nombre}`} style={{ padding:"9px 0",borderBottom:idx<items.length-1?"1px solid #1e1e2e":"none" }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:13,fontWeight:900,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{it.nombre}</div>
+                      <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{tipo==="new"?`Nuevo en ${ml[ml.length-1].label}`:tipo==="gone"?`Antes ${fmtARS(it.anterior)}`:`Antes ${fmtARS(it.anterior)}`}</div>
+                    </div>
+                    <div style={{ textAlign:"right",flexShrink:0 }}>
+                      <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:tipo==="down"||tipo==="gone"?"#4ade80":tipo==="up"?"#f87171":"#e2e8f0" }}>{tipo==="new"?fmtARS(it.actual):tipo==="gone"?`-${fmtARS(it.anterior)}`:`${it.diff>0?"+":"-"} ${fmtARS(Math.abs(it.diff))}`}</div>
+                      {it.pct!==null&&tipo!=="new"&&tipo!=="gone"&&<div style={{ fontSize:10,color:tipo==="down"?"#4ade80":"#f87171",fontWeight:800 }}>{Math.abs(it.pct)}%</div>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
           return(
             <div>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14 }}>
-                <div style={{ fontWeight:700,fontSize:18 }}>Variación</div>
-                <div style={{ display:"flex",gap:6 }}>
-                  {[3,4,6].map(n=>(<button key={n} onClick={()=>setMesesAtrasVar(n)} style={{ background:mesesAtrasVar===n?"#7c3aed":"#1e1e2e",border:"none",color:mesesAtrasVar===n?"#fff":"#94a3b8",borderRadius:10,padding:"5px 10px",cursor:"pointer",fontSize:12,fontWeight:600 }}>{n}M</button>))}
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:12 }}>
+                <div>
+                  <div style={{ fontSize:12,color:"#94a3b8",marginTop:2 }}>{ml[0].label} · {ml[ml.length-1].label} {mes.y}</div>
+                </div>
+                <div style={{ display:"flex",gap:6,flexShrink:0 }}>
+                  {[3,4,6].map(n=>(
+                    <button key={n} onClick={()=>setMesesAtrasVar(n)} style={{ background:mesesAtrasVar===n?"#7c3aed":"#1e1e2e",border:"none",color:mesesAtrasVar===n?"#fff":"#94a3b8",borderRadius:10,padding:"6px 10px",cursor:"pointer",fontSize:12,fontWeight:800 }}>{n}M</button>
+                  ))}
                 </div>
               </div>
-              <div style={{ background:"#13131a",borderRadius:16,overflow:"hidden",border:"1px solid #1e1e2e",marginBottom:14 }}>
-                <div style={{ display:"grid",gridTemplateColumns:`1fr repeat(${ml.length},85px)`,borderBottom:"1px solid #1e1e2e" }}>
-                  <div style={{ padding:"10px 12px",fontSize:11,color:"#64748b",fontWeight:700 }}>CONCEPTO</div>
-                  {ml.map(({key,label})=>(<div key={key} style={{ padding:"10px 8px",fontSize:11,color:key===mak?"#7c3aed":"#64748b",fontWeight:700,textAlign:"right" }}>{label}</div>))}
-                </div>
-                {conceptos.map(([nombre,vals],idx)=>{ const actual=vals[mak]||0,anterior=mant?(vals[mant]||0):0,v=mant?pct_(actual,anterior):null; return(
-                  <div key={nombre} style={{ display:"grid",gridTemplateColumns:`1fr repeat(${ml.length},80px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none",background:idx%2===0?"#13131a":"#0f0f18" }}>
-                    <div style={{ padding:"10px 12px",overflow:"hidden" }}>
-                      <div style={{ fontSize:12,fontWeight:500,color:"#e2e8f0",wordBreak:"break-word",lineHeight:1.3 }}>{nombre}</div>
-                      {v!==null&&<div style={{ fontSize:11,color:vc(v),fontWeight:700,marginTop:2 }}>{vi(v)}</div>}
-                    </div>
-                    {ml.map(({key})=>(<div key={key} style={{ padding:"10px 6px",textAlign:"right" }}>{vals[key]?<div style={{ fontFamily:"'Space Mono',monospace",fontSize:10,color:key===mak?"#e2e8f0":"#64748b" }}>{fmtARS(vals[key])}</div>:<div style={{ color:"#2a2a3e",fontSize:10 }}>—</div>}</div>))}
+
+              <div className="card" style={{ padding:14,background:"radial-gradient(circle at top right,#7c3aed44 0%,transparent 38%),linear-gradient(135deg,#111827 0%,#1a1230 100%)",border:"1px solid #7c3aed66" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+                  <div>
+                    <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,letterSpacing:1,textTransform:"uppercase",marginBottom:5 }}>Gasto actual</div>
+                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:25,fontWeight:900,color:"#f87171" }}>{fmtARS(totalActual)}</div>
+                    <div style={{ fontSize:11,color:"#94a3b8",marginTop:3 }}>{tieneBase ? `${diffTotal>=0?"+":"-"} ${fmtARS(Math.abs(diffTotal))} vs mes anterior` : "Sin base suficiente para comparar"}</div>
                   </div>
-                );})}
+                  <div style={{ textAlign:"right" }}>
+                    <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Variación</div>
+                    <div style={{ fontSize:23,fontWeight:900,color:colorVar,lineHeight:1.1 }}>{textoVar}</div>
+                    <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>mes anterior</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
+                {miniCard("Subieron", subieron.length, "con más gasto", "#f87171")}
+                {miniCard("Bajaron", bajaron.length, "con menor gasto", "#4ade80")}
+                {miniCard("Nuevos", nuevos.length, "aparecen este mes", "#38bdf8")}
+                {miniCard("Sin gasto", sinGasto.length, "no aparecen este mes", "#94a3b8")}
+              </div>
+
+              <div className="card" style={{ padding:12,border:"1px solid #1e3a8a",background:"#0f172a" }}>
+                <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
+                  <div style={{ width:30,height:30,borderRadius:12,background:"#1e3a8a",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>💡</div>
+                  <div>
+                    <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase",marginBottom:3 }}>Resumen de evolución</div>
+                    <div style={{ fontSize:13,fontWeight:800,lineHeight:1.35 }}>{resumen}</div>
+                    <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>{conceptos.length} conceptos registrados en el período visible.</div>
+                  </div>
+                </div>
+              </div>
+
+              {listaVariacion("Gastos que más subieron", "📈", subieron, "up")}
+              {listaVariacion("Gastos que bajaron", "📉", bajaron, "down")}
+              {listaVariacion("Nuevos en el mes", "🆕", nuevos, "new")}
+              {listaVariacion("Sin gasto este mes", "♻️", sinGasto, "gone")}
+
+              <div className="card" style={{ padding:12,overflow:"hidden" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+                  <div>
+                    <div style={{ fontSize:14,fontWeight:900 }}>Detalle histórico</div>
+                    <div style={{ fontSize:11,color:"#64748b" }}>Comparación por concepto.</div>
+                  </div>
+                  <div style={{ fontSize:10,color:"#64748b" }}>{conceptos.length} concepto{conceptos.length!==1?"s":""}</div>
+                </div>
+                <div style={{ overflowX:"auto",paddingBottom:4 }}>
+                  <div style={{ minWidth: 120 + (ml.length*82) }}>
+                    <div style={{ display:"grid",gridTemplateColumns:`minmax(120px,1fr) repeat(${ml.length},82px)`,borderBottom:"1px solid #1e1e2e" }}>
+                      <div style={{ padding:"9px 6px",fontSize:10,color:"#64748b",fontWeight:900 }}>CONCEPTO</div>
+                      {ml.map(({key,label})=><div key={key} style={{ padding:"9px 6px",fontSize:10,color:key===actualKey?"#a78bfa":"#64748b",fontWeight:900,textAlign:"right" }}>{label}</div>)}
+                    </div>
+                    {conceptos.map((item,idx)=>(
+                      <div key={item.nombre} style={{ display:"grid",gridTemplateColumns:`minmax(120px,1fr) repeat(${ml.length},82px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none" }}>
+                        <div style={{ padding:"10px 6px",fontSize:11,fontWeight:800,lineHeight:1.25,wordBreak:"break-word" }}>{item.nombre}</div>
+                        {ml.map(({key})=><div key={key} style={{ padding:"10px 6px",textAlign:"right",fontFamily:"'Space Mono',monospace",fontSize:10,color:key===actualKey?"#e2e8f0":"#64748b" }}>{item.vals[key]?fmtARS(item.vals[key]):<span style={{ color:"#2a2a3e" }}>—</span>}</div>)}
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
             </div>
           );
