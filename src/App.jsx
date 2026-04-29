@@ -2726,21 +2726,98 @@ const GastoRow=({item})=>{
         </>)}
 
         {/* DETALLE / RESUMEN */}
-        {view==="resumen"&&(<>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-              {filtroCatInicio&&<button onClick={()=>setFiltroCatInicio(null)} style={{ background:"#1e1e2e",border:"none",color:"#94a3b8",borderRadius:10,padding:"5px 10px",cursor:"pointer",fontSize:12 }}>← Todas</button>}
-              <div style={{ fontWeight:700,fontSize:18 }}>{filtroCatInicio?cfg.categorias.find(c=>c.id===filtroCatInicio)?.label:"Detalle"}</div>
+        {view==="resumen"&&(()=>{
+          const gruposDetalle = gastosPorCatFiltrado2.filter(c=>c.items.length>0);
+          const totalDetalleFiltrado = gruposDetalle.reduce((acc,c)=>acc+Number(c.total||0),0);
+          const cantidadDetalleFiltrada = gruposDetalle.reduce((acc,c)=>acc+(c.items?.length||0),0);
+          const hayFiltroActivo = filtroCatInicio || filtroEstado!=="todos" || busqueda.trim();
+          const tituloDetalle = filtroCatInicio
+            ? cfg.categorias.find(c=>c.id===filtroCatInicio)?.label || "Detalle"
+            : "Detalle";
+
+          return(<>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
+              <div>
+                <div style={{ fontSize:11,color:"#7c3aed",fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:2 }}>MIS FINANZAS</div>
+                <div style={{ fontWeight:800,fontSize:22,lineHeight:1 }}>{tituloDetalle}</div>
+                <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>{MESES[mes.m]} {mes.y} · {cantidadDetalleFiltrada} movimiento{cantidadDetalleFiltrada===1?"":"s"}</div>
+              </div>
+              <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0 }}>
+                {[["todos","Todos"],["pagado","✅"],["pendiente","⏳"]].map(([v,l])=>(
+                  <button key={v} className="tb" onClick={()=>setFiltroEstado(v)} style={{ background:filtroEstado===v?"#7c3aed":"#1e1e2e",color:filtroEstado===v?"#fff":"#94a3b8",padding:"8px 10px",borderRadius:12 }}>{l}</button>
+                ))}
+              </div>
             </div>
-            <div style={{ display:"flex",gap:6 }}>{[["todos","Todos"],["pagado","✅"],["pendiente","⏳"]].map(([v,l])=>(<button key={v} className="tb" onClick={()=>setFiltroEstado(v)} style={{ background:filtroEstado===v?"#7c3aed":"#1e1e2e",color:filtroEstado===v?"#fff":"#94a3b8" }}>{l}</button>))}</div>
-          </div>
-          {/* Buscador */}
-          <input className="inf" placeholder="🔍 Buscar concepto..." value={busqueda} onChange={e=>setBusqueda(e.target.value)} style={{ marginBottom:12 }}/>
-          <div style={{ fontSize:12,color:"#64748b",marginBottom:12 }}>💡 Tocá cualquier fila para editar</div>
-          {filtroEstado!=="todos"&&<div style={{ fontSize:13,color:"#64748b",marginBottom:12 }}>{filtroEstado==="pendiente"?"⏳ ":"✅ "}<strong style={{ color:filtroEstado==="pendiente"?"#fb923c":"#4ade80" }}>{fmtARS(filtroEstado==="pendiente"?totalPendiente:totalPagado)}</strong></div>}
-          {gastosPorCatFiltrado2.filter(c=>c.items.length>0).map(cat=>(<div key={cat.id} className="card"><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}><div style={{ fontWeight:700,fontSize:13,color:cat.color }}>{cat.label}</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:cat.color }}>{fmtARS(cat.total)}</div></div>{cat.items.map(item=>(<GastoRow key={item.id} item={item}/>))}</div>))}
-          {gastosPorCatFiltrado2.every(c=>c.items.length===0)&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:32,marginBottom:10 }}>📋</div><div style={{ fontSize:14,fontWeight:600 }}>Sin registros</div></div>}
-        </>)}
+
+            <div className="card" style={{ padding:14,marginBottom:12,background:"linear-gradient(135deg,#111827 0%,#171226 100%)",border:"1px solid #2a1a4e" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+                <div>
+                  <div style={{ fontSize:11,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:4 }}>
+                    {hayFiltroActivo?"Total filtrado":"Total del mes"}
+                  </div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:22,fontWeight:900,color:filtroEstado==="pendiente"?"#fb923c":"#4ade80" }}>{fmtARS(totalDetalleFiltrado)}</div>
+                  <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
+                    {filtroEstado==="todos"?"Todos los estados":filtroEstado==="pagado"?"Solo gastos pagados":"Solo gastos pendientes"}
+                  </div>
+                </div>
+                {hayFiltroActivo&&(
+                  <button
+                    onClick={()=>{ setFiltroCatInicio(null); setFiltroEstado("todos"); setBusqueda(""); }}
+                    style={{ background:"#1e1e2e",border:"1px solid #334155",color:"#cbd5e1",borderRadius:12,padding:"8px 10px",fontSize:12,fontWeight:700,cursor:"pointer" }}
+                  >
+                    Limpiar
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div style={{ position:"relative",marginBottom:12 }}>
+              <input className="inf" placeholder="🔍 Buscar concepto..." value={busqueda} onChange={e=>setBusqueda(e.target.value)} style={{ paddingRight:busqueda?44:14 }}/>
+              {busqueda&&(
+                <button onClick={()=>setBusqueda("")} style={{ position:"absolute",right:8,top:"50%",transform:"translateY(-50%)",background:"#1e1e2e",border:"none",color:"#94a3b8",borderRadius:10,width:28,height:28,cursor:"pointer" }}>×</button>
+              )}
+            </div>
+
+            <div style={{ fontSize:12,color:"#64748b",marginBottom:12,display:"flex",justifyContent:"space-between",gap:10 }}>
+              <span>💡 Tocá una fila para editar</span>
+              {filtroCatInicio&&<button onClick={()=>setFiltroCatInicio(null)} style={{ background:"transparent",border:"none",color:"#38bdf8",fontSize:12,fontWeight:700,cursor:"pointer" }}>Ver todo</button>}
+            </div>
+
+            {gruposDetalle.map(cat=>{
+              const porcentajeGrupo = totalDetalleFiltrado>0 ? Math.round((Number(cat.total||0)/totalDetalleFiltrado)*100) : 0;
+              return(
+                <div key={cat.id} className="card" style={{ padding:14 }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:10 }}>
+                    <div>
+                      <div style={{ display:"flex",alignItems:"center",gap:7 }}>
+                        <span style={{ width:8,height:8,borderRadius:"50%",background:cat.color,display:"inline-block" }}/>
+                        <div style={{ fontWeight:800,fontSize:15,color:cat.color }}>{cat.label}</div>
+                        <span style={{ fontSize:11,color:"#64748b" }}>{cat.items.length} item{cat.items.length===1?"":"s"}</span>
+                      </div>
+                      <div style={{ marginTop:7,width:92,height:3,borderRadius:999,background:"#1e1e2e",overflow:"hidden" }}>
+                        <div style={{ width:`${Math.min(100,porcentajeGrupo)}%`,height:"100%",background:cat.color,borderRadius:999 }}/>
+                      </div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:900,color:cat.color }}>{fmtARS(cat.total)}</div>
+                      <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{porcentajeGrupo}% del filtro</div>
+                    </div>
+                  </div>
+                  {cat.items.map(item=>(<GastoRow key={item.id} item={item}/>))}
+                </div>
+              );
+            })}
+
+            {gruposDetalle.length===0&&(
+              <div style={{ textAlign:"center",padding:"52px 0",color:"#64748b" }}>
+                <div style={{ fontSize:36,marginBottom:10 }}>📋</div>
+                <div style={{ fontSize:15,fontWeight:800,color:"#cbd5e1" }}>Sin registros</div>
+                <div style={{ fontSize:12,marginTop:6 }}>Probá limpiar filtros o cambiar de mes.</div>
+                {hayFiltroActivo&&<button className="pb" onClick={()=>{ setFiltroCatInicio(null); setFiltroEstado("todos"); setBusqueda(""); }} style={{ marginTop:14,background:"#7c3aed",color:"#fff" }}>Limpiar filtros</button>}
+              </div>
+            )}
+          </>);
+        })()}
 
         {/* VENCIMIENTOS */}
 {view==="vencimientos"&&(
