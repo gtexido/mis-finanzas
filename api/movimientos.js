@@ -30,6 +30,10 @@ export default async function handler(req, res) {
         m.servicio_id,
         s.nombre AS servicio_nombre,
 
+        -- Concepto formal nuevo
+        m.concepto_id,
+        c.nombre AS concepto_nombre,
+
         m.concepto_manual,
         m.fuente_ingreso_id,
         fi.nombre AS fuente_ingreso_nombre,
@@ -70,6 +74,8 @@ export default async function handler(req, res) {
         ON fp.forma_pago_id = m.forma_pago_id
       LEFT JOIN servicios s
         ON s.servicio_id = m.servicio_id
+      LEFT JOIN conceptos c
+        ON c.concepto_id = m.concepto_id
       LEFT JOIN fuentes_ingreso fi
         ON fi.fuente_ingreso_id = m.fuente_ingreso_id
 

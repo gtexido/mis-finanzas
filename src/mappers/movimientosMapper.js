@@ -131,12 +131,16 @@ export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
         formaPagoId: m.forma_pago_id || "",
 
         servicio:
+          m.concepto_nombre ||
           m.servicio_nombre ||
           servicioMap[m.servicio_id] ||
           m.concepto_manual ||
+          m.concepto_id ||
           m.servicio_id ||
           "",
         servicioId: m.servicio_id || "",
+        conceptoId: m.concepto_id || "",
+        conceptoNombre: m.concepto_nombre || "",
         conceptoManual: m.concepto_manual || "",
 
         monto: Number(m.monto || 0),
