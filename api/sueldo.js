@@ -5,6 +5,15 @@ function generarId(prefijo = "mov") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
 }
 
+function fuenteDefaultPorUsuario(usuarioId) {
+  const defaults = {
+    usr_gustavo: "fi_gustavo",
+    usr_vane: "fi_vane",
+  };
+
+  return defaults[usuarioId] || "fi_vane";
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({
@@ -28,7 +37,10 @@ export default async function handler(req, res) {
       });
     }
 
-    // Ver si ya existe sueldo para ese período
+    const workspaceId = user.workspaceId || "ws_default";
+    const fuenteIngresoId = fuenteDefaultPorUsuario(user.usuarioId);
+
+    // Ver si ya existe sueldo para ese período, usuario y workspace.
     const existente = await sql`
       SELECT movimiento_id
       FROM movimientos
@@ -36,6 +48,7 @@ export default async function handler(req, res) {
         AND tipo_movimiento = 'INGRESO'
         AND subtipo_movimiento = 'SUELDO'
         AND usuario_id = ${user.usuarioId}
+        AND workspace_id = ${workspaceId}
         AND activo = true
       LIMIT 1;
     `;
@@ -45,15 +58,20 @@ export default async function handler(req, res) {
         UPDATE movimientos
         SET
           monto = ${Number(monto)},
+          fuente_ingreso_id = ${fuenteIngresoId},
+          workspace_id = ${workspaceId},
           updated_at = NOW()
         WHERE movimiento_id = ${existente[0].movimiento_id}
-          AND usuario_id = ${user.usuarioId};
+          AND usuario_id = ${user.usuarioId}
+          AND workspace_id = ${workspaceId};
       `;
 
       return res.status(200).json({
         ok: true,
         data: {
           movimiento_id: existente[0].movimiento_id,
+          fuente_ingreso_id: fuenteIngresoId,
+          workspace_id: workspaceId,
           updated: true,
         },
       });
@@ -94,10 +112,10 @@ export default async function handler(req, res) {
         ${null},
         ${null},
         ${null},
-        ${null},
+        ${fuenteIngresoId},
         ${user.usuarioId},
         ${user.usuarioId},
-        ${user.workspaceId || "ws_default"},
+        ${workspaceId},
         ${Number(monto)},
         'ARS',
         'pagado',
@@ -112,6 +130,8 @@ export default async function handler(req, res) {
       ok: true,
       data: {
         movimiento_id: movimientoId,
+        fuente_ingreso_id: fuenteIngresoId,
+        workspace_id: workspaceId,
         updated: false,
       },
     });

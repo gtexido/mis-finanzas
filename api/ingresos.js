@@ -5,13 +5,35 @@ function generarId(prefijo = "mov") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
 }
 
-function mapFuenteIngresoId(fuente) {
-  const map = {
-    "Vane": "fi_vane",
-    "Anses": "fi_anses",
-    "Descartables V&G": "fi_descartables_vg",
+function normalizarTexto(value) {
+  return String(value || "")
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+function fuenteDefaultPorUsuario(usuarioId) {
+  const defaults = {
+    usr_gustavo: "fi_gustavo",
+    usr_vane: "fi_vane",
   };
-  return map[fuente] || null;
+
+  return defaults[usuarioId] || "fi_vane";
+}
+
+function mapFuenteIngresoId(fuente, usuarioId) {
+  const fuenteNormalizada = normalizarTexto(fuente);
+
+  const map = {
+    vane: "fi_vane",
+    gustavo: "fi_gustavo",
+    anses: "fi_anses",
+    "descartables v&g": "fi_descartables_vg",
+    "descartables vg": "fi_descartables_vg",
+  };
+
+  return map[fuenteNormalizada] || fuenteDefaultPorUsuario(usuarioId);
 }
 
 export default async function handler(req, res) {
@@ -30,7 +52,7 @@ export default async function handler(req, res) {
 
     const { periodo, dia, fuente, monto } = body;
 
-    if (!periodo || !fuente || !monto) {
+    if (!periodo || !monto) {
       return res.status(400).json({
         ok: false,
         error: "Faltan datos obligatorios",
@@ -39,7 +61,8 @@ export default async function handler(req, res) {
 
     const movimientoId = generarId("mov");
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
-    const fuenteIngresoId = mapFuenteIngresoId(fuente);
+    const fuenteIngresoId = mapFuenteIngresoId(fuente, user.usuarioId);
+    const workspaceId = user.workspaceId || "ws_default";
 
     await sql`
       INSERT INTO movimientos (
@@ -76,7 +99,7 @@ export default async function handler(req, res) {
         ${fuenteIngresoId},
         ${user.usuarioId},
         ${user.usuarioId},
-        ${user.workspaceId || "ws_default"},
+        ${workspaceId},
         ${Number(monto)},
         'ARS',
         'pagado',
@@ -91,6 +114,8 @@ export default async function handler(req, res) {
       ok: true,
       data: {
         movimiento_id: movimientoId,
+        fuente_ingreso_id: fuenteIngresoId,
+        workspace_id: workspaceId,
       },
     });
   } catch (error) {
