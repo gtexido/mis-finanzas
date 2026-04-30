@@ -53,6 +53,8 @@ export function createToken(user) {
     JSON.stringify({
       usuarioId: user.usuarioId,
       nombre: user.nombre,
+      workspaceId: user.workspaceId || "ws_default",
+      workspaceNombre: user.workspaceNombre || "Mis Finanzas",
       iat: now,
       exp: now + TOKEN_TTL_SECONDS,
     })
@@ -83,6 +85,8 @@ export function verifyToken(token) {
     return {
       usuarioId: decoded.usuarioId,
       nombre: decoded.nombre || decoded.usuarioId,
+      workspaceId: decoded.workspaceId || "ws_default",
+      workspaceNombre: decoded.workspaceNombre || "Mis Finanzas",
     };
   } catch {
     return null;
