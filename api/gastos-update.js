@@ -40,6 +40,49 @@ function normalizarListaIds(value) {
   return [value].filter(Boolean);
 }
 
+async function obtenerConceptoActivo(sql, workspaceId, conceptoId) {
+  if (!conceptoId) return null;
+
+  const rows = await sql`
+    SELECT
+      concepto_id,
+      nombre,
+      categoria_gasto_id,
+      medio_pago_id,
+      instrumento_id,
+      moneda_default
+    FROM conceptos
+    WHERE concepto_id = ${conceptoId}
+      AND workspace_id = ${workspaceId}
+      AND activo = true
+    LIMIT 1;
+  `;
+
+  if (rows.length === 0) {
+    const err = new Error("Concepto no válido para el usuario actual");
+    err.statusCode = 400;
+    throw err;
+  }
+
+  return rows[0];
+}
+
+async function obtenerEtiquetasConcepto(sql, conceptoId) {
+  if (!conceptoId) return [];
+
+  const rows = await sql`
+    SELECT ce.etiqueta_id
+    FROM concepto_etiquetas ce
+    JOIN etiquetas e
+      ON e.etiqueta_id = ce.etiqueta_id
+    WHERE ce.concepto_id = ${conceptoId}
+      AND e.activo = true
+    ORDER BY e.orden_visual, e.nombre;
+  `;
+
+  return rows.map((r) => r.etiqueta_id).filter(Boolean);
+}
+
 function mapServicioId(servicio) {
   const map = {
     "Muni Auto": "ser_muni_auto",
@@ -205,33 +248,79 @@ export default async function handler(req, res) {
       subconceptos = [],
     } = body;
 
-    if (!id || !periodo || !categoria || !servicio) {
+    const workspaceId = user.workspaceId || "ws_default";
+    const usuarioId = user.usuarioId;
+    const usuarioIdCreador = user.usuarioId;
+
+    if (!id || !periodo || !monto) {
       return res.status(400).json({
         ok: false,
         error: "Faltan datos obligatorios",
       });
     }
 
-    const categoriaId = mapCategoriaId(categoria);
-    const formaPagoId = mapFormaPagoId(formaPago);
-    const servicioId = mapServicioId(servicio);
-    const conceptoManual = servicioId ? null : servicio || null;
+    const movimientoPropio = await sql`
+      SELECT
+        movimiento_id,
+        concepto_id,
+        concepto_manual,
+        servicio_id,
+        categoria_id,
+        forma_pago_id,
+        medio_pago_id,
+        instrumento_id,
+        categoria_gasto_id,
+        moneda
+      FROM movimientos
+      WHERE movimiento_id = ${id}
+        AND usuario_id = ${usuarioId}
+        AND tipo_movimiento = 'GASTO'
+      LIMIT 1;
+    `;
+
+    if (movimientoPropio.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: "Movimiento no encontrado para el usuario actual",
+      });
+    }
+
+    const movimientoActual = movimientoPropio[0];
+    const conceptoNuevoId = conceptoId || body.concepto_id || movimientoActual.concepto_id || null;
+
+    if (!servicio && !conceptoNuevoId && !movimientoActual.concepto_manual && !movimientoActual.servicio_id) {
+      return res.status(400).json({
+        ok: false,
+        error: "Faltan datos obligatorios",
+      });
+    }
+
+    const conceptoActivo = await obtenerConceptoActivo(sql, workspaceId, conceptoNuevoId);
+    const servicioFinal = servicio || conceptoActivo?.nombre || movimientoActual.concepto_manual || null;
+
+    const categoriaId = categoria !== undefined ? mapCategoriaId(categoria) : movimientoActual.categoria_id;
+    const formaPagoId = formaPago !== undefined ? mapFormaPagoId(formaPago) : movimientoActual.forma_pago_id;
+    const servicioId = servicioFinal ? mapServicioId(servicioFinal) : movimientoActual.servicio_id;
+    const conceptoManual = conceptoNuevoId ? null : servicioId ? null : servicioFinal || movimientoActual.concepto_manual || null;
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
     const fechaConversion = normalizarFecha(vencimiento || fechaOperacion);
-    const monedaMovimiento = normalizarMoneda(moneda || "ARS");
+    const monedaMovimiento = normalizarMoneda(
+      moneda || conceptoActivo?.moneda_default || movimientoActual.moneda || "ARS"
+    );
 
-    const workspaceId = user.workspaceId || "ws_default";
-    const usuarioId = user.usuarioId;
-    const usuarioIdCreador = user.usuarioId;
+    const medioPagoNuevoId =
+      medioPagoId || body.medio_pago_id || conceptoActivo?.medio_pago_id || movimientoActual.medio_pago_id || null;
+    const instrumentoNuevoId =
+      instrumentoId || body.instrumento_id || conceptoActivo?.instrumento_id || movimientoActual.instrumento_id || null;
+    const categoriaGastoNuevoId =
+      categoriaGastoId || body.categoria_gasto_id || conceptoActivo?.categoria_gasto_id || movimientoActual.categoria_gasto_id || null;
 
-    const conceptoNuevoId = conceptoId || body.concepto_id || null;
-    const medioPagoNuevoId = medioPagoId || body.medio_pago_id || null;
-    const instrumentoNuevoId = instrumentoId || body.instrumento_id || null;
-    const categoriaGastoNuevoId = categoriaGastoId || body.categoria_gasto_id || null;
-
-    const etiquetasNormalizadas = normalizarListaIds(
+    const etiquetasPayload = normalizarListaIds(
       etiquetasIds.length ? etiquetasIds : body.etiquetas || body.etiquetas_ids
     );
+    const etiquetasNormalizadas = etiquetasPayload.length
+      ? etiquetasPayload
+      : await obtenerEtiquetasConcepto(sql, conceptoNuevoId);
 
     const detallesNormalizados = [];
 
@@ -258,22 +347,6 @@ export default async function handler(req, res) {
             0
           )
         : toNumber(monto, 0);
-    const movimientoPropio = await sql`
-      SELECT movimiento_id
-      FROM movimientos
-      WHERE movimiento_id = ${id}
-        AND usuario_id = ${usuarioId}
-        AND tipo_movimiento = 'GASTO'
-      LIMIT 1;
-    `;
-
-    if (movimientoPropio.length === 0) {
-      return res.status(404).json({
-        ok: false,
-        error: "Movimiento no encontrado para el usuario actual",
-      });
-    }
-
     await sql`
       UPDATE movimientos
       SET
@@ -377,7 +450,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("Error en /api/gastos-update:", error);
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       ok: false,
       error: error.message || "Error interno",
     });
