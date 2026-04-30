@@ -353,6 +353,7 @@ export default function App() {
   const [nuevaEtiqueta,setNuevaEtiqueta]=useState({ nombre:"", color:"#f97316", ordenVisual:"" });
   const [tcInput,setTcInput]=useState("");
   const [showCotizador,setShowCotizador]=useState(false);
+  const [mostrarOpcionesCarga,setMostrarOpcionesCarga]=useState(false);
   const [gestionServModal,setGestionServModal]=useState(null); // catId para gestionar servicios inline
   const [gestionCatModal,setGestionCatModal]=useState(false);
   const [nuevoServInline,setNuevoServInline]=useState("");
@@ -537,13 +538,68 @@ useEffect(() => {
   const gastosPorCatF=cfg.categorias.map(cat=>({...cat,items:gastosFiltrados.filter(g=>g.categoria===cat.id),total:gastosFiltrados.filter(g=>g.categoria===cat.id).reduce((a,g)=>a+toARS_(g),0)}));
   const [busqueda,setBusqueda]=useState("");
   const [mostrarTodosConceptos,setMostrarTodosConceptos]=useState(false);
-  const gastosPorCatFiltrado2=cfg.categorias
-    .filter(cat=>!filtroCatInicio||cat.id===filtroCatInicio)
-    .map(cat=>({
-      ...cat,
-      items:gastosFiltrados.filter(g=>g.categoria===cat.id&&(busqueda===""||g.servicio.toLowerCase().includes(busqueda.toLowerCase()))),
-      total:gastosFiltrados.filter(g=>g.categoria===cat.id&&(busqueda===""||g.servicio.toLowerCase().includes(busqueda.toLowerCase()))).reduce((a,g)=>a+toARS_(g),0)
-    }));
+  const textoBusquedaDetalle = busqueda.trim().toLowerCase();
+
+  const metaGrupoDetalle = (g) => {
+    const legacyCat = cfg.categorias.find((cat) => cat.id === g.categoria);
+
+    const nombre =
+      g.medioPagoNombre ||
+      g.medioPago ||
+      g.categoriaGastoNombre ||
+      g.categoriaGasto ||
+      g.categoriaNombre ||
+      legacyCat?.label ||
+      "Sin definir";
+
+    const tieneMedioNuevo = Boolean(g.medioPagoNombre || g.medioPago);
+const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
+
+return {
+  // Agrupa por nombre visible, no por origen técnico.
+  // Así "Mercado Pago" no se separa entre modelo nuevo y legacy.
+  id: `grupo_${slug(nombre)}`,
+  label: nombre,
+  color:
+    g.medioPagoColor ||
+    g.categoriaGastoColor ||
+    legacyCat?.color ||
+    "#94a3b8",
+};
+  };
+
+  const gastosDetalleFiltrados = gastosFiltrados.filter((g) => {
+    const coincideBusqueda =
+      !textoBusquedaDetalle ||
+      String(g.servicio || "").toLowerCase().includes(textoBusquedaDetalle) ||
+      String(g.medioPagoNombre || g.medioPago || "").toLowerCase().includes(textoBusquedaDetalle) ||
+      String(g.categoriaGastoNombre || g.categoriaGasto || "").toLowerCase().includes(textoBusquedaDetalle);
+
+    const coincideFiltroInicio =
+      !filtroCatInicio ||
+      g.categoria === filtroCatInicio ||
+      g.categoriaId === `cat_${filtroCatInicio}` ||
+      g.medioPagoId === filtroCatInicio ||
+      g.categoriaGastoId === filtroCatInicio;
+
+    return coincideBusqueda && coincideFiltroInicio;
+  });
+
+  const gastosPorCatFiltrado2 = Array.from(
+    gastosDetalleFiltrados.reduce((mapa, g) => {
+      const meta = metaGrupoDetalle(g);
+      const grupo = mapa.get(meta.id) || {
+        ...meta,
+        total: 0,
+        items: [],
+      };
+
+      grupo.total += toARS_(g);
+      grupo.items.push(g);
+      mapa.set(meta.id, grupo);
+      return mapa;
+    }, new Map()).values()
+  ).sort((a, b) => b.total - a.total);
   const todosVenc=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&g.vencimiento);
   const vencUrgentes=todosVenc.filter(g=>{ const d=diasRestantes(g.vencimiento); return d!==null&&d<=7; }).length;
 
@@ -1789,6 +1845,9 @@ const GastoRow=({item})=>{
   const tieneSubconceptos=item.subconceptos&&item.subconceptos.length>0;
   const totalMostrarARS = montoReal(item, tc);
   const totalUSDDetalle = montoUSDReal(item);
+  const instrumentoDetalle = item.instrumentoNombre || item.instrumento || item.formaPago || "Sin instrumento";
+  const categoriaDetalle = item.categoriaGastoNombre || item.categoriaGasto || item.categoriaNombre || "";
+  const detalleModeloNuevo = [instrumentoDetalle, categoriaDetalle].filter(Boolean).join(" · ");
 
   return(
     <div style={{ padding:"7px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
@@ -1825,7 +1884,7 @@ const GastoRow=({item})=>{
           </div>
 
           <div style={{ fontSize:11,color:"#64748b" }}>
-            {item.dia}/{mes.m+1} · {item.formaPago}{item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}{item.observacion?` · ${item.observacion}`:""}
+            {item.dia}/{mes.m+1} · {detalleModeloNuevo}{item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}{item.observacion?` · ${item.observacion}`:""}
           </div>
         </div>
 
@@ -1862,6 +1921,22 @@ const GastoRow=({item})=>{
   const conceptosVisibles = mostrarTodosConceptos
     ? conceptosFiltrados
     : conceptosFiltrados.slice(0, textoConceptoLower ? 8 : 10);
+
+  const conceptoPreviewCarga = (cfg.conceptos || []).find((c) => c.id === form.conceptoId) || conceptoExacto || null;
+  const medioPreviewCarga = (cfg.mediosPago || []).find((m) => m.id === (form.medioPagoId || conceptoPreviewCarga?.medioPagoId));
+  const instrumentoPreviewCarga = (cfg.instrumentosPago || []).find((i) => i.id === (form.instrumentoId || conceptoPreviewCarga?.instrumentoId));
+  const categoriaPreviewCarga = (cfg.categoriasGasto || []).find((c) => c.id === (form.categoriaGastoId || conceptoPreviewCarga?.categoriaGastoId));
+  const etiquetasPreviewCarga = (form.etiquetasIds?.length ? form.etiquetasIds : conceptoPreviewCarga?.etiquetasIds || [])
+    .map((id) => (cfg.etiquetas || []).find((t) => t.id === id)?.nombre)
+    .filter(Boolean);
+  const resumenPreviewCarga = [
+    conceptoPreviewCarga?.nombre || textoConcepto || "Sin concepto",
+    categoriaPreviewCarga?.nombre,
+    medioPreviewCarga?.nombre,
+    instrumentoPreviewCarga?.nombre,
+    etiquetasPreviewCarga.length ? etiquetasPreviewCarga.join(" · ") : null,
+    form.moneda || conceptoPreviewCarga?.monedaDefault || "ARS"
+  ].filter(Boolean);
  
  const crearConceptoDesdeTexto = () => {
   const nombre = String(form.servicio || "").trim();
@@ -2492,6 +2567,26 @@ if (!authUser) {
               )}
             </div>
 
+            <div style={{ marginBottom:12,background:"#0f172a",border:"1px solid #1e293b",borderRadius:14,padding:"12px 14px" }}>
+              <div style={{ fontSize:11,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:6 }}>Vista previa inteligente</div>
+              <div style={{ fontSize:13,color:"#e2e8f0",fontWeight:700,lineHeight:1.4 }}>
+                {resumenPreviewCarga.join(" · ")}
+              </div>
+              <div style={{ fontSize:11,color:"#64748b",marginTop:6,lineHeight:1.4 }}>
+                La API completa y protege estos datos al guardar el gasto. Usá “Más opciones” solo si necesitás ajustar algo puntual.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="pb"
+              onClick={() => setMostrarOpcionesCarga((v) => !v)}
+              style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
+            >
+              {mostrarOpcionesCarga ? "Ocultar más opciones" : "⚙️ Más opciones"}
+            </button>
+
+            {mostrarOpcionesCarga && <>
             <div style={{ marginBottom:12 }}>
               <span style={lbl}>MEDIO DE PAGO</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
@@ -2569,6 +2664,7 @@ if (!authUser) {
                 })}
               </div>
             </div>
+            </>}
           </div>
 
           <div style={{ marginBottom:14 }}>
