@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 function generarId(prefijo = "mov") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
@@ -14,6 +15,8 @@ export default async function handler(req, res) {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const body = req.body || {};
 
     const { periodo, monto } = body;
@@ -32,6 +35,7 @@ export default async function handler(req, res) {
       WHERE periodo = ${periodo}
         AND tipo_movimiento = 'INGRESO'
         AND subtipo_movimiento = 'SUELDO'
+        AND usuario_id = ${user.usuarioId}
         AND activo = true
       LIMIT 1;
     `;
@@ -42,7 +46,8 @@ export default async function handler(req, res) {
         SET
           monto = ${Number(monto)},
           updated_at = NOW()
-        WHERE movimiento_id = ${existente[0].movimiento_id};
+        WHERE movimiento_id = ${existente[0].movimiento_id}
+          AND usuario_id = ${user.usuarioId};
       `;
 
       return res.status(200).json({
@@ -69,6 +74,9 @@ export default async function handler(req, res) {
         forma_pago_id,
         servicio_id,
         fuente_ingreso_id,
+        usuario_id,
+        usuario_id_creador,
+        workspace_id,
         monto,
         moneda,
         estado,
@@ -87,6 +95,9 @@ export default async function handler(req, res) {
         ${null},
         ${null},
         ${null},
+        ${user.usuarioId},
+        ${user.usuarioId},
+        ${body.workspaceId || body.workspace_id || "ws_default"},
         ${Number(monto)},
         'ARS',
         'pagado',

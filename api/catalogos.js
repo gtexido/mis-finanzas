@@ -1,8 +1,11 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 export default async function handler(req, res) {
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const workspaceId = req.query.workspaceId || req.query.workspace_id || "ws_default";
 
     const categorias = await sql`

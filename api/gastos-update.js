@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 function generarId(prefijo = "mov") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
@@ -176,6 +177,8 @@ export default async function handler(req, res) {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const body = req.body || {};
 
     const {
@@ -218,7 +221,8 @@ export default async function handler(req, res) {
     const monedaMovimiento = normalizarMoneda(moneda || "ARS");
 
     const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
-    const usuarioIdCreador = body.usuarioIdCreador || body.usuario_id_creador || "usr_default";
+    const usuarioId = user.usuarioId;
+    const usuarioIdCreador = user.usuarioId;
 
     const conceptoNuevoId = conceptoId || body.concepto_id || null;
     const medioPagoNuevoId = medioPagoId || body.medio_pago_id || null;
@@ -254,6 +258,21 @@ export default async function handler(req, res) {
             0
           )
         : toNumber(monto, 0);
+    const movimientoPropio = await sql`
+      SELECT movimiento_id
+      FROM movimientos
+      WHERE movimiento_id = ${id}
+        AND usuario_id = ${usuarioId}
+        AND tipo_movimiento = 'GASTO'
+      LIMIT 1;
+    `;
+
+    if (movimientoPropio.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: "Movimiento no encontrado para el usuario actual",
+      });
+    }
 
     await sql`
       UPDATE movimientos
@@ -268,6 +287,7 @@ export default async function handler(req, res) {
 
         workspace_id = COALESCE(workspace_id, ${workspaceId}),
         usuario_id_creador = COALESCE(usuario_id_creador, ${usuarioIdCreador}),
+        usuario_id = COALESCE(usuario_id, ${usuarioId}),
         concepto_id = ${conceptoNuevoId},
         medio_pago_id = ${medioPagoNuevoId},
         instrumento_id = ${instrumentoNuevoId},
@@ -280,12 +300,16 @@ export default async function handler(req, res) {
         observacion = ${observacion || null},
         es_recurrente = ${!!esRecurrente},
         updated_at = NOW()
-      WHERE movimiento_id = ${id};
+      WHERE movimiento_id = ${id}
+        AND usuario_id = ${usuarioId};
     `;
 
     await sql`
       DELETE FROM movimiento_etiquetas
-      WHERE movimiento_id = ${id};
+      WHERE movimiento_id = ${id}
+        AND movimiento_id IN (
+          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${usuarioId}
+        );
     `;
 
     if (etiquetasNormalizadas.length > 0) {
@@ -305,7 +329,10 @@ export default async function handler(req, res) {
 
     await sql`
       DELETE FROM detalle_movimiento
-      WHERE movimiento_id = ${id};
+      WHERE movimiento_id = ${id}
+        AND movimiento_id IN (
+          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${usuarioId}
+        );
     `;
 
     if (detallesNormalizados.length > 0) {

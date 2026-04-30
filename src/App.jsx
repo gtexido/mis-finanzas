@@ -26,7 +26,10 @@ import {
   desactivarCategoriaGasto,
   crearEtiqueta,
   actualizarEtiqueta,
-  desactivarEtiqueta
+  desactivarEtiqueta,
+  login,
+  logout,
+  getSessionUser
 } from "./services/api";
 
 // Utils
@@ -319,6 +322,10 @@ export default function App() {
   const [sueldoInput,setSueldoInput]=useState("");
   const [ingForm,setIngForm]=useState({fuente:"",monto:"",dia:String(now.getDate())});
   const [toast,setToast]=useState(null);
+  const [authUser,setAuthUser]=useState(getSessionUser());
+  const [loginForm,setLoginForm]=useState({ usuarioId:"usr_gustavo", pin:"" });
+  const [loginLoading,setLoginLoading]=useState(false);
+  const [loginError,setLoginError]=useState("");
   const [confirmDel,setConfirmDel]=useState(null);
   const [editingGasto,setEditingGasto]=useState(null);
   const [editingMesKey,setEditingMesKey]=useState(null);
@@ -418,6 +425,8 @@ const abrirSubconceptosConCotizacion = async (gasto) => {
 
 // Fuente principal de lectura: Neon vía API
 useEffect(() => {
+  if (!authUser) return;
+
   const cargarDesdeApi = async () => {
     try {
       const catalogosApi = await getCatalogos();
@@ -435,7 +444,7 @@ useEffect(() => {
   };
 
   cargarDesdeApi();
-}, []);
+}, [authUser?.usuarioId]);
 
   const toast_=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),2400); };
 
@@ -1820,6 +1829,93 @@ const GastoRow=({item})=>{
   toast_("Concepto preparado. Elegí medio, instrumento, categoría y guardá el gasto.");
 };
 
+
+const handleLogin = async (e) => {
+  e.preventDefault();
+  setLoginError("");
+  setLoginLoading(true);
+
+  try {
+    const user = await login(loginForm.usuarioId, loginForm.pin);
+    setAuthUser(user);
+    setLoginForm((prev) => ({ ...prev, pin: "" }));
+    toast_(`Bienvenido, ${user.nombre}`);
+  } catch (error) {
+    setLoginError(error.message || "No se pudo iniciar sesión");
+  } finally {
+    setLoginLoading(false);
+  }
+};
+
+const handleLogout = () => {
+  logout();
+  setAuthUser(null);
+  setData({ gastos:{}, ingresos:{}, sueldo:{} });
+  setView("home");
+};
+
+if (!authUser) {
+  return (
+    <div style={{ fontFamily:"'DM Sans',sans-serif",background:"#0a0a0f",minHeight:"100vh",color:"#e2e8f0",maxWidth:480,margin:"0 auto",padding:"32px 18px" }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        input,select,button{font-family:'DM Sans',sans-serif;}
+        .inf{width:100%;background:#1a1a24;border:1.5px solid #2a2a3e;border-radius:12px;padding:13px;color:#e2e8f0;font-size:16px;outline:none;}
+        .inf:focus{border-color:#7c3aed;}
+        .pb{border:none;border-radius:14px;padding:14px 16px;cursor:pointer;font-weight:700;font-size:15px;}
+      `}</style>
+
+      <div style={{ marginTop:48,background:"#13131a",border:"1px solid #1e1e2e",borderRadius:24,padding:22,boxShadow:"0 18px 50px rgba(0,0,0,.28)" }}>
+        <div style={{ fontSize:42,marginBottom:12 }}>🔐</div>
+        <h1 style={{ fontSize:25,marginBottom:6 }}>Mis Finanzas</h1>
+        <p style={{ color:"#94a3b8",fontSize:14,lineHeight:1.6,marginBottom:22 }}>
+          Acceso privado por usuario. Cada uno ve solamente sus propios movimientos.
+        </p>
+
+        <form onSubmit={handleLogin}>
+          <label style={{ display:"block",fontSize:12,color:"#64748b",fontWeight:700,marginBottom:8 }}>USUARIO</label>
+          <select
+            className="inf"
+            value={loginForm.usuarioId}
+            onChange={(e)=>setLoginForm((prev)=>({ ...prev, usuarioId:e.target.value }))}
+            style={{ marginBottom:14 }}
+          >
+            <option value="usr_gustavo">Gustavo</option>
+            <option value="usr_vane">Vane</option>
+          </select>
+
+          <label style={{ display:"block",fontSize:12,color:"#64748b",fontWeight:700,marginBottom:8 }}>PIN</label>
+          <input
+            className="inf"
+            type="password"
+            inputMode="numeric"
+            placeholder="Ingresá tu PIN"
+            value={loginForm.pin}
+            onChange={(e)=>setLoginForm((prev)=>({ ...prev, pin:e.target.value }))}
+            style={{ marginBottom:12 }}
+          />
+
+          {loginError && (
+            <div style={{ background:"#2a1515",border:"1px solid #7f1d1d",color:"#fecaca",borderRadius:12,padding:10,fontSize:13,marginBottom:12 }}>
+              {loginError}
+            </div>
+          )}
+
+          <button className="pb" disabled={loginLoading} style={{ width:"100%",background:"#7c3aed",color:"#fff",opacity:loginLoading ? .7 : 1 }}>
+            {loginLoading ? "Validando..." : "Ingresar"}
+          </button>
+        </form>
+
+        <div style={{ marginTop:18,fontSize:12,color:"#64748b",lineHeight:1.6 }}>
+          Modo seguro: el filtro se aplica también en API/Neon, no solo en pantalla.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 // ======================================================
 // 🎨 RENDER PRINCIPAL
 // ======================================================
@@ -1849,6 +1945,12 @@ const GastoRow=({item})=>{
         .ei{background:#1a1a24;border:1.5px solid #7c3aed;border-radius:10px;padding:7px 10px;color:#e2e8f0;font-size:14px;outline:none;flex:1;font-family:'DM Sans',sans-serif;}
         .stat-box{flex:1;background:#13131a;border-radius:16px;padding:12px 14px;border:1px solid #1e1e2e;}
       `}</style>
+      <div style={{ position:"sticky",top:0,zIndex:850,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0a0a0fcc",backdropFilter:"blur(10px)",borderBottom:"1px solid #1e1e2e",padding:"9px 14px",marginBottom:8 }}>
+        <div style={{ fontSize:12,color:"#94a3b8" }}>🔐 {authUser.nombre}</div>
+        <button className="pb" style={{ background:"#1e1e2e",color:"#cbd5e1",fontSize:12,padding:"7px 10px" }} onClick={handleLogout}>
+          Salir
+        </button>
+      </div>
 
       {toast&&<div className="toast" style={{ background:toast.type==="err"?"#7f1d1d":"#14532d",color:toast.type==="err"?"#fca5a5":"#86efac" }}>{toast.msg}</div>}
 

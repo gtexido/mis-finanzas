@@ -1,8 +1,11 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 export default async function handler(req, res) {
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const periodo = req.query.periodo || null;
 
     let movimientos;
@@ -33,6 +36,7 @@ export default async function handler(req, res) {
 
         -- Modelo nuevo multidimensional
         m.workspace_id,
+        m.usuario_id,
         m.usuario_id_creador,
 
         m.medio_pago_id,
@@ -77,6 +81,7 @@ export default async function handler(req, res) {
         ON cg.categoria_gasto_id = m.categoria_gasto_id
 
       WHERE m.activo = true
+        AND m.usuario_id = ${user.usuarioId}
     `;
 
     if (periodo) {

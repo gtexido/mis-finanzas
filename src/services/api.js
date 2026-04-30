@@ -1,5 +1,61 @@
+const TOKEN_KEY = "mf_auth_token";
+const USER_KEY = "mf_auth_user";
+
+function getAuthToken() {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function authHeaders(extra = {}) {
+  const token = getAuthToken();
+  return {
+    ...extra,
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+export function getSessionUser() {
+  try {
+    const raw = localStorage.getItem(USER_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function logout() {
+  try {
+    localStorage.removeItem(TOKEN_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch {}
+}
+
+export async function login(usuarioId, pin) {
+  const res = await fetch("/api/auth-login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ usuarioId, pin }),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "No se pudo iniciar sesión");
+  }
+
+  try {
+    localStorage.setItem(TOKEN_KEY, json.data.token);
+    localStorage.setItem(USER_KEY, JSON.stringify(json.data.user));
+  } catch {}
+
+  return json.data.user;
+}
+
 export async function getCatalogos() {
-  const res = await fetch("/api/catalogos");
+  const res = await fetch("/api/catalogos", { headers: authHeaders() });
   const json = await res.json();
 
   if (!json.ok) {
@@ -10,7 +66,7 @@ export async function getCatalogos() {
 }
 
 export async function getMovimientos(periodo = "2026-04") {
-  const res = await fetch(`/api/movimientos?periodo=${periodo}`);
+  const res = await fetch(`/api/movimientos?periodo=${periodo}`, { headers: authHeaders() });
   const json = await res.json();
 
   if (!json.ok) {
@@ -23,9 +79,9 @@ export async function getMovimientos(periodo = "2026-04") {
 export async function crearGasto(payload) {
   const res = await fetch("/api/gastos", {
     method: "POST",
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
@@ -41,9 +97,9 @@ export async function crearGasto(payload) {
 export async function eliminarGasto(movimientoId) {
   const res = await fetch("/api/gastos-delete", {
     method: "DELETE",
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify({ movimientoId }),
   });
 
@@ -59,9 +115,9 @@ export async function eliminarGasto(movimientoId) {
 export async function actualizarGasto(payload) {
   const res = await fetch("/api/gastos-update", {
     method: "PUT",
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
@@ -77,9 +133,9 @@ export async function actualizarGasto(payload) {
 export async function crearIngreso(payload) {
   const res = await fetch("/api/ingresos", {
     method: "POST",
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
@@ -95,9 +151,9 @@ export async function crearIngreso(payload) {
 export async function eliminarIngreso(movimientoId) {
   const res = await fetch("/api/ingresos-delete", {
     method: "DELETE",
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify({ movimientoId }),
   });
 
@@ -113,9 +169,9 @@ export async function eliminarIngreso(movimientoId) {
 export async function guardarSueldoNeon(payload) {
   const res = await fetch("/api/sueldo", {
     method: "POST",
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
@@ -149,9 +205,9 @@ export async function getCotizacionPorFecha(fecha, tipo = "tarjeta") {
 export async function guardarCotizacion(payload) {
   const res = await fetch("/api/cotizaciones", {
     method: "POST",
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 
@@ -167,9 +223,9 @@ export async function guardarCotizacion(payload) {
 async function catalogosAdminRequest(method, payload) {
   const res = await fetch("/api/catalogos-admin", {
     method,
-    headers: {
+    headers: authHeaders({
       "Content-Type": "application/json",
-    },
+    }),
     body: JSON.stringify(payload),
   });
 

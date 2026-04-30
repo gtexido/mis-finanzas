@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 export default async function handler(req, res) {
   if (req.method !== "DELETE") {
@@ -10,6 +11,8 @@ export default async function handler(req, res) {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const { movimientoId } = req.body || {};
 
     if (!movimientoId) {
@@ -21,22 +24,32 @@ export default async function handler(req, res) {
 
     await sql`
       DELETE FROM movimiento_etiquetas
-      WHERE movimiento_id = ${movimientoId};
+      WHERE movimiento_id = ${movimientoId}
+        AND movimiento_id IN (
+          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${user.usuarioId}
+        );
     `;
 
     await sql`
       DELETE FROM detalle_movimiento
-      WHERE movimiento_id = ${movimientoId};
+      WHERE movimiento_id = ${movimientoId}
+        AND movimiento_id IN (
+          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${user.usuarioId}
+        );
     `;
 
     await sql`
       DELETE FROM subconceptos_usd
-      WHERE movimiento_id = ${movimientoId};
+      WHERE movimiento_id = ${movimientoId}
+        AND movimiento_id IN (
+          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${user.usuarioId}
+        );
     `;
 
     await sql`
       DELETE FROM movimientos
-      WHERE movimiento_id = ${movimientoId};
+      WHERE movimiento_id = ${movimientoId}
+        AND usuario_id = ${user.usuarioId};
     `;
 
     return res.status(200).json({

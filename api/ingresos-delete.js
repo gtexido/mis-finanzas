@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 export default async function handler(req, res) {
   if (req.method !== "DELETE") {
@@ -10,6 +11,8 @@ export default async function handler(req, res) {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const { movimientoId } = req.body || {};
 
     if (!movimientoId) {
@@ -23,7 +26,8 @@ export default async function handler(req, res) {
       DELETE FROM movimientos
       WHERE movimiento_id = ${movimientoId}
         AND tipo_movimiento = 'INGRESO'
-        AND subtipo_movimiento = 'INGRESO_EXTRA';
+        AND subtipo_movimiento = 'INGRESO_EXTRA'
+        AND usuario_id = ${user.usuarioId};
     `;
 
     return res.status(200).json({

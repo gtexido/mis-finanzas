@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 function generarId(prefijo = "mov") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
@@ -176,6 +177,8 @@ export default async function handler(req, res) {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const body = req.body || {};
 
     const {
@@ -219,7 +222,8 @@ export default async function handler(req, res) {
     const monedaMovimiento = normalizarMoneda(moneda || "ARS");
 
     const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
-    const usuarioIdCreador = body.usuarioIdCreador || body.usuario_id_creador || "usr_default";
+    const usuarioId = user.usuarioId;
+    const usuarioIdCreador = user.usuarioId;
 
     const conceptoNuevoId = conceptoId || body.concepto_id || null;
     const medioPagoNuevoId = medioPagoId || body.medio_pago_id || null;
@@ -271,6 +275,7 @@ export default async function handler(req, res) {
         fuente_ingreso_id,
         workspace_id,
         usuario_id_creador,
+        usuario_id,
         concepto_id,
         medio_pago_id,
         instrumento_id,
@@ -296,6 +301,7 @@ export default async function handler(req, res) {
         ${null},
         ${workspaceId},
         ${usuarioIdCreador},
+        ${usuarioId},
         ${conceptoNuevoId},
         ${medioPagoNuevoId},
         ${instrumentoNuevoId},

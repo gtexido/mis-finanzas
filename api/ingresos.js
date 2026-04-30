@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 function generarId(prefijo = "mov") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
@@ -23,6 +24,8 @@ export default async function handler(req, res) {
 
   try {
     const sql = neon(process.env.DATABASE_URL);
+    const user = requireAuth(req, res);
+    if (!user) return;
     const body = req.body || {};
 
     const { periodo, dia, fuente, monto } = body;
@@ -50,6 +53,9 @@ export default async function handler(req, res) {
         forma_pago_id,
         servicio_id,
         fuente_ingreso_id,
+        usuario_id,
+        usuario_id_creador,
+        workspace_id,
         monto,
         moneda,
         estado,
@@ -68,6 +74,9 @@ export default async function handler(req, res) {
         ${null},
         ${null},
         ${fuenteIngresoId},
+        ${user.usuarioId},
+        ${user.usuarioId},
+        ${body.workspaceId || body.workspace_id || "ws_default"},
         ${Number(monto)},
         'ARS',
         'pagado',
