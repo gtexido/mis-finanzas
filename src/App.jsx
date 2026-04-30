@@ -173,6 +173,13 @@ const syncFullBackup = () => {};
 
 const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
 const getMesKey = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
+const getMesActual = () => {
+  const hoy = new Date();
+  return {
+    y: hoy.getFullYear(),
+    m: hoy.getMonth(),
+  };
+};
 const slug = (s) => s.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"")+"_"+Date.now();
 const pct = (a,b) => b===0?null:Math.round(((a-b)/b)*100);
 const fmtMonto = (monto, moneda = "ARS") => {
@@ -297,7 +304,7 @@ export default function App() {
   const [data,setData]=useState(stored.data);
   const [cfg,setCfg]=useState(stored.config);
   const [recurrentes,setRecurrentes]=useState(stored.recurrentes);
-  const [mes,setMes]=useState({y:2026,m:3});
+  const [mes,setMes]=useState(getMesActual);
   const [form,setForm]=useState({
   categoria:"",
   formaPago:"",
@@ -361,6 +368,37 @@ export default function App() {
 
   const mesKey=getMesKey(mes.y,mes.m);
   const tc=cfg.tipoCambio||1415;
+  
+    useEffect(() => {
+    if (!authUser || !mesKey) return;
+
+    const cargarMesSeleccionado = async () => {
+      try {
+        const movimientosApi = await getMovimientos(mesKey);
+        const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
+
+        setData((prev) => ({
+          ...prev,
+          gastos: {
+            ...prev.gastos,
+            [mesKey]: nuevoData.gastos[mesKey] || [],
+          },
+          ingresos: {
+            ...prev.ingresos,
+            [mesKey]: nuevoData.ingresos[mesKey] || [],
+          },
+          sueldo: {
+            ...prev.sueldo,
+            [mesKey]: nuevoData.sueldo[mesKey] || 0,
+          },
+        }));
+      } catch (e) {
+        console.error("Error cargando mes seleccionado:", e);
+      }
+    };
+
+    cargarMesSeleccionado();
+  }, [authUser, mesKey]);
   
   const normalizarFechaConversion = (gasto = {}) => {
   if (gasto.vencimiento) {
@@ -430,13 +468,28 @@ useEffect(() => {
   const cargarDesdeApi = async () => {
     try {
       const catalogosApi = await getCatalogos();
-      const movimientosApi = await getMovimientos("2026-04");
+      const periodoInicial = getMesKey(mes.y, mes.m);
+	  const movimientosApi = await getMovimientos(periodoInicial);
 
       const nuevoCfg = mapCatalogosDesdeApi(catalogosApi);
-      const nuevoData = mapMovimientosDesdeApi(movimientosApi, "2026-04");
+      const nuevoData = mapMovimientosDesdeApi(movimientosApi, periodoInicial);
 
-      setCfg(nuevoCfg);
-      setData(nuevoData);
+            setCfg(nuevoCfg);
+      setData((prev) => ({
+        ...prev,
+        gastos: {
+          ...prev.gastos,
+          ...nuevoData.gastos,
+        },
+        ingresos: {
+          ...prev.ingresos,
+          ...nuevoData.ingresos,
+        },
+        sueldo: {
+          ...prev.sueldo,
+          ...nuevoData.sueldo,
+        },
+      }));
 
     } catch (e) {
       console.error("Error:", e);
@@ -1848,6 +1901,9 @@ const handleLogin = async (e) => {
 };
 
 const handleLogout = () => {
+  const confirmar = window.confirm("¿Querés cerrar sesión?");
+  if (!confirmar) return;
+
   logout();
   setAuthUser(null);
   setData({ gastos:{}, ingresos:{}, sueldo:{} });

@@ -1,7 +1,12 @@
 export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
-  const movimientos = apiData.movimientos || [];
-  const detalles = apiData.detalles || [];
-  const etiquetasApi = apiData.etiquetas || [];
+  const payload =
+    apiData?.data && !Array.isArray(apiData.data)
+      ? apiData.data
+      : apiData || {};
+
+  const movimientos = payload.movimientos || [];
+  const detalles = payload.detalles || [];
+  const etiquetasApi = payload.etiquetas || [];
 
   const formaPagoMap = {
     fp_manual: "Manual",
@@ -172,11 +177,19 @@ export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
       };
     });
 
-  const ingresos = movimientos
-    .filter((m) => m.tipo_movimiento === "INGRESO" && m.subtipo_movimiento === "INGRESO_EXTRA")
+    const ingresos = movimientos
+    .filter((m) => {
+      const tipo = String(m.tipo_movimiento || "").toUpperCase();
+      const subtipo = String(m.subtipo_movimiento || "").toUpperCase();
+      return tipo === "INGRESO" && subtipo === "INGRESO_EXTRA";
+    })
     .map((m) => ({
       id: m.movimiento_id,
-      fuente: m.fuente_ingreso_nombre || fuenteIngresoMap[m.fuente_ingreso_id] || "",
+      fuente:
+        m.fuente_ingreso_nombre ||
+        fuenteIngresoMap[m.fuente_ingreso_id] ||
+        m.concepto_manual ||
+        "Otros ingresos",
       fuenteIngresoId: m.fuente_ingreso_id || "",
       monto: Number(m.monto || 0),
       dia: String(m.dia ?? "1"),
@@ -185,9 +198,11 @@ export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
       usuarioIdCreador: m.usuario_id_creador || "",
     }));
 
-  const sueldoMov = movimientos.find(
-    (m) => m.tipo_movimiento === "INGRESO" && m.subtipo_movimiento === "SUELDO"
-  );
+  const sueldoMov = movimientos.find((m) => {
+    const tipo = String(m.tipo_movimiento || "").toUpperCase();
+    const subtipo = String(m.subtipo_movimiento || "").toUpperCase();
+    return tipo === "INGRESO" && subtipo === "SUELDO";
+  });
 
   return {
     gastos: { [periodo]: gastos },
