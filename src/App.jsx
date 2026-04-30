@@ -2390,27 +2390,27 @@ if (!authUser) {
         {/* CARGAR */}
         {view==="cargar"&&(<>
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-            <div style={{ fontWeight:700,fontSize:18 }}>Nuevo gasto</div>
+            <div style={{ fontWeight:700,fontSize:18 }}>Cargar gasto</div>
             <button className="pb" style={{ background:"#1a1230",color:"#7c3aed",fontSize:13,padding:"8px 14px",border:"1px solid #2a1a4e" }} onClick={()=>setShowCotizador(!showCotizador)}>💵 {showCotizador?"Ocultar":"Ver dólar"}</button>
           </div>
           {showCotizador&&<CotizadorWidget onSelectTC={(valor,tipo)=>{ setCfg(p=>({...p,tipoCambio:valor})); toast_(`TC ${tipo}: $${valor.toLocaleString("es-AR")}`); setShowCotizador(false); }}/>}
           <div style={{ marginBottom:14, background:"#101827", border:"1px solid #1e293b", borderRadius:16, padding:14 }}>
             <div style={{ fontSize:11, color:"#38bdf8", fontWeight:800, letterSpacing:1, marginBottom:12 }}>
-              CARGA INTELIGENTE
+              CARGA SIMPLE
             </div>
 
             <div style={{ marginBottom:14 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                <span style={lbl}>CONCEPTO</span>
+                <span style={lbl}>¿QUÉ PAGASTE?</span>
                 <span style={{ fontSize:11,color:"#64748b" }}>
-                  buscá o escribí uno
+                  elegí de la lista o escribí uno nuevo
                 </span>
               </div>
 
               <div style={{ position:"relative", marginBottom:10 }}>
                 <input
                   className="inf"
-                  placeholder="Buscar o escribir concepto..."
+                  placeholder="Ej: Caruso, Nafta, Panadería"
                   value={form.servicio}
                   onChange={e=>{
                     const val=e.target.value;
@@ -2517,7 +2517,7 @@ if (!authUser) {
                     </div>
                   ) : (
                     <div style={{ fontSize:12,color:"#64748b",lineHeight:1.45 }}>
-                      No hay coincidencias. Podés guardar el texto escrito como concepto manual.
+                      No encontré ese gasto. Podés crearlo para usarlo de nuevo o usarlo solo esta vez.
                     </div>
                   )}
 
@@ -2534,7 +2534,7 @@ if (!authUser) {
         fontSize:12
       }}
     >
-      + Crear concepto “{textoConcepto}”
+      + Guardar “{textoConcepto}” como nuevo gasto frecuente
     </button>
 
     <button
@@ -2559,7 +2559,7 @@ if (!authUser) {
         fontSize:12
       }}
     >
-      Usar solo en este gasto
+      Solo por esta vez
     </button>
   </div>
 )}
@@ -2568,12 +2568,12 @@ if (!authUser) {
             </div>
 
             <div style={{ marginBottom:12,background:"#0f172a",border:"1px solid #1e293b",borderRadius:14,padding:"12px 14px" }}>
-              <div style={{ fontSize:11,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:6 }}>Vista previa inteligente</div>
+              <div style={{ fontSize:11,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:6 }}>Así se va a guardar</div>
               <div style={{ fontSize:13,color:"#e2e8f0",fontWeight:700,lineHeight:1.4 }}>
                 {resumenPreviewCarga.join(" · ")}
               </div>
               <div style={{ fontSize:11,color:"#64748b",marginTop:6,lineHeight:1.4 }}>
-                La API completa y protege estos datos al guardar el gasto. Usá “Más opciones” solo si necesitás ajustar algo puntual.
+                La app completa estos datos automáticamente. Tocá “Cambiar clasificación” solo si necesitás corregir algo.
               </div>
             </div>
 
@@ -2583,12 +2583,12 @@ if (!authUser) {
               onClick={() => setMostrarOpcionesCarga((v) => !v)}
               style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
             >
-              {mostrarOpcionesCarga ? "Ocultar más opciones" : "⚙️ Más opciones"}
+              {mostrarOpcionesCarga ? "Ocultar clasificación" : "Cambiar clasificación"}
             </button>
 
             {mostrarOpcionesCarga && <>
             <div style={{ marginBottom:12 }}>
-              <span style={lbl}>MEDIO DE PAGO</span>
+              <span style={lbl}>¿DESDE DÓNDE PAGASTE?</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {(cfg.mediosPago || []).map(mp=>(
                   <button
@@ -2608,7 +2608,7 @@ if (!authUser) {
             </div>
 
             <div style={{ marginBottom:12 }}>
-              <span style={lbl}>INSTRUMENTO</span>
+              <span style={lbl}>¿CÓMO PAGASTE?</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {(cfg.instrumentosPago || []).map(ins=>(
                   <button
@@ -2628,7 +2628,7 @@ if (!authUser) {
             </div>
 
             <div style={{ marginBottom:12 }}>
-              <span style={lbl}>CATEGORÍA REAL</span>
+              <span style={lbl}>CATEGORÍA</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {(cfg.categoriasGasto || []).map(cg=>(
                   <button
@@ -2644,7 +2644,7 @@ if (!authUser) {
             </div>
 
             <div>
-              <span style={lbl}>ETIQUETAS</span>
+              <span style={lbl}>TIPO</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {(cfg.etiquetas || []).map(tag=>{
                   const activo=(form.etiquetasIds||[]).includes(tag.id);
@@ -3519,7 +3519,7 @@ if (!authUser) {
                   <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
                     {(cfg.instrumentosPago||[]).map(ins=><button key={ins.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,instrumentoId:ins.id}))} style={{ background:editConcepto.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:editConcepto.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{ins.nombre}</button>)}
                   </div>
-                  <span style={lbl}>CATEGORÍA REAL</span>
+                  <span style={lbl}>CATEGORÍA</span>
                   <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
                     {(cfg.categoriasGasto||[]).map(cg=><button key={cg.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,categoriaGastoId:cg.id}))} style={{ background:editConcepto.categoriaGastoId===cg.id?(cg.color||"#7c3aed"):"#1e1e2e",color:editConcepto.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{cg.nombre}</button>)}
                   </div>
