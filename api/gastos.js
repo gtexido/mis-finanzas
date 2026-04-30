@@ -221,7 +221,7 @@ export default async function handler(req, res) {
     const conceptoManual = servicioId ? null : servicio || null;
     const monedaMovimiento = normalizarMoneda(moneda || "ARS");
 
-    const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
+    const workspaceId = user.workspaceId || "ws_default";
     const usuarioId = user.usuarioId;
     const usuarioIdCreador = user.usuarioId;
 

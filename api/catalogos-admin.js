@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 function normalizarTexto(value) {
   return String(value || "").trim();
@@ -142,6 +143,7 @@ async function crearConcepto(sql, body) {
       activo = true,
       updated_at = NOW()
     WHERE concepto_id = ${conceptoId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -234,6 +236,7 @@ async function actualizarConcepto(sql, body) {
     SELECT *
     FROM conceptos
     WHERE concepto_id = ${conceptoId}
+      AND workspace_id = ${body.workspaceId || body.workspace_id || "ws_default"}
     LIMIT 1;
   `;
 
@@ -305,6 +308,7 @@ async function actualizarConcepto(sql, body) {
       activo = ${activo},
       updated_at = NOW()
     WHERE concepto_id = ${conceptoId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -320,11 +324,13 @@ async function actualizarConcepto(sql, body) {
 async function desactivarConcepto(sql, body) {
   const conceptoId = body.conceptoId || body.concepto_id;
   if (!conceptoId) throw new Error("Falta conceptoId");
+  const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
     UPDATE conceptos
     SET activo = false, updated_at = NOW()
     WHERE concepto_id = ${conceptoId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -408,6 +414,7 @@ async function actualizarMedioPago(sql, body) {
     SELECT *
     FROM medios_pago
     WHERE medio_pago_id = ${medioPagoId}
+      AND workspace_id = ${body.workspaceId || body.workspace_id || "ws_default"}
     LIMIT 1;
   `;
 
@@ -458,6 +465,7 @@ async function actualizarMedioPago(sql, body) {
       activo = ${activo},
       updated_at = NOW()
     WHERE medio_pago_id = ${medioPagoId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -467,11 +475,13 @@ async function actualizarMedioPago(sql, body) {
 async function desactivarMedioPago(sql, body) {
   const medioPagoId = body.medioPagoId || body.medio_pago_id;
   if (!medioPagoId) throw new Error("Falta medioPagoId");
+  const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
     UPDATE medios_pago
     SET activo = false, updated_at = NOW()
     WHERE medio_pago_id = ${medioPagoId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -552,6 +562,7 @@ async function actualizarCategoriaGasto(sql, body) {
     SELECT *
     FROM categorias_gasto
     WHERE categoria_gasto_id = ${categoriaGastoId}
+      AND workspace_id = ${body.workspaceId || body.workspace_id || "ws_default"}
     LIMIT 1;
   `;
 
@@ -600,6 +611,7 @@ async function actualizarCategoriaGasto(sql, body) {
       activo = ${activo},
       updated_at = NOW()
     WHERE categoria_gasto_id = ${categoriaGastoId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -609,11 +621,13 @@ async function actualizarCategoriaGasto(sql, body) {
 async function desactivarCategoriaGasto(sql, body) {
   const categoriaGastoId = body.categoriaGastoId || body.categoria_gasto_id;
   if (!categoriaGastoId) throw new Error("Falta categoriaGastoId");
+  const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
     UPDATE categorias_gasto
     SET activo = false, updated_at = NOW()
     WHERE categoria_gasto_id = ${categoriaGastoId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -694,6 +708,7 @@ async function actualizarEtiqueta(sql, body) {
     SELECT *
     FROM etiquetas
     WHERE etiqueta_id = ${etiquetaId}
+      AND workspace_id = ${body.workspaceId || body.workspace_id || "ws_default"}
     LIMIT 1;
   `;
 
@@ -742,6 +757,7 @@ async function actualizarEtiqueta(sql, body) {
       activo = ${activo},
       updated_at = NOW()
     WHERE etiqueta_id = ${etiquetaId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -751,11 +767,13 @@ async function actualizarEtiqueta(sql, body) {
 async function desactivarEtiqueta(sql, body) {
   const etiquetaId = body.etiquetaId || body.etiqueta_id;
   if (!etiquetaId) throw new Error("Falta etiquetaId");
+  const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
     UPDATE etiquetas
     SET activo = false, updated_at = NOW()
     WHERE etiqueta_id = ${etiquetaId}
+      AND workspace_id = ${workspaceId}
     RETURNING *;
   `;
 
@@ -767,7 +785,15 @@ async function desactivarEtiqueta(sql, body) {
 export default async function handler(req, res) {
   try {
     const sql = neon(process.env.DATABASE_URL);
-    const body = req.body || {};
+    const user = requireAuth(req, res);
+    if (!user) return;
+
+    const workspaceId = user.workspaceId || "ws_default";
+    const body = {
+      ...(req.body || {}),
+      workspaceId,
+      workspace_id: workspaceId,
+    };
     const recurso = body.recurso || req.query.recurso;
 
     if (!recurso) {

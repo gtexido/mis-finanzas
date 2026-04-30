@@ -76,7 +76,7 @@ export default async function handler(req, res) {
         ${fuenteIngresoId},
         ${user.usuarioId},
         ${user.usuarioId},
-        ${body.workspaceId || body.workspace_id || "ws_default"},
+        ${user.workspaceId || "ws_default"},
         ${Number(monto)},
         'ARS',
         'pagado',
