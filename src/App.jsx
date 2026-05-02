@@ -891,6 +891,27 @@ const guardarGasto = async (extra = {}) => {
     return;
   }
 
+  const subconceptosPayloadParaDuplicado = f.subconceptos || [];
+  const montoCabeceraParaDuplicado = tieneSubconceptosValidos(subconceptosPayloadParaDuplicado)
+    ? calcularTotalARSDetalle(subconceptosPayloadParaDuplicado)
+    : Number(f.monto || 0);
+
+  const duplicadoExactoAntesDeAcumular = buscarGastoDuplicadoExacto(f, montoCabeceraParaDuplicado);
+  if (duplicadoExactoAntesDeAcumular) {
+    const guardarIgual = window.confirm(
+      `Ya existe un gasto parecido este mes:
+
+${duplicadoExactoAntesDeAcumular.servicio} · ${duplicadoExactoAntesDeAcumular.medioPagoNombre || duplicadoExactoAntesDeAcumular.medioPago || "Mismo medio"} · ${fmtARS(toARS_(duplicadoExactoAntesDeAcumular))}
+
+¿Querés guardarlo igual?`
+    );
+    if (!guardarIgual) return;
+
+    // Si el usuario decide guardar igual, NO acumulamos sobre el gasto existente.
+    // Creamos un movimiento nuevo para que la acción sea explícita y no modifique importes sin aviso.
+    f = { ...f, accionCompuesto:"nuevo", decisionManual:true, __duplicadoConfirmado:true };
+  }
+
   const usarExistente =
     f.accionCompuesto === "existente" &&
     !!gastoCompuestoExistente;
@@ -1046,7 +1067,7 @@ try {
     ? calcularTotalARSDetalle(subconceptosPayload)
     : Number(f.monto || 0);
 
-  const duplicadoExacto = buscarGastoDuplicadoExacto(f, montoCabecera);
+  const duplicadoExacto = f.__duplicadoConfirmado ? null : buscarGastoDuplicadoExacto(f, montoCabecera);
   if (duplicadoExacto) {
     const guardarIgual = window.confirm(
       `Ya existe un gasto parecido este mes:
