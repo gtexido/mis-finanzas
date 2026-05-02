@@ -335,6 +335,8 @@ export default function App() {
   const [loginLoading,setLoginLoading]=useState(false);
   const [loginError,setLoginError]=useState("");
   const [confirmDel,setConfirmDel]=useState(null);
+  const [confirmAction,setConfirmAction]=useState(null);
+  const confirmActionResolverRef = useRef(null);
   const [editingGasto,setEditingGasto]=useState(null);
   const [editingMesKey,setEditingMesKey]=useState(null);
   const [subconceptosGasto,setSubconceptosGasto]=useState(null); // gasto en edición de subconceptos
@@ -520,6 +522,39 @@ useEffect(() => {
     warn: { icon:"⚠️", title:"Atención" },
     info: { icon:"ℹ️", title:"Información" },
   }[toast.type] || { icon:"ℹ️", title:"Aviso" }) : null;
+
+  const pedirConfirmacion = ({
+    title = "Confirmar acción",
+    message = "¿Querés continuar?",
+    detail = "",
+    note = "",
+    icon = "⚠️",
+    variant = "warn",
+    confirmLabel = "Aceptar",
+    cancelLabel = "Cancelar",
+  } = {}) => new Promise((resolve) => {
+    confirmActionResolverRef.current = resolve;
+    setConfirmAction({ title, message, detail, note, icon, variant, confirmLabel, cancelLabel });
+  });
+
+  const resolverConfirmacion = (ok) => {
+    if (confirmActionResolverRef.current) {
+      confirmActionResolverRef.current(ok);
+      confirmActionResolverRef.current = null;
+    }
+    setConfirmAction(null);
+  };
+
+  const confirmarDuplicadoVisual = (duplicado) => pedirConfirmacion({
+    title: "Posible gasto duplicado",
+    message: "Ya existe un gasto parecido este mes.",
+    detail: `${duplicado.servicio} · ${duplicado.medioPagoNombre || duplicado.medioPago || "Mismo medio"} · ${fmtARS(toARS_(duplicado))}`,
+    note: "Si guardás igual, se va a crear un nuevo movimiento separado. No se va a sumar al gasto existente.",
+    icon: "⚠️",
+    variant: "warn",
+    confirmLabel: "Guardar igual",
+    cancelLabel: "Cancelar",
+  });
 
   const gastosDelMes=data.gastos[mesKey]||[];
 const ingresosDelMes=data.ingresos[mesKey]||[];
@@ -933,13 +968,7 @@ const guardarGasto = async (extra = {}) => {
 
   const duplicadoExactoAntesDeAcumular = buscarGastoDuplicadoExacto(f, montoCabeceraParaDuplicado);
   if (duplicadoExactoAntesDeAcumular) {
-    const guardarIgual = window.confirm(
-      `Ya existe un gasto parecido este mes:
-
-${duplicadoExactoAntesDeAcumular.servicio} · ${duplicadoExactoAntesDeAcumular.medioPagoNombre || duplicadoExactoAntesDeAcumular.medioPago || "Mismo medio"} · ${fmtARS(toARS_(duplicadoExactoAntesDeAcumular))}
-
-¿Querés guardarlo igual?`
-    );
+    const guardarIgual = await confirmarDuplicadoVisual(duplicadoExactoAntesDeAcumular);
     if (!guardarIgual) return;
 
     // Si el usuario decide guardar igual, NO acumulamos sobre el gasto existente.
@@ -1109,13 +1138,7 @@ try {
 
   const duplicadoExacto = f.__duplicadoConfirmado ? null : buscarGastoDuplicadoExacto(f, montoParaDuplicado);
   if (duplicadoExacto) {
-    const guardarIgual = window.confirm(
-      `Ya existe un gasto parecido este mes:
-
-${duplicadoExacto.servicio} · ${duplicadoExacto.medioPagoNombre || duplicadoExacto.medioPago || "Mismo medio"} · ${fmtARS(toARS_(duplicadoExacto))}
-
-¿Querés guardarlo igual?`
-    );
+    const guardarIgual = await confirmarDuplicadoVisual(duplicadoExacto);
     if (!guardarIgual) return;
   }
 
@@ -1600,7 +1623,15 @@ const eliminar = async (tipo, id) => {
 
   const desactivarConceptoCfg = async (concepto) => {
     if (!concepto?.id) return;
-    const ok = window.confirm(`¿Desactivar el concepto "${concepto.nombre}"? No se borran gastos históricos.`);
+    const ok = await pedirConfirmacion({
+      title: "Desactivar concepto",
+      message: `¿Querés desactivar "${concepto.nombre}"?`,
+      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
+      icon: "⚠️",
+      variant: "warn",
+      confirmLabel: "Desactivar",
+      cancelLabel: "Cancelar",
+    });
     if (!ok) return;
 
     try {
@@ -1657,7 +1688,15 @@ const eliminar = async (tipo, id) => {
 
   const desactivarMedioPagoCfg = async (medio) => {
     if (!medio?.id) return;
-    const ok = window.confirm(`¿Desactivar el medio de pago "${medio.nombre}"? No se borran gastos históricos.`);
+    const ok = await pedirConfirmacion({
+      title: "Desactivar medio de pago",
+      message: `¿Querés desactivar "${medio.nombre}"?`,
+      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
+      icon: "⚠️",
+      variant: "warn",
+      confirmLabel: "Desactivar",
+      cancelLabel: "Cancelar",
+    });
     if (!ok) return;
     try {
       await desactivarMedioPago(medio.id);
@@ -1709,7 +1748,15 @@ const eliminar = async (tipo, id) => {
 
   const desactivarCategoriaGastoCfg = async (categoria) => {
     if (!categoria?.id) return;
-    const ok = window.confirm(`¿Desactivar la categoría "${categoria.nombre}"? No se borran gastos históricos.`);
+    const ok = await pedirConfirmacion({
+      title: "Desactivar categoría",
+      message: `¿Querés desactivar "${categoria.nombre}"?`,
+      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
+      icon: "⚠️",
+      variant: "warn",
+      confirmLabel: "Desactivar",
+      cancelLabel: "Cancelar",
+    });
     if (!ok) return;
     try {
       await desactivarCategoriaGasto(categoria.id);
@@ -1753,7 +1800,15 @@ const eliminar = async (tipo, id) => {
 
   const desactivarEtiquetaCfg = async (etiqueta) => {
     if (!etiqueta?.id) return;
-    const ok = window.confirm(`¿Desactivar la etiqueta "${etiqueta.nombre}"? No se borran gastos históricos.`);
+    const ok = await pedirConfirmacion({
+      title: "Desactivar etiqueta",
+      message: `¿Querés desactivar "${etiqueta.nombre}"?`,
+      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
+      icon: "⚠️",
+      variant: "warn",
+      confirmLabel: "Desactivar",
+      cancelLabel: "Cancelar",
+    });
     if (!ok) return;
     try {
       await desactivarEtiqueta(etiqueta.id);
@@ -2099,8 +2154,16 @@ const handleLogin = async (e) => {
   }
 };
 
-const handleLogout = () => {
-  const confirmar = window.confirm("¿Querés cerrar sesión?");
+const handleLogout = async () => {
+  const confirmar = await pedirConfirmacion({
+    title: "Cerrar sesión",
+    message: "¿Querés cerrar sesión?",
+    note: "Vas a volver a la pantalla de ingreso. Tus datos quedan guardados.",
+    icon: "ℹ️",
+    variant: "info",
+    confirmLabel: "Cerrar sesión",
+    cancelLabel: "Cancelar",
+  });
   if (!confirmar) return;
 
   logout();
@@ -2223,6 +2286,52 @@ if (!authUser) {
           </div>
         </div>
       )}
+
+      {confirmAction&&(() => {
+        const variantStyles = {
+          warn: { border:"#f59e0b", bg:"rgba(113,63,18,.16)", iconBg:"rgba(245,158,11,.16)", iconColor:"#fbbf24", button:"#f59e0b", buttonText:"#111827" },
+          err: { border:"#ef4444", bg:"rgba(127,29,29,.16)", iconBg:"rgba(239,68,68,.16)", iconColor:"#fca5a5", button:"#dc2626", buttonText:"#fff" },
+          info: { border:"#38bdf8", bg:"rgba(30,58,95,.16)", iconBg:"rgba(56,189,248,.16)", iconColor:"#7dd3fc", button:"#2563eb", buttonText:"#fff" },
+          ok: { border:"#22c55e", bg:"rgba(20,83,45,.16)", iconBg:"rgba(34,197,94,.16)", iconColor:"#86efac", button:"#16a34a", buttonText:"#fff" },
+        };
+        const s = variantStyles[confirmAction.variant] || variantStyles.warn;
+        return (
+          <div className="ov" style={{ zIndex:970 }} onClick={()=>resolverConfirmacion(false)}>
+            <div className="ob" style={{ padding:22,border:`1px solid ${s.border}` }} onClick={e=>e.stopPropagation()}>
+              <div style={{ display:"flex",gap:12,alignItems:"flex-start",marginBottom:14 }}>
+                <div style={{ width:38,height:38,borderRadius:14,background:s.iconBg,color:s.iconColor,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0 }}>
+                  {confirmAction.icon}
+                </div>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ fontWeight:800,fontSize:17,marginBottom:4 }}>{confirmAction.title}</div>
+                  <div style={{ color:"#cbd5e1",fontSize:14,lineHeight:1.45 }}>{confirmAction.message}</div>
+                </div>
+              </div>
+
+              {confirmAction.detail&&
+                <div style={{ background:"#0f0f17",border:"1px solid #25253a",borderRadius:14,padding:"12px 13px",color:"#f8fafc",fontSize:14,fontWeight:700,marginBottom:12,lineHeight:1.45 }}>
+                  {confirmAction.detail}
+                </div>
+              }
+
+              {confirmAction.note&&
+                <div style={{ background:s.bg,border:`1px solid ${s.border}`,borderRadius:14,padding:"10px 12px",color:"#cbd5e1",fontSize:13,lineHeight:1.45,marginBottom:18 }}>
+                  {confirmAction.note}
+                </div>
+              }
+
+              <div style={{ display:"flex",gap:10 }}>
+                <button className="pb" style={{ flex:1,background:"#1e1e2e",color:"#94a3b8" }} onClick={()=>resolverConfirmacion(false)}>
+                  {confirmAction.cancelLabel || "Cancelar"}
+                </button>
+                <button className="pb" style={{ flex:1,background:s.button,color:s.buttonText }} onClick={()=>resolverConfirmacion(true)}>
+                  {confirmAction.confirmLabel || "Aceptar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Modal subconceptos USD */}
       {subconceptosGasto&&<SubconceptosModal gasto={subconceptosGasto} tc={subconceptosGasto.tcConversion || tc} onSave={handleSubconceptosSave} onClose={()=>setSubconceptosGasto(null)}/>}
@@ -3127,9 +3236,17 @@ if (!authUser) {
 		  <button
   className="pb"
   style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
-  onClick={() => {
+  onClick={async () => {
     if (form.estado === "pendiente" && !form.vencimiento) {
-      const guardarSinVencimiento = window.confirm("Este gasto quedó pendiente sin fecha de vencimiento. ¿Querés guardarlo igual?");
+      const guardarSinVencimiento = await pedirConfirmacion({
+        title: "Pendiente sin vencimiento",
+        message: "Este gasto quedó pendiente sin fecha de vencimiento.",
+        note: "Podés guardarlo igual, pero no aparecerá con una fecha clara de recordatorio.",
+        icon: "⚠️",
+        variant: "warn",
+        confirmLabel: "Guardar igual",
+        cancelLabel: "Volver",
+      });
       if (!guardarSinVencimiento) return;
     }
     guardarGasto(mostrarOpcionesCarga ? {} : { tipoGasto:"simple", subconceptos:[] });
