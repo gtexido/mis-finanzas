@@ -775,6 +775,29 @@ const contarRepeticionesServicio = (servicio) => {
 
 const gastoCompuestoExistente = buscarGastoSimilar(form);
 
+const obtenerMedioPagoComparable = (gasto = {}) =>
+  gasto.medioPagoId ||
+  gasto.medio_pago_id ||
+  gasto.medioPago ||
+  medioPagoDesdeCategoriaLegacy(gasto.categoria || "");
+
+const buscarGastoDuplicadoExacto = (formActual = {}, montoARS = 0) => {
+  const conceptoNormalizado = normalizarTexto(formActual.servicio);
+  if (!conceptoNormalizado) return null;
+
+  const medioActual = formActual.medioPagoId || medioPagoDesdeCategoriaLegacy(formActual.categoria || "");
+  const montoActual = Number(montoARS || 0);
+  if (!medioActual || !Number.isFinite(montoActual) || montoActual <= 0) return null;
+
+  return gastosDelMesActual.find((g) => {
+    const mismoConcepto = normalizarTexto(g.servicio) === conceptoNormalizado;
+    const mismoMedio = obtenerMedioPagoComparable(g) === medioActual;
+    const mismoMonto = Math.abs(Number(toARS_(g) || 0) - montoActual) < 0.01;
+    return mismoConcepto && mismoMedio && mismoMonto;
+  }) || null;
+};
+
+
 const gastoTieneDesglose = (g) =>
   !!g && Array.isArray(g.subconceptos) && g.subconceptos.length > 0;
 
@@ -1022,6 +1045,18 @@ try {
   const montoCabecera = tieneSubconceptosValidos(subconceptosPayload)
     ? calcularTotalARSDetalle(subconceptosPayload)
     : Number(f.monto || 0);
+
+  const duplicadoExacto = buscarGastoDuplicadoExacto(f, montoCabecera);
+  if (duplicadoExacto) {
+    const guardarIgual = window.confirm(
+      `Ya existe un gasto parecido este mes:
+
+${duplicadoExacto.servicio} · ${duplicadoExacto.medioPagoNombre || duplicadoExacto.medioPago || "Mismo medio"} · ${fmtARS(toARS_(duplicadoExacto))}
+
+¿Querés guardarlo igual?`
+    );
+    if (!guardarIgual) return;
+  }
 
   await crearGasto({
     periodo: mesKey,
