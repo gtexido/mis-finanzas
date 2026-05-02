@@ -873,6 +873,21 @@ const calcularTotalARSDetalle = (items = []) => {
 
 const tieneSubconceptosValidos = (items = []) => Array.isArray(items) && items.length > 0;
 
+const calcularMontoARSParaDuplicado = (mov = {}) => {
+  if (tieneSubconceptosValidos(mov.subconceptos)) {
+    return calcularTotalARSDetalle(mov.subconceptos);
+  }
+
+  const monto = Number(mov.monto || 0);
+  const moneda = String(mov.moneda || "ARS").trim().toUpperCase();
+
+  if (moneda === "USD") {
+    return monto * Number(tc || 1);
+  }
+
+  return monto;
+};
+
 const guardarGasto = async (extra = {}) => {
   let f = { ...form, ...extra };
 
@@ -892,9 +907,10 @@ const guardarGasto = async (extra = {}) => {
   }
 
   const subconceptosPayloadParaDuplicado = f.subconceptos || [];
-  const montoCabeceraParaDuplicado = tieneSubconceptosValidos(subconceptosPayloadParaDuplicado)
-    ? calcularTotalARSDetalle(subconceptosPayloadParaDuplicado)
-    : Number(f.monto || 0);
+  const montoCabeceraParaDuplicado = calcularMontoARSParaDuplicado({
+    ...f,
+    subconceptos: subconceptosPayloadParaDuplicado,
+  });
 
   const duplicadoExactoAntesDeAcumular = buscarGastoDuplicadoExacto(f, montoCabeceraParaDuplicado);
   if (duplicadoExactoAntesDeAcumular) {
@@ -1067,7 +1083,12 @@ try {
     ? calcularTotalARSDetalle(subconceptosPayload)
     : Number(f.monto || 0);
 
-  const duplicadoExacto = f.__duplicadoConfirmado ? null : buscarGastoDuplicadoExacto(f, montoCabecera);
+  const montoParaDuplicado = calcularMontoARSParaDuplicado({
+    ...f,
+    subconceptos: subconceptosPayload,
+  });
+
+  const duplicadoExacto = f.__duplicadoConfirmado ? null : buscarGastoDuplicadoExacto(f, montoParaDuplicado);
   if (duplicadoExacto) {
     const guardarIgual = window.confirm(
       `Ya existe un gasto parecido este mes:
@@ -2994,17 +3015,54 @@ if (!authUser) {
     </div>
   </>
 ) : (
-  <div style={{ marginBottom:14 }}>
-    <span style={lbl}>¿CUÁNTO?</span>
-    <input
-      className="inf"
-      type="number"
-      placeholder="0"
-      value={form.monto}
-      onChange={e=>setForm(f=>({...f,monto:e.target.value}))}
-      inputMode="numeric"
-    />
-  </div>
+  <>
+    <div style={{ marginBottom:10 }}>
+      <span style={lbl}>¿CUÁNTO?</span>
+      <input
+        className="inf"
+        type="number"
+        placeholder="0"
+        value={form.monto}
+        onChange={e=>setForm(f=>({...f,monto:e.target.value}))}
+        inputMode="decimal"
+      />
+    </div>
+
+    <div style={{ marginBottom:14 }}>
+      <span style={lbl}>MONEDA</span>
+      <div style={{ display:"flex",gap:8 }}>
+        <button
+          className="pb"
+          onClick={() => setForm(f => ({ ...f, moneda:"ARS" }))}
+          style={{
+            flex:1,
+            background: form.moneda==="ARS" ? "#7c3aed" : "#1e1e2e",
+            color: form.moneda==="ARS" ? "#fff" : "#94a3b8"
+          }}
+        >
+          $ ARS
+        </button>
+
+        <button
+          className="pb"
+          onClick={() => setForm(f => ({ ...f, moneda:"USD" }))}
+          style={{
+            flex:1,
+            background: form.moneda==="USD" ? "#1e3a5f" : "#1e1e2e",
+            color: form.moneda==="USD" ? "#38bdf8" : "#94a3b8"
+          }}
+        >
+          💵 USD
+        </button>
+      </div>
+
+      {form.moneda === "USD" && (
+        <div style={{ fontSize:11,color:"#38bdf8",marginTop:6,lineHeight:1.4 }}>
+          Se tomará como referencia el tipo de cambio actual: ${tc.toLocaleString("es-AR")}
+        </div>
+      )}
+    </div>
+  </>
 )}
 
           <div style={{ marginBottom:14 }}><span style={lbl}>ESTADO</span><div style={{ display:"flex",gap:8 }}><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pagado"}))} style={{ background:form.estado==="pagado"?"#14532d":"#1e1e2e",color:form.estado==="pagado"?"#4ade80":"#64748b",border:form.estado==="pagado"?"2px solid #4ade80":"2px solid transparent" }}>✅ Pagado</button><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pendiente"}))} style={{ background:form.estado==="pendiente"?"#422006":"#1e1e2e",color:form.estado==="pendiente"?"#fb923c":"#64748b",border:form.estado==="pendiente"?"2px solid #fb923c":"2px solid transparent" }}>⏳ Pendiente</button></div></div>
