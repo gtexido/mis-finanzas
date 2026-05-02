@@ -748,10 +748,12 @@ const maxAnalisis = Math.max(...analisisActual.items.map((x) => x.total), 1);
 const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
 const normalizarTexto = (txt = "") =>
-  String(txt)
+  String(txt || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
     .trim();
 
 const gastosDelMesActual = data.gastos[mesKey] || [];
@@ -1909,18 +1911,18 @@ const GastoRow=({item})=>{
   const esDolar_form = esDolarConcepto(form.servicio);
 
   const textoConcepto = String(form.servicio || "").trim();
-  const textoConceptoLower = textoConcepto.toLowerCase();
+  const textoConceptoNormalizado = normalizarTexto(textoConcepto);
   const conceptosDisponibles = cfg.conceptos || [];
   const conceptosFiltrados = conceptosDisponibles.filter((concepto) => {
-    if (!textoConceptoLower) return true;
-    return String(concepto.nombre || "").toLowerCase().includes(textoConceptoLower);
+    if (!textoConceptoNormalizado) return true;
+    return normalizarTexto(concepto.nombre).includes(textoConceptoNormalizado);
   });
   const conceptoExacto = conceptosDisponibles.find(
-    (concepto) => String(concepto.nombre || "").toLowerCase() === textoConceptoLower
+    (concepto) => normalizarTexto(concepto.nombre) === textoConceptoNormalizado
   );
   const conceptosVisibles = mostrarTodosConceptos
     ? conceptosFiltrados
-    : conceptosFiltrados.slice(0, textoConceptoLower ? 8 : 10);
+    : conceptosFiltrados.slice(0, textoConceptoNormalizado ? 8 : 10);
 
   const conceptoPreviewCarga = (cfg.conceptos || []).find((c) => c.id === form.conceptoId) || conceptoExacto || null;
   const medioPreviewCarga = (cfg.mediosPago || []).find((m) => m.id === (form.medioPagoId || conceptoPreviewCarga?.medioPagoId));
@@ -1938,11 +1940,37 @@ const GastoRow=({item})=>{
     form.moneda || conceptoPreviewCarga?.monedaDefault || "ARS"
   ].filter(Boolean);
  
+ const aplicarConceptoExistente = (concepto) => {
+  if (!concepto) return;
+
+  setMostrarTodosConceptos(false);
+  setForm((f) => ({
+    ...f,
+    conceptoId: concepto.id,
+    servicio: concepto.nombre,
+    medioPagoId: concepto.medioPagoId || f.medioPagoId || "mp_sin_definir",
+    instrumentoId: concepto.instrumentoId || f.instrumentoId || "ins_manual",
+    categoriaGastoId: concepto.categoriaGastoId || f.categoriaGastoId || "cg_otros",
+    etiquetasIds: concepto.etiquetasIds?.length ? concepto.etiquetasIds : (f.etiquetasIds || []),
+    moneda: concepto.monedaDefault || f.moneda || "ARS",
+    categoria: categoriaLegacyDesdeMedioPagoId(concepto.medioPagoId || f.medioPagoId),
+    formaPago: formaPagoLegacyDesdeInstrumentoId(concepto.instrumentoId || f.instrumentoId),
+    decisionManual:false,
+    crearConceptoPendiente:false
+  }));
+};
+
  const crearConceptoDesdeTexto = () => {
   const nombre = String(form.servicio || "").trim();
 
   if (!nombre) {
     toast_("Escribí el nombre del concepto", "err");
+    return;
+  }
+
+  if (conceptoExacto) {
+    aplicarConceptoExistente(conceptoExacto);
+    toast_(`Ya existe “${conceptoExacto.nombre}”. Usé ese concepto para evitar duplicados.`);
     return;
   }
 
@@ -2466,7 +2494,7 @@ if (!authUser) {
                 <div style={{ background:"#0b1220",border:"1px solid #1e293b",borderRadius:14,padding:10 }}>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
                     <span style={{ fontSize:11,color:"#64748b",fontWeight:700 }}>
-                      {textoConceptoLower ? `Coincidencias (${conceptosFiltrados.length})` : "Sugeridos"}
+                      {textoConceptoNormalizado ? `Coincidencias (${conceptosFiltrados.length})` : "Sugeridos"}
                     </span>
 
                     {conceptosFiltrados.length > conceptosVisibles.length && (
@@ -2487,21 +2515,7 @@ if (!authUser) {
                           key={concepto.id}
                           className="pb"
                           onClick={()=>{
-                            setMostrarTodosConceptos(false);
-                            setForm(f=>({
-                              ...f,
-                              conceptoId: concepto.id,
-                              servicio: concepto.nombre,
-                              medioPagoId: concepto.medioPagoId || f.medioPagoId || "mp_sin_definir",
-                              instrumentoId: concepto.instrumentoId || f.instrumentoId || "ins_manual",
-                              categoriaGastoId: concepto.categoriaGastoId || f.categoriaGastoId || "cg_otros",
-                              etiquetasIds: concepto.etiquetasIds?.length ? concepto.etiquetasIds : (f.etiquetasIds || []),
-                              moneda: concepto.monedaDefault || f.moneda || "ARS",
-                              categoria: categoriaLegacyDesdeMedioPagoId(concepto.medioPagoId || f.medioPagoId),
-                              formaPago: formaPagoLegacyDesdeInstrumentoId(concepto.instrumentoId || f.instrumentoId),
-                              decisionManual:false,
-                              crearConceptoPendiente:false
-                            }));
+                            aplicarConceptoExistente(concepto);
                           }}
                           style={{
                             background:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#1e3a5f":"#1e4032"):"#1e1e2e",
