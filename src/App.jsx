@@ -2061,14 +2061,32 @@ const GastoRow=({item})=>{
 
   const esDolar_form = esDolarConcepto(form.servicio);
 
+  const esConceptoSoloHistorico = (concepto = {}) => {
+    const id = String(concepto.id || concepto.conceptoId || "").trim().toLowerCase();
+    const nombre = normalizarTexto(concepto.nombre || "");
+
+    return (
+      id === "con_gastos_sin_clasificar_gustavo" ||
+      nombre === "gastos sin clasificar"
+    );
+  };
+
   const textoConcepto = String(form.servicio || "").trim();
   const textoConceptoNormalizado = normalizarTexto(textoConcepto);
   const conceptosDisponibles = cfg.conceptos || [];
-  const conceptosFiltrados = conceptosDisponibles.filter((concepto) => {
+  const conceptosDisponiblesCarga = conceptosDisponibles.filter(
+    (concepto) => !esConceptoSoloHistorico(concepto)
+  );
+  const conceptosFiltrados = conceptosDisponiblesCarga.filter((concepto) => {
     if (!textoConceptoNormalizado) return true;
     return normalizarTexto(concepto.nombre).includes(textoConceptoNormalizado);
   });
-  const conceptoExacto = conceptosDisponibles.find(
+  const conceptoExactoOcultoCarga = conceptosDisponibles.find(
+    (concepto) =>
+      esConceptoSoloHistorico(concepto) &&
+      normalizarTexto(concepto.nombre) === textoConceptoNormalizado
+  );
+  const conceptoExacto = conceptosDisponiblesCarga.find(
     (concepto) => normalizarTexto(concepto.nombre) === textoConceptoNormalizado
   );
   const conceptosVisibles = mostrarTodosConceptos
@@ -2122,6 +2140,11 @@ const GastoRow=({item})=>{
   if (conceptoExacto) {
     aplicarConceptoExistente(conceptoExacto);
     toast_(`Ya existe “${conceptoExacto.nombre}”. Usé ese concepto para evitar duplicados.`);
+    return;
+  }
+
+  if (conceptoExactoOcultoCarga) {
+    toast_("Gastos sin clasificar se usa solo para gastos históricos. Escribí un concepto más específico.", "warn");
     return;
   }
 
@@ -2779,7 +2802,13 @@ if (!authUser) {
                     </div>
                   )}
 
-                  {textoConcepto && !conceptoExacto && conceptosFiltrados.length === 0 && (
+                  {textoConcepto && conceptoExactoOcultoCarga && (
+                    <div style={{ marginTop:10,fontSize:12,color:"#fbbf24",background:"rgba(113,63,18,.16)",border:"1px solid #f59e0b",borderRadius:12,padding:"9px 10px",lineHeight:1.45 }}>
+                      “Gastos sin clasificar” se usa solo para ordenar gastos históricos. Para nuevas cargas, escribí un concepto más específico.
+                    </div>
+                  )}
+
+                  {textoConcepto && !conceptoExacto && !conceptoExactoOcultoCarga && conceptosFiltrados.length === 0 && (
   <div style={{ display:"grid",gap:8,marginTop:10 }}>
     <button
       className="pb"
