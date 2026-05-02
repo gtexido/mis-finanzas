@@ -2262,11 +2262,35 @@ if (!authUser) {
       {confirmDel&&(
         <div className="ov" onClick={()=>setConfirmDel(null)}>
           <div className="ob" onClick={e=>e.stopPropagation()}>
-            <p style={{ fontWeight:600,fontSize:16,marginBottom:8 }}>¿Eliminar este registro?</p>
-            <p style={{ color:"#94a3b8",fontSize:14,marginBottom:24 }}>{confirmDel.servicio}</p>
+            <p style={{ fontWeight:600,fontSize:16,marginBottom:8 }}>
+              {confirmDel.tipo === "gastos" ? "¿Eliminar este gasto?" : "¿Eliminar este ingreso?"}
+            </p>
+
+            <p style={{ color:"#e2e8f0",fontSize:14,marginBottom:8 }}>
+              {confirmDel.servicio}
+            </p>
+
+            <p style={{ color:"#94a3b8",fontSize:13,lineHeight:1.45,marginBottom:24 }}>
+              {confirmDel.tipo === "gastos"
+                ? "Vas a eliminar este gasto solo de este mes. No se borra el concepto ni otros meses."
+                : "Vas a eliminar este ingreso solo de este mes. No se borra información de otros meses."}
+            </p>
+
             <div style={{ display:"flex",gap:10 }}>
-              <button className="pb" style={{ flex:1,background:"#1e1e2e",color:"#94a3b8" }} onClick={()=>setConfirmDel(null)}>Cancelar</button>
-              <button className="pb" style={{ flex:1,background:"#7f1d1d",color:"#fca5a5" }} onClick={()=>eliminar(confirmDel.tipo,confirmDel.id)}>Eliminar</button>
+              <button
+                className="pb"
+                style={{ flex:1,background:"#1e1e2e",color:"#94a3b8" }}
+                onClick={()=>setConfirmDel(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                className="pb"
+                style={{ flex:1,background:"#7f1d1d",color:"#fca5a5" }}
+                onClick={()=>eliminar(confirmDel.tipo,confirmDel.id)}
+              >
+                {confirmDel.tipo === "gastos" ? "Eliminar de este mes" : "Eliminar ingreso"}
+              </button>
             </div>
           </div>
         </div>
