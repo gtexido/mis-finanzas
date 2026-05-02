@@ -2915,8 +2915,10 @@ if (!authUser) {
 
           <div style={{ marginBottom:14 }}><span style={lbl}>ESTADO</span><div style={{ display:"flex",gap:8 }}><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pagado"}))} style={{ background:form.estado==="pagado"?"#14532d":"#1e1e2e",color:form.estado==="pagado"?"#4ade80":"#64748b",border:form.estado==="pagado"?"2px solid #4ade80":"2px solid transparent" }}>✅ Pagado</button><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pendiente"}))} style={{ background:form.estado==="pendiente"?"#422006":"#1e1e2e",color:form.estado==="pendiente"?"#fb923c":"#64748b",border:form.estado==="pendiente"?"2px solid #fb923c":"2px solid transparent" }}>⏳ Pendiente</button></div></div>
           <div style={{ display:"flex",gap:10,marginBottom:14 }}><div style={{ flex:1 }}><span style={lbl}>DÍA</span><input className="inf" type="number" placeholder={now.getDate()} value={form.dia} onChange={e=>setForm(f=>({...f,dia:e.target.value}))} inputMode="numeric"/></div></div>
+          {(mostrarOpcionesCarga || form.estado === "pendiente") && (
+          <div style={{ marginBottom:14 }}><span style={lbl}>📅 VENCIMIENTO</span><input className="inf" type="date" style={{ colorScheme:"dark" }} value={form.vencimiento} onChange={e=>setForm(f=>({...f,vencimiento:e.target.value}))}/>{form.estado === "pendiente" && !form.vencimiento && <div style={{ fontSize:11,color:"#fb923c",marginTop:6,lineHeight:1.4 }}>Recomendado para recordar cuándo hay que pagarlo.</div>}{form.vencimiento&&(()=>{const dias=diasRestantes(form.vencimiento);const s=semaforo(dias);return s?<div style={{ fontSize:12,color:s.color,marginTop:6,fontWeight:600 }}>{s.icon} {dias===0?"¡Hoy!":dias<0?`Venció hace ${Math.abs(dias)}d`:`Faltan ${dias}d`}</div>:null;})()}</div>
+          )}
           {mostrarOpcionesCarga && <>
-          <div style={{ marginBottom:14 }}><span style={lbl}>📅 VENCIMIENTO</span><input className="inf" type="date" style={{ colorScheme:"dark" }} value={form.vencimiento} onChange={e=>setForm(f=>({...f,vencimiento:e.target.value}))}/>{form.vencimiento&&(()=>{const dias=diasRestantes(form.vencimiento);const s=semaforo(dias);return s?<div style={{ fontSize:12,color:s.color,marginTop:6,fontWeight:600 }}>{s.icon} {dias===0?"¡Hoy!":dias<0?`Venció hace ${Math.abs(dias)}d`:`Faltan ${dias}d`}</div>:null;})()}</div>
           <div style={{ marginBottom:14 }}><span style={lbl}>OBSERVACIÓN</span><input className="inf" placeholder="Ej: Cuota 2" value={form.observacion} onChange={e=>setForm(f=>({...f,observacion:e.target.value}))}/></div>
           <div style={{ marginBottom:20,display:"flex",alignItems:"center",gap:12,background:"#13131a",borderRadius:14,padding:"12px 14px",border:"1px solid #1e1e2e",cursor:"pointer" }} onClick={()=>setForm(f=>({...f,esRecurrente:!f.esRecurrente}))}>
             <div style={{ width:20,height:20,borderRadius:6,border:"2px solid #7c3aed",background:form.esRecurrente?"#7c3aed":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{form.esRecurrente&&<span style={{ color:"#fff",fontSize:13 }}>✓</span>}</div>
@@ -2940,6 +2942,10 @@ if (!authUser) {
   className="pb"
   style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
   onClick={() => {
+    if (form.estado === "pendiente" && !form.vencimiento) {
+      const guardarSinVencimiento = window.confirm("Este gasto quedó pendiente sin fecha de vencimiento. ¿Querés guardarlo igual?");
+      if (!guardarSinVencimiento) return;
+    }
     guardarGasto(mostrarOpcionesCarga ? {} : { tipoGasto:"simple", subconceptos:[] });
   }}
 >
