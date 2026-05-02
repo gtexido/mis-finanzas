@@ -2573,22 +2573,12 @@ if (!authUser) {
                 {resumenPreviewCarga.join(" · ")}
               </div>
               <div style={{ fontSize:11,color:"#64748b",marginTop:6,lineHeight:1.4 }}>
-                La app completa estos datos automáticamente. Tocá “Cambiar clasificación” solo si necesitás corregir algo.
+                La app completa estos datos automáticamente. Tocá “Cambiar detalles” solo si necesitás corregir algo.
               </div>
             </div>
 
-            <button
-              type="button"
-              className="pb"
-              onClick={() => setMostrarOpcionesCarga((v) => !v)}
-              style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
-            >
-              {mostrarOpcionesCarga ? "Ocultar clasificación" : "Cambiar clasificación"}
-            </button>
-
-            {mostrarOpcionesCarga && <>
             <div style={{ marginBottom:12 }}>
-              <span style={lbl}>¿DESDE DÓNDE PAGASTE?</span>
+              <span style={lbl}>MEDIO DE PAGO</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {(cfg.mediosPago || []).map(mp=>(
                   <button
@@ -2607,6 +2597,16 @@ if (!authUser) {
               </div>
             </div>
 
+            <button
+              type="button"
+              className="pb"
+              onClick={() => setMostrarOpcionesCarga((v) => !v)}
+              style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
+            >
+              {mostrarOpcionesCarga ? "Ocultar detalles" : "Cambiar detalles"}
+            </button>
+
+            {mostrarOpcionesCarga && <>
             <div style={{ marginBottom:12 }}>
               <span style={lbl}>¿CÓMO PAGASTE?</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
@@ -2667,8 +2667,9 @@ if (!authUser) {
             </>}
           </div>
 
+          {mostrarOpcionesCarga && <>
           <div style={{ marginBottom:14 }}>
-            <span style={lbl}>TIPO DE GASTO</span>
+            <span style={lbl}>TIPO DE CARGA</span>
             <div style={{ display:"flex", gap:8 }}>
               <button
                 className="pb"
@@ -2762,10 +2763,11 @@ if (!authUser) {
             </div>
           )}
 
-	 
+	           </>}
+
           {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
           {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
-{form.tipoGasto === "detalle" ? (
+{mostrarOpcionesCarga && form.tipoGasto === "detalle" ? (
   <>
     {/* Selector de moneda */}
     <div style={{ marginBottom:10 }}>
@@ -2899,61 +2901,28 @@ if (!authUser) {
   </>
 ) : (
   <div style={{ marginBottom:14 }}>
-    <span style={lbl}>MONTO Y MONEDA</span>
-    <div style={{ display:"flex",gap:8 }}>
-      <input
-        className="inf"
-        type="number"
-        placeholder="0"
-        value={form.monto}
-        onChange={e=>setForm(f=>({...f,monto:e.target.value}))}
-        inputMode="numeric"
-        style={{ flex:2 }}
-      />
-
-      <button
-        className="pb"
-        onClick={()=>setForm(f=>({...f,moneda:"ARS"}))}
-        style={{
-          background:"#1e1e2e",
-          border:form.moneda==="ARS"?"2px solid #7c3aed":"2px solid transparent",
-          color:form.moneda==="ARS"?"#e2e8f0":"#64748b",
-          padding:"10px 14px"
-        }}
-      >
-        $ARS
-      </button>
-
-      <button
-        className="pb"
-        onClick={()=>setForm(f=>({...f,moneda:"USD"}))}
-        style={{
-          background:form.moneda==="USD"?"#1e3a5f":"#1e1e2e",
-          border:form.moneda==="USD"?"2px solid #38bdf8":"2px solid transparent",
-          color:form.moneda==="USD"?"#38bdf8":"#64748b",
-          padding:"10px 14px"
-        }}
-      >
-        💵
-      </button>
-    </div>
-
-    {form.moneda==="USD" && form.monto && (
-      <div style={{ fontSize:12,color:"#38bdf8",marginTop:6 }}>
-        ≈ {fmtARS(Number(form.monto)*tc)}
-      </div>
-    )}
+    <span style={lbl}>¿CUÁNTO?</span>
+    <input
+      className="inf"
+      type="number"
+      placeholder="0"
+      value={form.monto}
+      onChange={e=>setForm(f=>({...f,monto:e.target.value}))}
+      inputMode="numeric"
+    />
   </div>
 )}
 
           <div style={{ marginBottom:14 }}><span style={lbl}>ESTADO</span><div style={{ display:"flex",gap:8 }}><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pagado"}))} style={{ background:form.estado==="pagado"?"#14532d":"#1e1e2e",color:form.estado==="pagado"?"#4ade80":"#64748b",border:form.estado==="pagado"?"2px solid #4ade80":"2px solid transparent" }}>✅ Pagado</button><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pendiente"}))} style={{ background:form.estado==="pendiente"?"#422006":"#1e1e2e",color:form.estado==="pendiente"?"#fb923c":"#64748b",border:form.estado==="pendiente"?"2px solid #fb923c":"2px solid transparent" }}>⏳ Pendiente</button></div></div>
           <div style={{ display:"flex",gap:10,marginBottom:14 }}><div style={{ flex:1 }}><span style={lbl}>DÍA</span><input className="inf" type="number" placeholder={now.getDate()} value={form.dia} onChange={e=>setForm(f=>({...f,dia:e.target.value}))} inputMode="numeric"/></div></div>
+          {mostrarOpcionesCarga && <>
           <div style={{ marginBottom:14 }}><span style={lbl}>📅 VENCIMIENTO</span><input className="inf" type="date" style={{ colorScheme:"dark" }} value={form.vencimiento} onChange={e=>setForm(f=>({...f,vencimiento:e.target.value}))}/>{form.vencimiento&&(()=>{const dias=diasRestantes(form.vencimiento);const s=semaforo(dias);return s?<div style={{ fontSize:12,color:s.color,marginTop:6,fontWeight:600 }}>{s.icon} {dias===0?"¡Hoy!":dias<0?`Venció hace ${Math.abs(dias)}d`:`Faltan ${dias}d`}</div>:null;})()}</div>
           <div style={{ marginBottom:14 }}><span style={lbl}>OBSERVACIÓN</span><input className="inf" placeholder="Ej: Cuota 2" value={form.observacion} onChange={e=>setForm(f=>({...f,observacion:e.target.value}))}/></div>
           <div style={{ marginBottom:20,display:"flex",alignItems:"center",gap:12,background:"#13131a",borderRadius:14,padding:"12px 14px",border:"1px solid #1e1e2e",cursor:"pointer" }} onClick={()=>setForm(f=>({...f,esRecurrente:!f.esRecurrente}))}>
             <div style={{ width:20,height:20,borderRadius:6,border:"2px solid #7c3aed",background:form.esRecurrente?"#7c3aed":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{form.esRecurrente&&<span style={{ color:"#fff",fontSize:13 }}>✓</span>}</div>
             <div><div style={{ fontSize:14,fontWeight:600 }}>Guardar como recurrente</div><div style={{ fontSize:11,color:"#64748b" }}>Aparecerá cada mes para cargarlo fácil</div></div>
           </div>
+          </>}
           
 		    {form.servicio && gastoCompuestoExistente && (
   <div style={{
@@ -2971,8 +2940,7 @@ if (!authUser) {
   className="pb"
   style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
   onClick={() => {
-    
-    guardarGasto();
+    guardarGasto(mostrarOpcionesCarga ? {} : { tipoGasto:"simple", subconceptos:[] });
   }}
 >
   Guardar gasto
