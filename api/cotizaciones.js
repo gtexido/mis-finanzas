@@ -56,7 +56,7 @@ export default async function handler(req, res) {
       });
     }
 
-        if (req.method === "POST") {
+    if (req.method === "POST") {
       const user = requireAuth(req, res);
       if (!user) return;
 
