@@ -2,7 +2,7 @@
 // 📦 IMPORTS
 // ======================================================
 // React
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 // Services (API)
 import {
@@ -329,6 +329,7 @@ export default function App() {
   const [sueldoInput,setSueldoInput]=useState("");
   const [ingForm,setIngForm]=useState({fuente:"",monto:"",dia:String(now.getDate())});
   const [toast,setToast]=useState(null);
+  const toastTimerRef = useRef(null);
   const [authUser,setAuthUser]=useState(getSessionUser());
   const [loginForm,setLoginForm]=useState({ usuarioId:"usr_gustavo", pin:"" });
   const [loginLoading,setLoginLoading]=useState(false);
@@ -500,7 +501,25 @@ useEffect(() => {
   cargarDesdeApi();
 }, [authUser?.usuarioId]);
 
-  const toast_=(msg,type="ok")=>{ setToast({msg,type}); setTimeout(()=>setToast(null),2400); };
+  const toast_=(msg,type="ok")=>{
+    const normalizedType = type === "error" ? "err" : (type || "ok");
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToast({ msg, type: normalizedType, id: Date.now() });
+    toastTimerRef.current = setTimeout(()=>setToast(null),2800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const toastVisual = toast ? ({
+    ok: { icon:"✅", title:"Listo" },
+    err: { icon:"❌", title:"No se pudo completar" },
+    warn: { icon:"⚠️", title:"Atención" },
+    info: { icon:"ℹ️", title:"Información" },
+  }[toast.type] || { icon:"ℹ️", title:"Aviso" }) : null;
 
   const gastosDelMes=data.gastos[mesKey]||[];
 const ingresosDelMes=data.ingresos[mesKey]||[];
@@ -1162,7 +1181,7 @@ ${duplicadoExacto.servicio} · ${duplicadoExacto.medioPagoNombre || duplicadoExa
       crearConceptoPendiente: false,
     });
 
-    toast_("¡Gasto guardado en Neon!");
+    toast_("Gasto guardado correctamente");
   } catch (e) {
     console.error(e);
     toast_("No se pudo guardar en Neon", "err");
@@ -1178,7 +1197,7 @@ ${duplicadoExacto.servicio} · ${duplicadoExacto.medioPagoNombre || duplicadoExa
     });
     if(f.esRecurrente&&!f.recurrenteId) setRecurrentes(prev=>[...prev,{id:Date.now()+1,categoria:f.categoria,formaPago:f.formaPago,servicio:f.servicio,monto:f.monto,moneda:f.moneda,observacion:f.observacion}]);
     setForm(p=>({...p,servicio:"",monto:"",observacion:"",dia:String(now.getDate()),esRecurrente:false,vencimiento:"",subconceptos:[]}));
-    toast_("¡Gasto guardado!");
+    toast_("Gasto guardado correctamente");
   };
 
   const handleAcumular=()=>{
@@ -1493,7 +1512,7 @@ const eliminar = async (tipo, id) => {
     }));
 
     setConfirmDel(null);
-    toast_(tipo === "gastos" ? "Gasto eliminado" : "Ingreso eliminado");
+    toast_(tipo === "gastos" ? "Gasto eliminado de este mes" : "Ingreso eliminado");
   } catch (e) {
     console.error(e);
     setConfirmDel(null);
@@ -2170,8 +2189,15 @@ if (!authUser) {
         select.inf option{background:#1a1a24;}
         .ni{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:8px 0;border-radius:12px;}
         .ni:active{background:#1e1e2e;}
-        .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999;padding:12px 24px;border-radius:40px;font-weight:600;font-size:14px;animation:fio 2.4s ease;white-space:nowrap;}
-        @keyframes fio{0%{opacity:0;transform:translateX(-50%) translateY(-8px)}15%{opacity:1;transform:translateX(-50%) translateY(0)}80%{opacity:1}100%{opacity:0}}
+        .toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:999;display:flex;align-items:flex-start;gap:10px;width:calc(100% - 28px);max-width:440px;padding:12px 14px;border-radius:18px;font-size:14px;animation:fio 2.8s ease;box-shadow:0 18px 45px rgba(0,0,0,.38);backdrop-filter:blur(14px);border:1px solid;}
+        .toast-icon{width:28px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);font-size:15px;flex-shrink:0;}
+        .toast-title{font-weight:800;font-size:13px;margin-bottom:2px;letter-spacing:.01em;}
+        .toast-msg{font-weight:600;font-size:13px;line-height:1.35;overflow-wrap:anywhere;}
+        .toast-ok{background:rgba(20,83,45,.94);border-color:#22c55e;color:#dcfce7;}
+        .toast-err{background:rgba(127,29,29,.94);border-color:#ef4444;color:#fee2e2;}
+        .toast-warn{background:rgba(113,63,18,.94);border-color:#f59e0b;color:#fef3c7;}
+        .toast-info{background:rgba(30,58,95,.94);border-color:#38bdf8;color:#e0f2fe;}
+        @keyframes fio{0%{opacity:0;transform:translateX(-50%) translateY(-10px) scale(.98)}12%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}86%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-8px) scale(.98)}}
         .pgb{height:6px;border-radius:3px;background:#1e1e2e;overflow:hidden;margin-top:8px;}
         .pgf{height:100%;border-radius:3px;transition:width 0.5s;}
         .ov{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;z-index:900;}
@@ -2188,7 +2214,15 @@ if (!authUser) {
         </button>
       </div>
 
-      {toast&&<div className="toast" style={{ background:toast.type==="err"?"#7f1d1d":"#14532d",color:toast.type==="err"?"#fca5a5":"#86efac" }}>{toast.msg}</div>}
+      {toast&&toastVisual&&(
+        <div className={`toast toast-${toast.type}`} role="status" aria-live="polite">
+          <span className="toast-icon">{toastVisual.icon}</span>
+          <div style={{ minWidth:0 }}>
+            <div className="toast-title">{toastVisual.title}</div>
+            <div className="toast-msg">{toast.msg}</div>
+          </div>
+        </div>
+      )}
 
       {/* Modal subconceptos USD */}
       {subconceptosGasto&&<SubconceptosModal gasto={subconceptosGasto} tc={subconceptosGasto.tcConversion || tc} onSave={handleSubconceptosSave} onClose={()=>setSubconceptosGasto(null)}/>}
