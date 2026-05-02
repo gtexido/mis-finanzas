@@ -1,4 +1,5 @@
 import { neon } from "@neondatabase/serverless";
+import { requireAuth } from "./_auth.js";
 
 function generarId(prefijo = "cot") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
@@ -55,7 +56,10 @@ export default async function handler(req, res) {
       });
     }
 
-    if (req.method === "POST") {
+        if (req.method === "POST") {
+      const user = requireAuth(req, res);
+      if (!user) return;
+
       const body = req.body || {};
 
       const {
