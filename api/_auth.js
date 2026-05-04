@@ -93,6 +93,36 @@ export function verifyToken(token) {
   }
 }
 
+export async function resolveWorkspaceForUser(sql, user) {
+  if (!user || !user.usuarioId) return user;
+
+  const rows = await sql`
+    SELECT
+      wu.workspace_id,
+      w.nombre AS workspace_nombre,
+      wu.rol
+    FROM workspace_usuarios wu
+    JOIN workspaces w
+      ON w.workspace_id = wu.workspace_id
+    WHERE wu.usuario_id = ${user.usuarioId}
+      AND COALESCE(wu.activo, true) = true
+      AND COALESCE(w.activo, true) = true
+    ORDER BY
+      CASE WHEN wu.rol = 'owner' THEN 0 ELSE 1 END,
+      CASE WHEN wu.workspace_id = 'ws_default' THEN 1 ELSE 0 END,
+      wu.created_at ASC
+    LIMIT 1;
+  `;
+
+  if (rows.length === 0) return user;
+
+  return {
+    ...user,
+    workspaceId: rows[0].workspace_id,
+    workspaceNombre: rows[0].workspace_nombre || user.workspaceNombre || rows[0].workspace_id,
+  };
+}
+
 export function requireAuth(req, res) {
   const header = req.headers.authorization || "";
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;

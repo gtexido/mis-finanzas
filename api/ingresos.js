@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { requireAuth } from "./_auth.js";
+import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 
 function generarId(prefijo = "mov") {
   return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
@@ -62,7 +62,10 @@ export default async function handler(req, res) {
     const movimientoId = generarId("mov");
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
     const fuenteIngresoId = mapFuenteIngresoId(fuente, user.usuarioId);
-    const workspaceId = user.workspaceId || "ws_default";
+    const userWorkspace = await resolveWorkspaceForUser(sql, user);
+    const workspaceId = userWorkspace.workspaceId || "ws_default";
+    user.workspaceId = workspaceId;
+    user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
 
     await sql`
       INSERT INTO movimientos (

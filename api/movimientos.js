@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { requireAuth } from "./_auth.js";
+import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 
 export default async function handler(req, res) {
   try {
@@ -7,6 +7,10 @@ export default async function handler(req, res) {
     const user = requireAuth(req, res);
     if (!user) return;
     const periodo = req.query.periodo || null;
+    const userWorkspace = await resolveWorkspaceForUser(sql, user);
+    const workspaceId = userWorkspace.workspaceId || "ws_default";
+    user.workspaceId = workspaceId;
+    user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
 
     let movimientos;
 
@@ -88,6 +92,7 @@ export default async function handler(req, res) {
 
       WHERE m.activo = true
         AND m.usuario_id = ${user.usuarioId}
+        AND m.workspace_id = ${workspaceId}
     `;
 
     if (periodo) {

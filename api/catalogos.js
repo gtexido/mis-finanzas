@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { requireAuth } from "./_auth.js";
+import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 
 async function usarWorkspaceConFallback(sql, workspaceId, consultaPropia, consultaDefault) {
   const propios = await consultaPropia(workspaceId);
@@ -15,7 +15,10 @@ export default async function handler(req, res) {
     const user = requireAuth(req, res);
     if (!user) return;
 
-    const workspaceId = user.workspaceId || "ws_default";
+    const userWorkspace = await resolveWorkspaceForUser(sql, user);
+    const workspaceId = userWorkspace.workspaceId || "ws_default";
+    user.workspaceId = workspaceId;
+    user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
 
     const categorias = await sql`
       SELECT * FROM categorias ORDER BY orden_visual;

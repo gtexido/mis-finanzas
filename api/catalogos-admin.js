@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { requireAuth } from "./_auth.js";
+import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 
 function normalizarTexto(value) {
   return String(value || "").trim();
@@ -788,7 +788,11 @@ export default async function handler(req, res) {
     const user = requireAuth(req, res);
     if (!user) return;
 
-    const workspaceId = user.workspaceId || "ws_default";
+    const userWorkspace = await resolveWorkspaceForUser(sql, user);
+    const workspaceId = userWorkspace.workspaceId || "ws_default";
+    user.workspaceId = workspaceId;
+    user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
+
     const body = {
       ...(req.body || {}),
       workspaceId,
