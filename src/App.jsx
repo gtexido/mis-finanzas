@@ -586,10 +586,65 @@ useEffect(() => {
   const fuenteMayorIngreso = ingresosPorFuente.filter(f=>f.total>0).sort((a,b)=>b.total-a.total)[0] || null;
   const saldo=totalIngresos-totalGastos;
   const saldoColor=saldo>=0?"#4ade80":"#f87171";
-  const gastosPorCat=cfg.categorias.map(cat=>({...cat,total:gastosDelMes.filter(g=>g.categoria===cat.id).reduce((a,g)=>a+toARS_(g),0),items:gastosDelMes.filter(g=>g.categoria===cat.id)}));
+  const conceptoDesdeGasto = (g = {}) =>
+    (cfg.conceptos || []).find((c) =>
+      c.id === g.conceptoId ||
+      c.conceptoId === g.conceptoId ||
+      c.id === g.concepto_id
+    ) || null;
+
+  const categoriaRealDesdeGasto = (g = {}) => {
+    const concepto = conceptoDesdeGasto(g);
+    const categoriaId = concepto?.categoriaGastoId || g.categoriaGastoId || "";
+    const categoriaCfg = (cfg.categoriasGasto || []).find((c) => c.id === categoriaId);
+    const nombreReal =
+      categoriaCfg?.nombre ||
+      categoriaCfg?.label ||
+      concepto?.categoriaGastoNombre ||
+      concepto?.categoriaGasto ||
+      g.categoriaGastoNombre ||
+      g.categoriaGasto ||
+      "";
+
+    if (categoriaId || nombreReal) {
+      return {
+        id: categoriaId || `cat_real_${slug(nombreReal)}`,
+        label: nombreReal || "Sin categoría",
+        color: g.categoriaGastoColor || categoriaCfg?.color || "#64748b",
+        origen: "real",
+      };
+    }
+
+    const legacyCat = cfg.categorias.find((cat) => cat.id === g.categoria);
+    return {
+      id: g.categoria || g.categoriaId || "sin_categoria",
+      label: legacyCat?.label || g.categoriaNombre || "Sin categoría",
+      color: legacyCat?.color || "#64748b",
+      origen: "legacy",
+    };
+  };
+
+  const agruparPorCategoriaReal = (items = []) =>
+    Array.from(items.reduce((mapa, g) => {
+      const meta = categoriaRealDesdeGasto(g);
+      const grupo = mapa.get(meta.id) || {
+        id: meta.id,
+        label: meta.label,
+        color: meta.color,
+        total: 0,
+        items: [],
+      };
+
+      grupo.total += toARS_(g);
+      grupo.items.push(g);
+      mapa.set(meta.id, grupo);
+      return mapa;
+    }, new Map()).values());
+
+  const gastosPorCat=agruparPorCategoriaReal(gastosDelMes);
   const [filtroCatInicio,setFiltroCatInicio]=useState(null); // categoría seleccionada desde inicio
   const gastosFiltrados=filtroEstado==="todos"?gastosDelMes:gastosDelMes.filter(g=>g.estado===filtroEstado);
-  const gastosPorCatF=cfg.categorias.map(cat=>({...cat,items:gastosFiltrados.filter(g=>g.categoria===cat.id),total:gastosFiltrados.filter(g=>g.categoria===cat.id).reduce((a,g)=>a+toARS_(g),0)}));
+  const gastosPorCatF=agruparPorCategoriaReal(gastosFiltrados);
   const [busqueda,setBusqueda]=useState("");
   const [mostrarTodosConceptos,setMostrarTodosConceptos]=useState(false);
   const textoBusquedaDetalle = busqueda.trim().toLowerCase();
@@ -629,8 +684,10 @@ return {
       String(g.medioPagoNombre || g.medioPago || "").toLowerCase().includes(textoBusquedaDetalle) ||
       String(g.categoriaGastoNombre || g.categoriaGasto || "").toLowerCase().includes(textoBusquedaDetalle);
 
+    const categoriaFiltro = categoriaRealDesdeGasto(g);
     const coincideFiltroInicio =
       !filtroCatInicio ||
+      categoriaFiltro.id === filtroCatInicio ||
       g.categoria === filtroCatInicio ||
       g.categoriaId === `cat_${filtroCatInicio}` ||
       g.medioPagoId === filtroCatInicio ||
@@ -777,8 +834,8 @@ const analisisPorMedio = crearRankingAnalisis(
 
 const analisisPorCategoriaReal = crearRankingAnalisis(
   gastosDelMes,
-  (g) => g.categoriaGastoNombre || g.categoriaGasto || "Sin categoría",
-  (g) => ({ color: g.categoriaGastoColor })
+  (g) => categoriaRealDesdeGasto(g).label || "Sin categoría",
+  (g) => ({ color: categoriaRealDesdeGasto(g).color })
 );
 
 const analisisPorInstrumento = crearRankingAnalisis(
@@ -1999,7 +2056,7 @@ const GastoRow=({item})=>{
   const totalMostrarARS = montoReal(item, tc);
   const totalUSDDetalle = montoUSDReal(item);
   const instrumentoDetalle = item.instrumentoNombre || item.instrumento || item.formaPago || "Sin instrumento";
-  const categoriaDetalle = item.categoriaGastoNombre || item.categoriaGasto || item.categoriaNombre || "";
+  const categoriaDetalle = categoriaRealDesdeGasto(item).label || "";
   const detalleModeloNuevo = [instrumentoDetalle, categoriaDetalle].filter(Boolean).join(" · ");
 
   return(

@@ -23,6 +23,18 @@ export default function EditModal({
     return [];
   };
 
+  const conceptoDesdeGasto = (g = {}) =>
+    (config.conceptos || []).find((c) =>
+      c.id === (g?.conceptoId || g?.concepto_id) ||
+      c.conceptoId === (g?.conceptoId || g?.concepto_id)
+    ) || null;
+
+  const categoriaGastoIdInicial = (g = {}) =>
+    conceptoDesdeGasto(g)?.categoriaGastoId ||
+    g?.categoriaGastoId ||
+    g?.categoria_gasto_id ||
+    "";
+
   const [f, setF] = React.useState({
     vencimiento: "",
     moneda: "ARS",
@@ -30,7 +42,7 @@ export default function EditModal({
     conceptoId: gasto?.conceptoId || gasto?.concepto_id || "",
     medioPagoId: gasto?.medioPagoId || gasto?.medio_pago_id || "",
     instrumentoId: gasto?.instrumentoId || gasto?.instrumento_id || "",
-    categoriaGastoId: gasto?.categoriaGastoId || gasto?.categoria_gasto_id || "",
+    categoriaGastoId: categoriaGastoIdInicial(gasto),
     ...gasto,
   });
 
@@ -42,10 +54,10 @@ export default function EditModal({
       conceptoId: gasto?.conceptoId || gasto?.concepto_id || "",
       medioPagoId: gasto?.medioPagoId || gasto?.medio_pago_id || "",
       instrumentoId: gasto?.instrumentoId || gasto?.instrumento_id || "",
-      categoriaGastoId: gasto?.categoriaGastoId || gasto?.categoria_gasto_id || "",
+      categoriaGastoId: categoriaGastoIdInicial(gasto),
       ...gasto,
     });
-  }, [gasto]);
+  }, [gasto, config.conceptos]);
 
   const toNumber = (value, fallback = 0) => {
     const n = Number(value);
@@ -375,7 +387,7 @@ export default function EditModal({
             </div>
 
             <div style={{ marginBottom: 12 }}>
-              <div style={EL2}>CATEGORÍA REAL</div>
+              <div style={EL2}>CATEGORÍA</div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {(config.categoriasGasto || []).map((cg) => {
                   const activo = f.categoriaGastoId === cg.id;
@@ -418,56 +430,6 @@ export default function EditModal({
             </div>
           </div>
         )}
-
-        <div style={{ marginBottom: 14 }}>
-          <div style={EL2}>CATEGORÍA LEGACY</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {config.categorias.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setF((p) => ({ ...p, categoria: c.id }))}
-                style={{
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  fontFamily: "'DM Sans',sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  background: f.categoria === c.id ? c.color : "#1e1e2e",
-                  color: f.categoria === c.id ? "#0a0a0f" : "#94a3b8",
-                }}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 14 }}>
-          <div style={EL2}>FORMA DE PAGO LEGACY</div>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-            {config.formasPago.map((fp) => (
-              <button
-                key={fp}
-                onClick={() => setF((p) => ({ ...p, formaPago: fp }))}
-                style={{
-                  border: "none",
-                  borderRadius: 10,
-                  padding: "6px 12px",
-                  cursor: "pointer",
-                  fontFamily: "'DM Sans',sans-serif",
-                  fontWeight: 600,
-                  fontSize: 12,
-                  background: f.formaPago === fp ? "#7c3aed" : "#1e1e2e",
-                  color: f.formaPago === fp ? "#fff" : "#94a3b8",
-                }}
-              >
-                {fp}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div style={{ marginBottom: 14 }}>
           <div style={EL2}>MONEDA DEL MOVIMIENTO</div>
