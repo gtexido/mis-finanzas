@@ -13,6 +13,30 @@ function normalizarTexto(value) {
     .toLowerCase();
 }
 
+function fuenteVisibleIngreso(fuente) {
+  const normalizada = normalizarTexto(fuente);
+
+  const map = {
+    hogar: "Hogar",
+    ventas: "Ventas",
+    venta: "Ventas",
+    "trabajo diario": "Trabajo Diario",
+    trabajo: "Trabajo Diario",
+    diario: "Trabajo Diario",
+    otros: "Otros",
+    otro: "Otros",
+
+    // Compatibilidad con fuentes históricas.
+    vane: "Hogar",
+    gustavo: "Otros",
+    anses: "Trabajo Diario",
+    "descartables v&g": "Ventas",
+    "descartables vg": "Ventas",
+  };
+
+  return map[normalizada] || String(fuente || "Otros").trim() || "Otros";
+}
+
 function fuenteDefaultPorUsuario(usuarioId) {
   const defaults = {
     usr_gustavo: "fi_gustavo",
@@ -31,6 +55,13 @@ function mapFuenteIngresoId(fuente, usuarioId) {
     anses: "fi_anses",
     "descartables v&g": "fi_descartables_vg",
     "descartables vg": "fi_descartables_vg",
+
+    // Las fuentes genéricas se muestran desde concepto_manual.
+    // fuente_ingreso_id queda como bucket técnico por usuario para no migrar esquema ahora.
+    hogar: fuenteDefaultPorUsuario(usuarioId),
+    ventas: fuenteDefaultPorUsuario(usuarioId),
+    "trabajo diario": fuenteDefaultPorUsuario(usuarioId),
+    otros: fuenteDefaultPorUsuario(usuarioId),
   };
 
   return map[fuenteNormalizada] || fuenteDefaultPorUsuario(usuarioId);
@@ -61,7 +92,8 @@ export default async function handler(req, res) {
 
     const movimientoId = generarId("mov");
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
-    const fuenteIngresoId = mapFuenteIngresoId(fuente, user.usuarioId);
+    const fuenteVisible = fuenteVisibleIngreso(fuente);
+    const fuenteIngresoId = mapFuenteIngresoId(fuenteVisible, user.usuarioId);
     const userWorkspace = await resolveWorkspaceForUser(sql, user);
     const workspaceId = userWorkspace.workspaceId || "ws_default";
     user.workspaceId = workspaceId;
@@ -78,6 +110,7 @@ export default async function handler(req, res) {
         categoria_id,
         forma_pago_id,
         servicio_id,
+        concepto_manual,
         fuente_ingreso_id,
         usuario_id,
         usuario_id_creador,
@@ -99,6 +132,7 @@ export default async function handler(req, res) {
         ${null},
         ${null},
         ${null},
+        ${fuenteVisible},
         ${fuenteIngresoId},
         ${user.usuarioId},
         ${user.usuarioId},
