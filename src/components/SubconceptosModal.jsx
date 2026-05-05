@@ -176,7 +176,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         justifyContent: "center",
         zIndex: 960,
       }}
-      onClick={onClose}
+      onClick={() => {}}
     >
       <div
         style={{
@@ -207,13 +207,17 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
               cursor: "pointer",
             }}
           >
-            ✕
+            Cancelar
           </button>
         </div>
 
-        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 18 }}>
+        <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10, lineHeight: 1.45 }}>
           Desglose por ítem · ARS/USD
           {tipoCambioActual ? ` · TC $${tipoCambioActual.toLocaleString("es-AR")}` : ""}
+        </div>
+
+        <div style={{ background:"rgba(30,58,95,.16)",border:"1px solid #38bdf8",borderRadius:14,padding:"10px 12px",fontSize:12,color:"#cbd5e1",lineHeight:1.45,marginBottom:16 }}>
+          Agregá los ítems de este mismo pago y tocá <b>Guardar desglose y volver</b>. Después guardá el gasto principal.
         </div>
 
         <div
@@ -506,7 +510,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
             marginTop: 16,
           }}
         >
-          Guardar desglose
+          Guardar desglose y volver
         </button>
       </div>
     </div>

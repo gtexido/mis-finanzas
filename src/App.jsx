@@ -1013,7 +1013,13 @@ const guardarGasto = async (extra = {}) => {
   }
 
   if (f.tipoGasto === "detalle" && (!f.subconceptos || f.subconceptos.length === 0)) {
-    toast_("Agregá al menos un ítem al desglose", "err");
+    toast_("Primero agregá ítems al desglose y tocá ‘Guardar desglose y volver’", "err");
+    abrirSubconceptosConCotizacion({
+      ...f,
+      id: "new_" + Date.now(),
+      moneda: f.moneda || "ARS",
+      subconceptos: f.subconceptos || [],
+    });
     return;
   }
 
@@ -1349,57 +1355,74 @@ const handleSubconceptosSave = (items) => {
   if (!subconceptosGasto) return;
 
   const monedaBase = subconceptosGasto.moneda || editingGasto?.moneda || form.moneda || "ARS";
-const tcAplicable = Number(subconceptosGasto.tcConversion || tc || 1);
+  const tcAplicable = Number(subconceptosGasto.tcConversion || tc || 1);
 
-  const itemsNormalizados = (items || []).map((it, idx) => {
-    const monedaItem = String(it.moneda || monedaBase || "ARS").trim().toUpperCase();
-    const monto = Number(it.monto ?? it.montoUSD ?? 0);
+  const itemsNormalizados = (items || [])
+    .map((it, idx) => {
+      const monedaItem = String(it.moneda || monedaBase || "ARS").trim().toUpperCase();
+      const monto = Number(it.monto ?? it.montoUSD ?? 0);
 
-    const tipoCambio =
-      it.tipoCambio !== null && it.tipoCambio !== undefined && it.tipoCambio !== ""
-        ? Number(it.tipoCambio)
-        : monedaItem === "USD"
-          ? tcAplicable
-          : null;
+      const tipoCambio =
+        it.tipoCambio !== null && it.tipoCambio !== undefined && it.tipoCambio !== ""
+          ? Number(it.tipoCambio)
+          : monedaItem === "USD"
+            ? tcAplicable
+            : null;
 
-    const montoARSCalculado =
-      it.montoARSCalculado !== null &&
-      it.montoARSCalculado !== undefined &&
-      it.montoARSCalculado !== ""
-        ? Number(it.montoARSCalculado)
-        : monedaItem === "USD"
-          ? monto * Number(tipoCambio || tcAplicable || 1)
-          : monto;
+      const montoARSCalculado =
+        it.montoARSCalculado !== null &&
+        it.montoARSCalculado !== undefined &&
+        it.montoARSCalculado !== ""
+          ? Number(it.montoARSCalculado)
+          : monedaItem === "USD"
+            ? monto * Number(tipoCambio || tcAplicable || 1)
+            : monto;
 
-    return {
-      id: it.id || it.detalleId || `det_tmp_${Date.now()}_${idx}`,
-      nombre: it.nombre || it.nombreItem || "Item",
-      monto,
-      moneda: monedaItem,
-      tipoCambio,
-      montoARSCalculado,
-      orden: it.orden || idx + 1,
-      observacion: it.observacion || "",
-    };
-  });
+      return {
+        id: it.id || it.detalleId || `det_tmp_${Date.now()}_${idx}`,
+        nombre: String(it.nombre || it.nombreItem || "Item").trim() || "Item",
+        monto,
+        moneda: monedaItem,
+        tipoCambio,
+        montoARSCalculado,
+        orden: it.orden || idx + 1,
+        observacion: it.observacion || "",
+      };
+    })
+    .filter((it) => it.nombre && Number(it.monto) > 0);
+
+  if (itemsNormalizados.length === 0) {
+    toast_("Agregá al menos un ítem válido al desglose", "err");
+    return;
+  }
+
+  const montoTotalARS = itemsNormalizados.reduce(
+    (acc, item) => acc + Number(item.montoARSCalculado || 0),
+    0
+  );
 
   if (editingGasto && editingGasto.id === subconceptosGasto.id) {
     setEditingGasto((prev) => ({
       ...prev,
       moneda: prev.moneda || monedaBase,
+      monto: montoTotalARS,
+      tipoGasto: "detalle",
       subconceptos: itemsNormalizados,
     }));
   } else {
     setForm((prev) => ({
       ...prev,
       moneda: prev.moneda || monedaBase,
+      monto: String(montoTotalARS),
+      tipoGasto: "detalle",
       subconceptos: itemsNormalizados,
-      accionCompuesto: prev.accionCompuesto,
+      accionCompuesto: prev.accionCompuesto || "nuevo",
+      decisionManual: true,
     }));
   }
 
   setSubconceptosGasto(null);
-  toast_("🧾 Desglose guardado");
+  toast_("Desglose guardado. Ahora podés guardar el gasto.");
 };
 
   const openEdit=(g,key=null)=>{ setEditingGasto({...g}); setEditingMesKey(key); };
@@ -3249,7 +3272,7 @@ if (!authUser) {
 }
   style={{ width:"100%",background:"#1e3a5f",border:"none",color:"#38bdf8",borderRadius:12,padding:"10px 0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:14,marginTop:10 }}
 >
-  {form.subconceptos.length>0 ? "✏️ Editar desglose" : "+ Agregar ítems"}
+  {form.subconceptos.length>0 ? "✏️ Editar desglose" : "+ Agregar ítems al desglose"}
 </button>
     </div>
   </>
@@ -3344,6 +3367,16 @@ if (!authUser) {
         cancelLabel: "Volver",
       });
       if (!guardarSinVencimiento) return;
+    }
+    if (form.tipoGasto === "detalle" && form.subconceptos.length === 0) {
+      toast_("Primero agregá ítems al desglose y guardá el desglose", "err");
+      abrirSubconceptosConCotizacion({
+        ...form,
+        id: "new_" + Date.now(),
+        moneda: form.moneda || "ARS",
+        subconceptos: form.subconceptos || [],
+      });
+      return;
     }
     guardarGasto(mostrarOpcionesCarga ? {} : { tipoGasto:"simple", subconceptos:[] });
   }}
