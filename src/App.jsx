@@ -1601,7 +1601,7 @@ const eliminar = async (tipo, id) => {
 };
   //const eliminar=(tipo,id)=>{ setData(prev=>({...prev,[tipo]:{...prev[tipo],[mesKey]:(prev[tipo][mesKey]||[]).filter(g=>g.id!==id)}})); setConfirmDel(null); toast_("Eliminado","err"); };
   const cambiarMes=(dir)=>setMes(prev=>{ let m=prev.m+dir,y=prev.y; if(m>11){m=0;y++;} if(m<0){m=11;y--;} return{y,m}; });
-  const exportCSV=()=>{ const rows=[["Dia","Categoria","Forma Pago","Servicio","Monto","Moneda","USD Total","Estado","Vencimiento","Obs"]]; gastosDelMes.forEach(g=>{ const usd=montoUSDReal(g); rows.push([g.dia,g.categoria,g.formaPago,g.servicio,g.monto,g.moneda,usd||"",g.estado,g.vencimiento||"",g.observacion]); }); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"})); a.download=`gastos_${mesKey}.csv`; a.click(); toast_("CSV exportado"); };
+  const exportCSV=()=>{ const rows=[["Dia","Categoria","Medio Pago","Concepto","Monto","Moneda","USD Total","Estado","Vencimiento","Obs"]]; gastosDelMes.forEach(g=>{ const usd=montoUSDReal(g); const cat=categoriaRealDesdeGasto(g); rows.push([g.dia,cat.label,g.medioPagoNombre||g.medioPago||"",g.servicio,g.monto,g.moneda,usd||"",g.estado,g.vencimiento||"",g.observacion]); }); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"})); a.download=`gastos_${mesKey}.csv`; a.click(); toast_("CSV exportado"); };
 
   const addCat=()=>{if(!newCatLabel.trim()){toast_("Ingresá nombre","err");return;}setCfg(p=>({...p,categorias:[...p.categorias,{id:slug(newCatLabel),label:newCatLabel.trim(),color:newCatColor}]}));setNewCatLabel("");setNewCatColor("#60a5fa");toast_("Agregado");};
   const saveCat=()=>{if(!editCat?.label.trim())return;setCfg(p=>({...p,categorias:p.categorias.map(c=>c.id===editCat.id?{...c,label:editCat.label,color:editCat.color}:c)}));setEditCat(null);toast_("Actualizado");};
@@ -2855,7 +2855,7 @@ if (!authUser) {
                     </div>
                   ) : (
                     <div style={{ fontSize:12,color:"#64748b",lineHeight:1.45 }}>
-                      No encontré ese gasto. Podés crearlo para usarlo de nuevo o usarlo solo esta vez.
+                      No encontré ese gasto. Podés usarlo solo esta vez o recordarlo para futuras cargas.
                     </div>
                   )}
 
@@ -2878,7 +2878,7 @@ if (!authUser) {
         fontSize:12
       }}
     >
-      + Guardar “{textoConcepto}” como nuevo gasto frecuente
+      + Recordar “{textoConcepto}” para futuras cargas
     </button>
 
     <button
@@ -2903,7 +2903,7 @@ if (!authUser) {
         fontSize:12
       }}
     >
-      Solo por esta vez
+      Usar solo esta vez
     </button>
   </div>
 )}
@@ -2917,7 +2917,7 @@ if (!authUser) {
                 {resumenPreviewCarga.join(" · ")}
               </div>
               <div style={{ fontSize:11,color:"#64748b",marginTop:6,lineHeight:1.4 }}>
-                La app completa estos datos automáticamente. Tocá “Cambiar detalles” solo si necesitás corregir algo.
+                La app completa estos datos automáticamente. Tocá “Más opciones” solo si necesitás ajustar categoría, etiquetas, desglose u observación.
               </div>
             </div>
 
@@ -2947,7 +2947,7 @@ if (!authUser) {
               onClick={() => setMostrarOpcionesCarga((v) => !v)}
               style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
             >
-              {mostrarOpcionesCarga ? "Ocultar detalles" : "Cambiar detalles"}
+              {mostrarOpcionesCarga ? "Ocultar opciones" : "Más opciones"}
             </button>
 
             {mostrarOpcionesCarga && <>
@@ -3013,7 +3013,7 @@ if (!authUser) {
 
           {mostrarOpcionesCarga && <>
           <div style={{ marginBottom:14 }}>
-            <span style={lbl}>TIPO DE CARGA</span>
+            <span style={lbl}>DESGLOSE DEL GASTO</span>
             <div style={{ display:"flex", gap:8 }}>
               <button
                 className="pb"
@@ -3030,7 +3030,7 @@ if (!authUser) {
                   fontSize: 13
                 }}
               >
-                Simple
+                Sin desglose
               </button>
 
               <button
@@ -3047,7 +3047,7 @@ if (!authUser) {
                   fontSize: 13
                 }}
               >
-                Con detalle
+                Agregar desglose
               </button>
             </div>
           </div>
@@ -3088,7 +3088,7 @@ if (!authUser) {
                     fontSize: 12
                   }}
                 >
-                  Agregar a existente
+                  Sumar al gasto existente
                 </button>
 
                 <button
@@ -3101,7 +3101,7 @@ if (!authUser) {
                     fontSize: 12
                   }}
                 >
-                  Crear nuevo
+                  Guardar como nuevo movimiento
                 </button>
               </div>
             </div>
@@ -3855,8 +3855,8 @@ if (!authUser) {
           <div className="card" style={{ padding:12,marginBottom:18 }}>
             <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",marginBottom:8 }}>Ajustes principales</div>
             <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["medios","💳 Medios de pago"],["categorias","🏷️ Categorías"],["etiquetas","🏷️ Etiquetas"],["fuentes","💰 Fuentes de ingreso"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
-            <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",margin:"14px 0 8px" }}>Avanzado / compatibilidad</div>
-            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["formas","💳 Formas legacy"],["servicios","📝 Servicios legacy"],["tc","💵 Tipo de cambio"],["backup","💾 Backup y datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
+            <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",margin:"14px 0 8px" }}>Herramientas</div>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["tc","💵 Tipo de cambio"],["backup","💾 Backup y datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
           </div>
           {cfgTab==="conceptos"&&(
             <>
