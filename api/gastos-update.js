@@ -273,10 +273,12 @@ export default async function handler(req, res) {
         medio_pago_id,
         instrumento_id,
         categoria_gasto_id,
-        moneda
+        moneda,
+        workspace_id
       FROM movimientos
       WHERE movimiento_id = ${id}
         AND usuario_id = ${usuarioId}
+        AND workspace_id = ${workspaceId}
         AND tipo_movimiento = 'GASTO'
       LIMIT 1;
     `;
@@ -377,14 +379,20 @@ export default async function handler(req, res) {
         es_recurrente = ${!!esRecurrente},
         updated_at = NOW()
       WHERE movimiento_id = ${id}
-        AND usuario_id = ${usuarioId};
+        AND usuario_id = ${usuarioId}
+        AND workspace_id = ${workspaceId}
+        AND tipo_movimiento = 'GASTO';
     `;
 
     await sql`
       DELETE FROM movimiento_etiquetas
       WHERE movimiento_id = ${id}
         AND movimiento_id IN (
-          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${usuarioId}
+          SELECT movimiento_id
+          FROM movimientos
+          WHERE usuario_id = ${usuarioId}
+            AND workspace_id = ${workspaceId}
+            AND tipo_movimiento = 'GASTO'
         );
     `;
 
@@ -407,7 +415,11 @@ export default async function handler(req, res) {
       DELETE FROM detalle_movimiento
       WHERE movimiento_id = ${id}
         AND movimiento_id IN (
-          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${usuarioId}
+          SELECT movimiento_id
+          FROM movimientos
+          WHERE usuario_id = ${usuarioId}
+            AND workspace_id = ${workspaceId}
+            AND tipo_movimiento = 'GASTO'
         );
     `;
 

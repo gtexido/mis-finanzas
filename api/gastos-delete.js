@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { requireAuth } from "./_auth.js";
+import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 
 export default async function handler(req, res) {
   if (req.method !== "DELETE") {
@@ -13,6 +13,12 @@ export default async function handler(req, res) {
     const sql = neon(process.env.DATABASE_URL);
     const user = requireAuth(req, res);
     if (!user) return;
+
+    const userWorkspace = await resolveWorkspaceForUser(sql, user);
+    const workspaceId = userWorkspace.workspaceId || "ws_default";
+    user.workspaceId = workspaceId;
+    user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
+
     const { movimientoId } = req.body || {};
 
     if (!movimientoId) {
@@ -22,11 +28,32 @@ export default async function handler(req, res) {
       });
     }
 
+    const movimientoPropio = await sql`
+      SELECT movimiento_id
+      FROM movimientos
+      WHERE movimiento_id = ${movimientoId}
+        AND usuario_id = ${user.usuarioId}
+        AND workspace_id = ${workspaceId}
+        AND tipo_movimiento = 'GASTO'
+      LIMIT 1;
+    `;
+
+    if (movimientoPropio.length === 0) {
+      return res.status(404).json({
+        ok: false,
+        error: "Movimiento no encontrado para el usuario actual",
+      });
+    }
+
     await sql`
       DELETE FROM movimiento_etiquetas
       WHERE movimiento_id = ${movimientoId}
         AND movimiento_id IN (
-          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${user.usuarioId}
+          SELECT movimiento_id
+          FROM movimientos
+          WHERE usuario_id = ${user.usuarioId}
+            AND workspace_id = ${workspaceId}
+            AND tipo_movimiento = 'GASTO'
         );
     `;
 
@@ -34,7 +61,11 @@ export default async function handler(req, res) {
       DELETE FROM detalle_movimiento
       WHERE movimiento_id = ${movimientoId}
         AND movimiento_id IN (
-          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${user.usuarioId}
+          SELECT movimiento_id
+          FROM movimientos
+          WHERE usuario_id = ${user.usuarioId}
+            AND workspace_id = ${workspaceId}
+            AND tipo_movimiento = 'GASTO'
         );
     `;
 
@@ -42,14 +73,20 @@ export default async function handler(req, res) {
       DELETE FROM subconceptos_usd
       WHERE movimiento_id = ${movimientoId}
         AND movimiento_id IN (
-          SELECT movimiento_id FROM movimientos WHERE usuario_id = ${user.usuarioId}
+          SELECT movimiento_id
+          FROM movimientos
+          WHERE usuario_id = ${user.usuarioId}
+            AND workspace_id = ${workspaceId}
+            AND tipo_movimiento = 'GASTO'
         );
     `;
 
     await sql`
       DELETE FROM movimientos
       WHERE movimiento_id = ${movimientoId}
-        AND usuario_id = ${user.usuarioId};
+        AND usuario_id = ${user.usuarioId}
+        AND workspace_id = ${workspaceId}
+        AND tipo_movimiento = 'GASTO';
     `;
 
     return res.status(200).json({
