@@ -3050,6 +3050,16 @@ if (!authUser) {
                 Agregar desglose
               </button>
             </div>
+
+            <div style={{ marginTop:8,fontSize:11,color:"#94a3b8",lineHeight:1.45 }}>
+              Usá desglose cuando un mismo pago incluye varios ítems. Si pagaste con medios distintos, cargalos como movimientos separados.
+            </div>
+
+            {form.tipoGasto === "detalle" && (
+              <div style={{ marginTop:8,fontSize:12,color:"#38bdf8",background:"rgba(30,58,95,.16)",border:"1px solid #38bdf8",borderRadius:12,padding:"9px 10px",lineHeight:1.45 }}>
+                Este gasto se guardará como un solo movimiento con ítems internos.
+              </div>
+            )}
           </div>
 
           {form.servicio && gastoCompuestoExistente && (
