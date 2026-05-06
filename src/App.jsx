@@ -1003,18 +1003,50 @@ const calcularMontoARSParaDuplicado = (mov = {}) => {
 const guardarGasto = async (extra = {}) => {
   let f = { ...form, ...extra };
 
-  if (!f.servicio) {
-    toast_("Completá el concepto", "err");
+  const conceptoLimpio = String(f.servicio || "").trim();
+  const montoNumero = Number(f.monto || 0);
+  const diaNumero = Number(f.dia || 0);
+  const ultimoDiaMes = new Date(mes.y, mes.m + 1, 0).getDate();
+  const esDetalle = f.tipoGasto === "detalle";
+  const medioPagoValido =
+    !!f.medioPagoId &&
+    f.medioPagoId !== "mp_sin_definir";
+
+  const categoriaValida =
+    !!f.categoriaGastoId;
+
+  if (!conceptoLimpio) {
+    toast_("Escribí el concepto del gasto antes de guardar.", "err");
     return;
   }
 
-  if (f.tipoGasto !== "detalle" && !f.monto) {
-    toast_("Ingresá el monto", "err");
+  f = {
+    ...f,
+    servicio: conceptoLimpio,
+  };
+
+  if (!Number.isInteger(diaNumero) || diaNumero < 1 || diaNumero > ultimoDiaMes) {
+    toast_(`Ingresá un día válido entre 1 y ${ultimoDiaMes}.`, "err");
     return;
   }
 
-  if (f.tipoGasto === "detalle" && (!f.subconceptos || f.subconceptos.length === 0)) {
-    toast_("Primero agregá ítems al desglose y tocá ‘Guardar desglose y volver’", "err");
+  if (!medioPagoValido) {
+    toast_("Seleccioná un medio de pago para evitar que quede como Sin definir.", "err");
+    return;
+  }
+
+  if (!categoriaValida) {
+    toast_("Seleccioná una categoría en Más opciones para clasificar bien el gasto.", "err");
+    return;
+  }
+
+  if (!esDetalle && (!Number.isFinite(montoNumero) || montoNumero <= 0)) {
+    toast_("Ingresá un monto mayor a cero.", "err");
+    return;
+  }
+
+  if (esDetalle && (!f.subconceptos || f.subconceptos.length === 0)) {
+    toast_("Primero agregá ítems al desglose y tocá ‘Guardar desglose y volver’.", "err");
     abrirSubconceptosConCotizacion({
       ...f,
       id: "new_" + Date.now(),
