@@ -1375,6 +1375,31 @@ try {
   const handleEditSave = async (gastoEditado) => {
   const key = editingMesKey || mesKey;
 
+  const estadoAnterior = String(editingGasto?.estado || "").toLowerCase();
+  const estadoNuevo = String(gastoEditado?.estado || "").toLowerCase();
+  const sinVencimiento = !String(gastoEditado?.vencimiento || "").trim();
+  const pasaAPendienteSinVencimiento =
+    estadoAnterior === "pagado" &&
+    estadoNuevo === "pendiente" &&
+    sinVencimiento;
+
+  if (pasaAPendienteSinVencimiento) {
+    const guardarIgual = await pedirConfirmacion({
+      title: "Pendiente sin vencimiento",
+      message: "Este gasto pasó de Pagado a Pendiente y no tiene fecha de vencimiento.",
+      note: "Podés guardarlo igual, pero no aparecerá en Vence con una fecha clara. Si querés agregar una fecha, volvés al formulario y completás el vencimiento.",
+      icon: "⚠️",
+      variant: "warn",
+      confirmLabel: "Guardar igual",
+      cancelLabel: "Agregar vencimiento",
+    });
+
+    if (!guardarIgual) {
+      toast_("Agregá una fecha de vencimiento antes de guardar.", "warn");
+      return;
+    }
+  }
+
   try {
 	  await actualizarGasto({
       id: gastoEditado.id,
@@ -1510,6 +1535,25 @@ const handleSubconceptosSave = (items) => {
 
     const nuevoEstado =
       gastoActual.estado === "pagado" ? "pendiente" : "pagado";
+
+    if (nuevoEstado === "pendiente" && !String(gastoActual.vencimiento || "").trim()) {
+      const marcarIgual = await pedirConfirmacion({
+        title: "Pendiente sin vencimiento",
+        message: "Este gasto quedará pendiente sin fecha de vencimiento.",
+        note: "Podés marcarlo igual o abrir la edición para agregar una fecha y verlo correctamente en Vence.",
+        icon: "⚠️",
+        variant: "warn",
+        confirmLabel: "Marcar igual",
+        cancelLabel: "Agregar vencimiento",
+      });
+
+      if (!marcarIgual) {
+        setEditingGasto({ ...gastoActual, estado: "pendiente" });
+        setEditingMesKey(mesKey);
+        toast_("Agregá el vencimiento y guardá los cambios.", "warn");
+        return;
+      }
+    }
 
     await actualizarGasto({
       id: gastoActual.id,
