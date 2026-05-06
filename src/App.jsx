@@ -2835,20 +2835,20 @@ if (!authUser) {
                   placeholder="Ej: Caruso, Nafta, Panadería"
                   value={form.servicio}
                   onChange={e=>{
-                    const val=e.target.value;
-                    setMostrarTodosConceptos(false);
-                    setForm(f=>({
-                      ...f,
-                      conceptoId:"",
-                      servicio:val,
-                      categoriaGastoId:f.categoriaGastoId||categoriaGastoDesdeServicio(val),
-                      etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(val),
-                      categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
-                      formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
-                      decisionManual:false,
-                      crearConceptoPendiente:false
-                    }));
-                  }}
+  const val=e.target.value;
+  setMostrarTodosConceptos(false);
+  setForm(f=>({
+    ...f,
+    conceptoId:"",
+    servicio:val,
+    categoriaGastoId:"",
+    etiquetasIds:[],
+    categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
+    formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
+    decisionManual:false,
+    crearConceptoPendiente:false
+  }));
+}}
                   style={{ paddingRight: form.servicio ? 42 : undefined }}
                 />
 
@@ -2858,13 +2858,14 @@ if (!authUser) {
                     onClick={()=>{
                       setMostrarTodosConceptos(false);
                       setForm(f=>({
-                        ...f,
-                        conceptoId:"",
-                        servicio:"",
-                        etiquetasIds:[],
-                        decisionManual:false,
-                        crearConceptoPendiente:false
-                      }));
+  ...f,
+  conceptoId:"",
+  servicio:"",
+  categoriaGastoId:"",
+  etiquetasIds:[],
+  decisionManual:false,
+  crearConceptoPendiente:false
+}));
                     }}
                     style={{
                       position:"absolute",
@@ -3050,7 +3051,7 @@ if (!authUser) {
                   <button
                     key={cg.id}
                     className="pb"
-                    onClick={()=>setForm(f=>({...f,categoriaGastoId:cg.id}))}
+                    onClick={()=>setForm(f=>({...f,categoriaGastoId:cg.id, decisionManual:true}))}
                     style={{ background:form.categoriaGastoId===cg.id?(cg.color||"#38bdf8"):"#1e1e2e",color:form.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
                   >
                     {cg.nombre}
