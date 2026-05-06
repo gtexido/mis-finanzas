@@ -1014,8 +1014,7 @@ const guardarGasto = async (extra = {}) => {
 
   const instrumentoValido =
     !!f.instrumentoId &&
-    f.instrumentoId !== "ins_sin_definir" &&
-    f.instrumentoId !== "ins_manual";
+    f.instrumentoId !== "ins_sin_definir";
 
   const categoriaValida =
     !!f.categoriaGastoId;
@@ -1041,7 +1040,7 @@ const guardarGasto = async (extra = {}) => {
   }
 
   if (!instrumentoValido) {
-    toast_("Seleccioná cómo pagaste en Más opciones: débito, crédito, transferencia, efectivo o débito automático.", "err");
+    toast_("Seleccioná cómo pagaste en Más opciones: manual, débito, crédito, transferencia, efectivo o débito automático.", "err");
     return;
   }
 
@@ -3038,7 +3037,7 @@ if (!authUser) {
               <span style={lbl}>¿CÓMO PAGASTE?</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {(cfg.instrumentosPago || [])
-                  .filter(ins => !["ins_manual", "ins_sin_definir"].includes(ins.id))
+                  .filter(ins => ins.id !== "ins_sin_definir")
                   .map(ins=>(
                   <button
                     key={ins.id}
