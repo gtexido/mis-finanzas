@@ -1130,7 +1130,7 @@ const guardarGasto = async (extra = {}) => {
     }
   }
 
-if (!f.conceptoId && f.crearConceptoPendiente && !f.decisionManual) {
+if (!f.conceptoId && f.crearConceptoPendiente) {
   try {
     const nombreConcepto = String(f.servicio || "").trim();
 
@@ -1141,7 +1141,6 @@ if (!f.conceptoId && f.crearConceptoPendiente && !f.decisionManual) {
 
     const conceptoCreado = await crearConcepto({
       nombre: nombreConcepto,
-      workspaceId: "ws_default",
       tipoMovimiento: "GASTO",
       categoriaGastoId: f.categoriaGastoId || "cg_otros",
       medioPagoId: f.medioPagoId || "mp_sin_definir",
@@ -1154,11 +1153,26 @@ if (!f.conceptoId && f.crearConceptoPendiente && !f.decisionManual) {
     const cfgActualizada = mapCatalogosDesdeApi(catalogosApi, tc);
     setCfg(cfgActualizada);
 
+    const conceptoCreadoId =
+      conceptoCreado?.concepto_id || conceptoCreado?.conceptoId || conceptoCreado?.id;
+
     const conceptoActualizado =
-      (cfgActualizada.conceptos || []).find((c) => c.id === conceptoCreado.concepto_id) ||
+      (cfgActualizada.conceptos || []).find((c) => c.id === conceptoCreadoId) ||
       (cfgActualizada.conceptos || []).find(
         (c) => String(c.nombre || "").trim().toLowerCase() === nombreConcepto.toLowerCase()
-      );
+      ) ||
+      (conceptoCreadoId
+        ? {
+            id: conceptoCreadoId,
+            conceptoId: conceptoCreadoId,
+            nombre: conceptoCreado?.nombre || nombreConcepto,
+            medioPagoId: conceptoCreado?.medio_pago_id || f.medioPagoId || "mp_sin_definir",
+            instrumentoId: conceptoCreado?.instrumento_id || f.instrumentoId || "ins_manual",
+            categoriaGastoId: conceptoCreado?.categoria_gasto_id || f.categoriaGastoId || "cg_otros",
+            etiquetasIds: f.etiquetasIds || [],
+            monedaDefault: conceptoCreado?.moneda_default || f.moneda || "ARS",
+          }
+        : null);
 
     if (conceptoActualizado) {
       f = {
@@ -2798,7 +2812,8 @@ if (!authUser) {
                       etiquetasIds:f.etiquetasIds?.length?f.etiquetasIds:etiquetasDesdeServicio(val),
                       categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
                       formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
-                      decisionManual:false
+                      decisionManual:false,
+                      crearConceptoPendiente:false
                     }));
                   }}
                   style={{ paddingRight: form.servicio ? 42 : undefined }}
@@ -2814,7 +2829,8 @@ if (!authUser) {
                         conceptoId:"",
                         servicio:"",
                         etiquetasIds:[],
-                        decisionManual:false
+                        decisionManual:false,
+                        crearConceptoPendiente:false
                       }));
                     }}
                     style={{
@@ -3044,7 +3060,6 @@ if (!authUser) {
                   ...f,
                   tipoGasto:"simple",
                   accionCompuesto:"nuevo",
-                  decisionManual:true,
                   subconceptos:[]
                 }))}
                 style={{
@@ -3061,7 +3076,6 @@ if (!authUser) {
                 onClick={() => setForm((f) => ({
                   ...f,
                   tipoGasto:"detalle",
-                  decisionManual:true,
                   monto:""
                 }))}
                 style={{
