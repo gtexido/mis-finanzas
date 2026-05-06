@@ -2287,6 +2287,8 @@ const GastoRow=({item})=>{
     { id:"dia", label:"Día", ok:diaCargaOk, detalle:diaCargaOk ? `Día ${form.dia}` : `Falta un día válido entre 1 y ${ultimoDiaCarga}` },
   ];
   const faltantesCargaPreview = validacionesCargaPreview.filter((item) => !item.ok);
+  const datosCompletosCarga = validacionesCargaPreview.length - faltantesCargaPreview.length;
+  const progresoCargaPct = Math.round((datosCompletosCarga / Math.max(validacionesCargaPreview.length, 1)) * 100);
   const cargaListaParaGuardar = faltantesCargaPreview.length === 0;
   const requiereOpcionesAvanzadasCarga = faltantesCargaPreview.some((item) => ["instrumento","categoria"].includes(item.id));
  
@@ -3038,33 +3040,49 @@ if (!authUser) {
               )}
             </div>
 
-            <div style={{ marginBottom:12,background:cargaListaParaGuardar?"rgba(20,83,45,.18)":"#0f172a",border:cargaListaParaGuardar?"1px solid #22c55e55":"1px solid #1e293b",borderRadius:14,padding:"12px 14px" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10 }}>
-                <div>
-                  <div style={{ fontSize:11,color:cargaListaParaGuardar?"#4ade80":"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Antes de guardar</div>
-                  <div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>
-                    {cargaListaParaGuardar ? "Todo listo para registrar en Neon." : `Faltan ${faltantesCargaPreview.length} dato(s) para evitar registros incompletos.`}
+            <div style={{ marginBottom:14,background:cargaListaParaGuardar?"linear-gradient(135deg,rgba(20,83,45,.30),rgba(15,23,42,.92))":"linear-gradient(135deg,rgba(124,58,237,.20),rgba(15,23,42,.96))",border:cargaListaParaGuardar?"1px solid rgba(34,197,94,.35)":"1px solid rgba(124,58,237,.35)",borderRadius:20,padding:"14px 14px 13px",boxShadow:"0 14px 32px rgba(0,0,0,.24)" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
+                <div style={{ minWidth:0 }}>
+                  <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:5 }}>
+                    <span style={{ width:26,height:26,borderRadius:12,display:"inline-flex",alignItems:"center",justifyContent:"center",background:cargaListaParaGuardar?"rgba(34,197,94,.18)":"rgba(124,58,237,.18)",border:cargaListaParaGuardar?"1px solid rgba(34,197,94,.35)":"1px solid rgba(167,139,250,.35)",fontSize:14 }}>
+                      {cargaListaParaGuardar ? "✓" : "✨"}
+                    </span>
+                    <div>
+                      <div style={{ fontSize:13,color:cargaListaParaGuardar?"#bbf7d0":"#ddd6fe",fontWeight:900,letterSpacing:.2 }}>Revisión rápida</div>
+                      <div style={{ fontSize:11,color:"#94a3b8",marginTop:1,lineHeight:1.35 }}>
+                        {cargaListaParaGuardar ? "Listo para guardar sin ruido en la base." : "Te guío para completar solo lo necesario."}
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <span style={{ fontSize:11,fontWeight:900,borderRadius:999,padding:"5px 9px",background:cargaListaParaGuardar?"#14532d":"#422006",color:cargaListaParaGuardar?"#4ade80":"#fb923c",whiteSpace:"nowrap" }}>
-                  {cargaListaParaGuardar ? "Listo" : "Revisar"}
-                </span>
+                <div style={{ textAlign:"right",flexShrink:0 }}>
+                  <div style={{ fontSize:18,fontWeight:950,color:cargaListaParaGuardar?"#4ade80":"#a78bfa",lineHeight:1 }}>{datosCompletosCarga}/{validacionesCargaPreview.length}</div>
+                  <div style={{ fontSize:10,color:"#64748b",fontWeight:800,textTransform:"uppercase",letterSpacing:.7 }}>completo</div>
+                </div>
               </div>
 
-              <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:7,marginBottom:10 }}>
+              <div style={{ height:6,background:"rgba(30,41,59,.9)",borderRadius:999,overflow:"hidden",marginBottom:12 }}>
+                <div style={{ width:`${progresoCargaPct}%`,height:"100%",borderRadius:999,background:cargaListaParaGuardar?"linear-gradient(90deg,#22c55e,#86efac)":"linear-gradient(90deg,#7c3aed,#38bdf8)",transition:"width .25s ease" }} />
+              </div>
+
+              <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:12 }}>
                 {validacionesCargaPreview.map((item)=>(
-                  <div key={item.id} style={{ display:"flex",alignItems:"flex-start",gap:8,background:item.ok?"rgba(34,197,94,.08)":"rgba(251,146,60,.08)",border:item.ok?"1px solid rgba(34,197,94,.22)":"1px solid rgba(251,146,60,.24)",borderRadius:12,padding:"8px 9px" }}>
-                    <span style={{ width:18,height:18,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,background:item.ok?"#14532d":"#422006",color:item.ok?"#4ade80":"#fb923c",flexShrink:0 }}>{item.ok?"✓":"!"}</span>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:12,fontWeight:900,color:item.ok?"#e2e8f0":"#fed7aa" }}>{item.label}</div>
-                      <div style={{ fontSize:11,color:item.ok?"#94a3b8":"#fb923c",lineHeight:1.35,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.detail}</div>
-                    </div>
+                  <div key={item.id} title={item.detail} style={{ display:"inline-flex",alignItems:"center",gap:6,maxWidth:"100%",background:item.ok?"rgba(34,197,94,.10)":"rgba(251,146,60,.10)",border:item.ok?"1px solid rgba(34,197,94,.22)":"1px solid rgba(251,146,60,.26)",borderRadius:999,padding:"7px 9px" }}>
+                    <span style={{ width:17,height:17,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,background:item.ok?"#14532d":"#422006",color:item.ok?"#86efac":"#fdba74",flexShrink:0 }}>{item.ok?"✓":"!"}</span>
+                    <span style={{ fontSize:12,fontWeight:850,color:item.ok?"#dbeafe":"#fed7aa",whiteSpace:"nowrap" }}>{item.label}</span>
                   </div>
                 ))}
               </div>
 
-              <div style={{ fontSize:11,color:"#64748b",lineHeight:1.45 }}>
-                Resumen: <strong style={{ color:"#cbd5e1" }}>{resumenPreviewCarga.join(" · ")}</strong>
+              <div style={{ background:"rgba(2,6,23,.36)",border:"1px solid rgba(148,163,184,.12)",borderRadius:15,padding:"10px 11px",marginBottom:requiereOpcionesAvanzadasCarga&&!mostrarOpcionesCarga?10:0 }}>
+                <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:.9,textTransform:"uppercase",marginBottom:4 }}>
+                  {cargaListaParaGuardar ? "Se guardará como" : "Pendiente"}
+                </div>
+                <div style={{ fontSize:12,color:cargaListaParaGuardar?"#e2e8f0":"#c4b5fd",fontWeight:800,lineHeight:1.45 }}>
+                  {cargaListaParaGuardar
+                    ? resumenPreviewCarga.join(" · ")
+                    : faltantesCargaPreview.map((item)=>item.label).join(" · ")}
+                </div>
               </div>
 
               {!mostrarOpcionesCarga && requiereOpcionesAvanzadasCarga && (
@@ -3072,9 +3090,9 @@ if (!authUser) {
                   type="button"
                   className="pb"
                   onClick={()=>setMostrarOpcionesCarga(true)}
-                  style={{ width:"100%",marginTop:10,background:"#1a1230",color:"#a78bfa",border:"1px solid #7c3aed66",fontSize:12,padding:"9px 10px" }}
+                  style={{ width:"100%",marginTop:10,background:"linear-gradient(90deg,#6d28d9,#7c3aed)",color:"#fff",border:"1px solid rgba(167,139,250,.45)",fontSize:13,fontWeight:900,padding:"11px 12px",boxShadow:"0 10px 24px rgba(124,58,237,.22)" }}
                 >
-                  Completar cómo pagaste y categoría
+                  Completar datos faltantes →
                 </button>
               )}
             </div>
