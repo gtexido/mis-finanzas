@@ -3040,61 +3040,26 @@ if (!authUser) {
               )}
             </div>
 
-            <div style={{ marginBottom:14,background:cargaListaParaGuardar?"linear-gradient(135deg,rgba(20,83,45,.30),rgba(15,23,42,.92))":"linear-gradient(135deg,rgba(124,58,237,.20),rgba(15,23,42,.96))",border:cargaListaParaGuardar?"1px solid rgba(34,197,94,.35)":"1px solid rgba(124,58,237,.35)",borderRadius:20,padding:"14px 14px 13px",boxShadow:"0 14px 32px rgba(0,0,0,.24)" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
-                <div style={{ minWidth:0 }}>
-                  <div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:5 }}>
-                    <span style={{ width:26,height:26,borderRadius:12,display:"inline-flex",alignItems:"center",justifyContent:"center",background:cargaListaParaGuardar?"rgba(34,197,94,.18)":"rgba(124,58,237,.18)",border:cargaListaParaGuardar?"1px solid rgba(34,197,94,.35)":"1px solid rgba(167,139,250,.35)",fontSize:14 }}>
-                      {cargaListaParaGuardar ? "✓" : "✨"}
-                    </span>
-                    <div>
-                      <div style={{ fontSize:13,color:cargaListaParaGuardar?"#bbf7d0":"#ddd6fe",fontWeight:900,letterSpacing:.2 }}>Revisión rápida</div>
-                      <div style={{ fontSize:11,color:"#94a3b8",marginTop:1,lineHeight:1.35 }}>
-                        {cargaListaParaGuardar ? "Listo para guardar sin ruido en la base." : "Te guío para completar solo lo necesario."}
-                      </div>
-                    </div>
+            <div style={{ marginBottom:14,background:"linear-gradient(135deg,#111827,#131025)",border:"1px solid rgba(124,58,237,.28)",borderRadius:18,padding:"12px 13px" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:8 }}>
+                <div>
+                  <div style={{ fontSize:12,color:cargaListaParaGuardar?"#86efac":"#ddd6fe",fontWeight:900 }}>
+                    {cargaListaParaGuardar ? "Listo para guardar" : "Faltan datos"}
+                  </div>
+                  <div style={{ fontSize:11,color:"#94a3b8",marginTop:2 }}>
+                    {datosCompletosCarga}/{validacionesCargaPreview.length} datos completos
                   </div>
                 </div>
-                <div style={{ textAlign:"right",flexShrink:0 }}>
-                  <div style={{ fontSize:18,fontWeight:950,color:cargaListaParaGuardar?"#4ade80":"#a78bfa",lineHeight:1 }}>{datosCompletosCarga}/{validacionesCargaPreview.length}</div>
-                  <div style={{ fontSize:10,color:"#64748b",fontWeight:800,textTransform:"uppercase",letterSpacing:.7 }}>completo</div>
+                <div style={{ width:70,height:6,background:"#1e1e2e",borderRadius:999,overflow:"hidden",flexShrink:0 }}>
+                  <div style={{ width:`${progresoCargaPct}%`,height:"100%",background:cargaListaParaGuardar?"#22c55e":"#7c3aed",borderRadius:999,transition:"width .25s ease" }} />
                 </div>
               </div>
 
-              <div style={{ height:6,background:"rgba(30,41,59,.9)",borderRadius:999,overflow:"hidden",marginBottom:12 }}>
-                <div style={{ width:`${progresoCargaPct}%`,height:"100%",borderRadius:999,background:cargaListaParaGuardar?"linear-gradient(90deg,#22c55e,#86efac)":"linear-gradient(90deg,#7c3aed,#38bdf8)",transition:"width .25s ease" }} />
+              <div style={{ fontSize:12,color:cargaListaParaGuardar?"#d1fae5":"#c4b5fd",fontWeight:800,lineHeight:1.45 }}>
+                {cargaListaParaGuardar
+                  ? resumenPreviewCarga.join(" · ")
+                  : `Pendiente: ${faltantesCargaPreview.map((item)=>item.label).join(" · ")}`}
               </div>
-
-              <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:12 }}>
-                {validacionesCargaPreview.map((item)=>(
-                  <div key={item.id} title={item.detail} style={{ display:"inline-flex",alignItems:"center",gap:6,maxWidth:"100%",background:item.ok?"rgba(34,197,94,.10)":"rgba(251,146,60,.10)",border:item.ok?"1px solid rgba(34,197,94,.22)":"1px solid rgba(251,146,60,.26)",borderRadius:999,padding:"7px 9px" }}>
-                    <span style={{ width:17,height:17,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,background:item.ok?"#14532d":"#422006",color:item.ok?"#86efac":"#fdba74",flexShrink:0 }}>{item.ok?"✓":"!"}</span>
-                    <span style={{ fontSize:12,fontWeight:850,color:item.ok?"#dbeafe":"#fed7aa",whiteSpace:"nowrap" }}>{item.label}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ background:"rgba(2,6,23,.36)",border:"1px solid rgba(148,163,184,.12)",borderRadius:15,padding:"10px 11px",marginBottom:requiereOpcionesAvanzadasCarga&&!mostrarOpcionesCarga?10:0 }}>
-                <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:.9,textTransform:"uppercase",marginBottom:4 }}>
-                  {cargaListaParaGuardar ? "Se guardará como" : "Pendiente"}
-                </div>
-                <div style={{ fontSize:12,color:cargaListaParaGuardar?"#e2e8f0":"#c4b5fd",fontWeight:800,lineHeight:1.45 }}>
-                  {cargaListaParaGuardar
-                    ? resumenPreviewCarga.join(" · ")
-                    : faltantesCargaPreview.map((item)=>item.label).join(" · ")}
-                </div>
-              </div>
-
-              {!mostrarOpcionesCarga && requiereOpcionesAvanzadasCarga && (
-                <button
-                  type="button"
-                  className="pb"
-                  onClick={()=>setMostrarOpcionesCarga(true)}
-                  style={{ width:"100%",marginTop:10,background:"linear-gradient(90deg,#6d28d9,#7c3aed)",color:"#fff",border:"1px solid rgba(167,139,250,.45)",fontSize:13,fontWeight:900,padding:"11px 12px",boxShadow:"0 10px 24px rgba(124,58,237,.22)" }}
-                >
-                  Completar datos faltantes →
-                </button>
-              )}
             </div>
 
             <div style={{ marginBottom:12 }}>
@@ -3109,7 +3074,7 @@ if (!authUser) {
                       medioPagoId:mp.id,
                       categoria:categoriaLegacyDesdeMedioPagoId(mp.id)
                     }))}
-                    style={{ background:form.medioPagoId===mp.id?(mp.color||"#38bdf8"):"#1e1e2e",color:form.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                    style={{ background:form.medioPagoId===mp.id?(mp.color||"#38bdf8"):"#1e1e2e",color:form.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"7px 10px",border:form.medioPagoId===mp.id?"1px solid rgba(255,255,255,.18)":"1px solid transparent" }}
                   >
                     {mp.nombre}
                   </button>
@@ -3117,16 +3082,6 @@ if (!authUser) {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="pb"
-              onClick={() => setMostrarOpcionesCarga((v) => !v)}
-              style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
-            >
-              {mostrarOpcionesCarga ? "Ocultar opciones" : "Más opciones"}
-            </button>
-
-            {mostrarOpcionesCarga && <>
             <div style={{ marginBottom:12 }}>
               <span style={lbl}>¿CÓMO PAGASTE?</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
@@ -3146,7 +3101,7 @@ if (!authUser) {
                       formaPago:formaPagoLegacyDesdeInstrumentoId(ins.id),
                       decisionManual:true
                     }))}
-                    style={{ background:form.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:form.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                    style={{ background:form.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:form.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"7px 10px",border:form.instrumentoId===ins.id?"1px solid rgba(255,255,255,.18)":"1px solid transparent" }}
                   >
                     {ins.nombre}
                   </button>
@@ -3162,7 +3117,7 @@ if (!authUser) {
                     key={cg.id}
                     className="pb"
                     onClick={()=>setForm(f=>({...f,categoriaGastoId:cg.id, decisionManual:true}))}
-                    style={{ background:form.categoriaGastoId===cg.id?(cg.color||"#38bdf8"):"#1e1e2e",color:form.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                    style={{ background:form.categoriaGastoId===cg.id?(cg.color||"#38bdf8"):"#1e1e2e",color:form.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"7px 10px",border:form.categoriaGastoId===cg.id?"1px solid rgba(255,255,255,.18)":"1px solid transparent" }}
                   >
                     {cg.nombre}
                   </button>
@@ -3170,28 +3125,38 @@ if (!authUser) {
               </div>
             </div>
 
-            <div>
-              <span style={lbl}>TIPO</span>
-              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                {(cfg.etiquetas || []).map(tag=>{
-                  const activo=(form.etiquetasIds||[]).includes(tag.id);
-                  return (
-                    <button
-                      key={tag.id}
-                      className="pb"
-                      onClick={()=>setForm(f=>{
-                        const actuales=f.etiquetasIds||[];
-                        return {...f,etiquetasIds: actuales.includes(tag.id)?actuales.filter(x=>x!==tag.id):[...actuales,tag.id]};
-                      })}
-                      style={{ background:activo?(tag.color||"#38bdf8"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
-                    >
-                      {tag.nombre}
-                    </button>
-                  );
-                })}
+            <button
+              type="button"
+              className="pb"
+              onClick={() => setMostrarOpcionesCarga((v) => !v)}
+              style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
+            >
+              {mostrarOpcionesCarga ? "Ocultar opciones avanzadas" : "Más opciones avanzadas"}
+            </button>
+
+            {mostrarOpcionesCarga && (
+              <div style={{ marginBottom:12 }}>
+                <span style={lbl}>TIPO / ETIQUETAS</span>
+                <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
+                  {(cfg.etiquetas || []).map(tag=>{
+                    const activo=(form.etiquetasIds||[]).includes(tag.id);
+                    return (
+                      <button
+                        key={tag.id}
+                        className="pb"
+                        onClick={()=>setForm(f=>{
+                          const actuales=f.etiquetasIds||[];
+                          return {...f,etiquetasIds: actuales.includes(tag.id)?actuales.filter(x=>x!==tag.id):[...actuales,tag.id]};
+                        })}
+                        style={{ background:activo?(tag.color||"#38bdf8"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
+                      >
+                        {tag.nombre}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-            </>}
+            )}
           </div>
 
           {mostrarOpcionesCarga && <>
