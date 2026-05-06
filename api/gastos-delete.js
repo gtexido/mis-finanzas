@@ -70,18 +70,6 @@ export default async function handler(req, res) {
     `;
 
     await sql`
-      DELETE FROM subconceptos_usd
-      WHERE movimiento_id = ${movimientoId}
-        AND movimiento_id IN (
-          SELECT movimiento_id
-          FROM movimientos
-          WHERE usuario_id = ${user.usuarioId}
-            AND workspace_id = ${workspaceId}
-            AND tipo_movimiento = 'GASTO'
-        );
-    `;
-
-    await sql`
       DELETE FROM movimientos
       WHERE movimiento_id = ${movimientoId}
         AND usuario_id = ${user.usuarioId}

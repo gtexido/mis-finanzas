@@ -9,4 +9,5 @@ dist
 .DS_Store
 
 *.zip
-mis-finanzas-source-corregido/
+.vercel
+.env*.local

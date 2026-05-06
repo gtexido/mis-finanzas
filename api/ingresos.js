@@ -92,12 +92,12 @@ export default async function handler(req, res) {
 
     const movimientoId = generarId("mov");
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
-    const fuenteVisible = fuenteVisibleIngreso(fuente);
-    const fuenteIngresoId = mapFuenteIngresoId(fuenteVisible, user.usuarioId);
     const userWorkspace = await resolveWorkspaceForUser(sql, user);
     const workspaceId = userWorkspace.workspaceId || "ws_default";
     user.workspaceId = workspaceId;
     user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
+    const fuenteVisible = fuenteVisibleIngreso(fuente);
+    const fuenteIngresoId = mapFuenteIngresoId(fuenteVisible, user.usuarioId);
 
     await sql`
       INSERT INTO movimientos (

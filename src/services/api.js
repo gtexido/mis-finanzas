@@ -65,7 +65,12 @@ export async function getCatalogos() {
   return json.data;
 }
 
-export async function getMovimientos(periodo = "2026-04") {
+function getPeriodoActual() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export async function getMovimientos(periodo = getPeriodoActual()) {
   const res = await fetch(`/api/movimientos?periodo=${periodo}`, { headers: authHeaders() });
   const json = await res.json();
 
@@ -192,7 +197,7 @@ export async function getCotizacionPorFecha(fecha, tipo = "tarjeta") {
     monedaDestino: "ARS",
   });
 
-  const res = await fetch(`/api/cotizaciones?${params.toString()}`);
+  const res = await fetch(`/api/cotizaciones?${params.toString()}`, { headers: authHeaders() });
   const json = await res.json();
 
   if (!json.ok) {

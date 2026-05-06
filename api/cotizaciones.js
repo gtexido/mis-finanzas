@@ -15,6 +15,9 @@ export default async function handler(req, res) {
     const sql = neon(process.env.DATABASE_URL);
 
     if (req.method === "GET") {
+      const user = requireAuth(req, res);
+      if (!user) return;
+
       const {
         fecha,
         tipo = "tarjeta",

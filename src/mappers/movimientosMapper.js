@@ -1,4 +1,9 @@
-export const mapMovimientosDesdeApi = (apiData, periodo = "2026-04") => {
+function getPeriodoActual() {
+  const hoy = new Date();
+  return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
+}
+
+export const mapMovimientosDesdeApi = (apiData, periodo = getPeriodoActual()) => {
   const payload =
     apiData?.data && !Array.isArray(apiData.data)
       ? apiData.data

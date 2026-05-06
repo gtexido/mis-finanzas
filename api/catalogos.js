@@ -21,20 +21,20 @@ export default async function handler(req, res) {
     user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
 
     const categorias = await sql`
-      SELECT * FROM categorias ORDER BY orden_visual;
+      SELECT * FROM categorias WHERE activa = true ORDER BY orden_visual;
     `;
 
     const formasPago = await sql`
-      SELECT * FROM formas_pago ORDER BY orden_visual;
+      SELECT * FROM formas_pago WHERE activa = true ORDER BY orden_visual;
     `;
 
     // Legacy: se mantiene para compatibilidad con pantallas existentes.
     const servicios = await sql`
-      SELECT * FROM servicios ORDER BY nombre;
+      SELECT * FROM servicios WHERE activo = true ORDER BY nombre;
     `;
 
     const fuentesIngreso = await sql`
-      SELECT * FROM fuentes_ingreso ORDER BY orden_visual;
+      SELECT * FROM fuentes_ingreso WHERE activa = true ORDER BY orden_visual;
     `;
 
     const parametros = await sql`
