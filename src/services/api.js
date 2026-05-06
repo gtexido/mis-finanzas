@@ -135,6 +135,24 @@ export async function actualizarGasto(payload) {
   return json.data;
 }
 
+export async function actualizarEstadoGasto(payload) {
+  const res = await fetch("/api/gastos-estado", {
+    method: "PATCH",
+    headers: authHeaders({
+      "Content-Type": "application/json",
+    }),
+    body: JSON.stringify(payload),
+  });
+
+  const json = await res.json();
+
+  if (!json.ok) {
+    throw new Error(json.error || "Error al actualizar estado del gasto");
+  }
+
+  return json.data;
+}
+
 export async function crearIngreso(payload) {
   const res = await fetch("/api/ingresos", {
     method: "POST",

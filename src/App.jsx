@@ -11,6 +11,7 @@ import {
   crearGasto,
   eliminarGasto,
   actualizarGasto,
+  actualizarEstadoGasto,
   crearIngreso,
   eliminarIngreso,
   guardarSueldoNeon,
@@ -3510,20 +3511,9 @@ if (!authUser) {
           return;
         }
 
-        await actualizarGasto({
-          id: gastoActual.id,
-          periodo: itemMesKey,
-          dia: gastoActual.dia,
-          categoria: gastoActual.categoria,
-          formaPago: gastoActual.formaPago,
-          servicio: gastoActual.servicio,
-          monto: Number(gastoActual.monto || 0),
-          moneda: gastoActual.moneda || "ARS",
+        await actualizarEstadoGasto({
+          movimientoId: gastoActual.id,
           estado: "pagado",
-          observacion: gastoActual.observacion || "",
-          vencimiento: gastoActual.vencimiento || null,
-          esRecurrente: !!gastoActual.esRecurrente,
-          subconceptos: gastoActual.subconceptos || [],
         });
 
         const movimientosApi = await getMovimientos(itemMesKey);
