@@ -1,23 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
-
-function generarId(prefijo = "mov") {
-  return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
-}
-
-function toNumber(value, fallback = 0) {
-  const n = Number(value);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function normalizarMoneda(moneda) {
-  return String(moneda || "ARS").trim().toUpperCase();
-}
-
-function normalizarFecha(fecha) {
-  if (!fecha) return null;
-  return String(fecha).slice(0, 10);
-}
+import { generarId, normalizarFecha, normalizarListaIds, normalizarMoneda, toNumber } from "./_db.js";
 
 function mapCategoriaId(categoria) {
   return categoria ? `cat_${categoria}` : null;
@@ -32,12 +15,6 @@ function mapFormaPagoId(formaPago) {
   };
 
   return map[formaPago] || null;
-}
-
-function normalizarListaIds(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.filter(Boolean);
-  return [value].filter(Boolean);
 }
 
 async function obtenerConceptoActivo(sql, workspaceId, conceptoId) {

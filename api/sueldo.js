@@ -1,18 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
-
-function generarId(prefijo = "mov") {
-  return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
-}
-
-function fuenteDefaultPorUsuario(usuarioId) {
-  const defaults = {
-    usr_gustavo: "fi_gustavo",
-    usr_vane: "fi_vane",
-  };
-
-  return defaults[usuarioId] || "fi_vane";
-}
+import { fuenteDefaultPorUsuario, generarId } from "./_db.js";
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {

@@ -1,17 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
-
-function generarId(prefijo = "mov") {
-  return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
-}
-
-function normalizarTexto(value) {
-  return String(value || "")
-    .trim()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase();
-}
+import { fuenteDefaultPorUsuario, generarId, normalizarTexto } from "./_db.js";
 
 function fuenteVisibleIngreso(fuente) {
   const normalizada = normalizarTexto(fuente);
@@ -35,15 +24,6 @@ function fuenteVisibleIngreso(fuente) {
   };
 
   return map[normalizada] || String(fuente || "Otros").trim() || "Otros";
-}
-
-function fuenteDefaultPorUsuario(usuarioId) {
-  const defaults = {
-    usr_gustavo: "fi_gustavo",
-    usr_vane: "fi_vane",
-  };
-
-  return defaults[usuarioId] || "fi_vane";
 }
 
 function mapFuenteIngresoId(fuente, usuarioId) {

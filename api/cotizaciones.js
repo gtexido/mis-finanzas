@@ -1,14 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth } from "./_auth.js";
-
-function generarId(prefijo = "cot") {
-  return `${prefijo}_${Math.random().toString(36).slice(2, 14)}`;
-}
-
-function normalizarFecha(fecha) {
-  if (!fecha) return null;
-  return String(fecha).slice(0, 10);
-}
+import { generarId, normalizarFecha } from "./_db.js";
 
 export default async function handler(req, res) {
   try {
