@@ -182,6 +182,14 @@ const getMesActual = () => {
   };
 };
 const slug = (s) => s.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"")+"_"+Date.now();
+const slugKey = (s = "") =>
+  String(s || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+    .replace(/[^a-z0-9_]/g, "");
 const pct = (a,b) => b===0?null:Math.round(((a-b)/b)*100);
 const fmtMonto = (monto, moneda = "ARS") => {
   const n = Number(monto || 0);
@@ -609,7 +617,7 @@ useEffect(() => {
 
     if (categoriaId || nombreReal) {
       return {
-        id: categoriaId || `cat_real_${slug(nombreReal)}`,
+        id: categoriaId || `cat_real_${slugKey(nombreReal) || "sin_categoria"}`,
         label: nombreReal || "Sin categoría",
         color: g.categoriaGastoColor || categoriaCfg?.color || "#64748b",
         origen: "real",
@@ -668,7 +676,7 @@ const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
 return {
   // Agrupa por nombre visible, no por origen técnico.
   // Así "Mercado Pago" no se separa entre modelo nuevo y legacy.
-  id: `grupo_${slug(nombre)}`,
+  id: `grupo_${slugKey(nombre) || "sin_definir"}`,
   label: nombre,
   color:
     g.medioPagoColor ||
