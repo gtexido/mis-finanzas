@@ -333,19 +333,38 @@ useEffect(() => {
 // ======================================================
 const guardarGasto = async (extra = {}) => {
   const f = { ...form, ...extra };
+  const servicioLimpio = (f.servicio || "").trim();
+  const montoSimple = Number(f.monto || 0);
+  const totalDesglose = (f.subconceptos || []).reduce((a, s) => a + Number(s.monto ?? s.montoUSD ?? 0), 0);
+  const diaNumero = Number(f.dia);
 
-  if (!f.categoria || !f.servicio) {
-    toast_("Completá categoría y servicio", "err");
+  if (!f.categoria) {
+    toast_("Elegí una categoría para evitar gastos sin clasificar", "err");
     return;
   }
 
-  if (f.tipoGasto !== "detalle" && !f.monto) {
-    toast_("Ingresá el monto", "err");
+  if (!servicioLimpio || servicioLimpio.length < 2) {
+    toast_("Ingresá un concepto claro", "err");
     return;
   }
 
-  if (f.tipoGasto === "detalle" && (!f.subconceptos || f.subconceptos.length === 0)) {
-    toast_("Agregá al menos un ítem al desglose", "err");
+  if (!f.formaPago) {
+    toast_("Elegí cómo lo pagaste", "err");
+    return;
+  }
+
+  if (!diaNumero || diaNumero < 1 || diaNumero > 31) {
+    toast_("Revisá el día del gasto", "err");
+    return;
+  }
+
+  if (f.tipoGasto !== "detalle" && (!montoSimple || montoSimple <= 0)) {
+    toast_("Ingresá un monto mayor a cero", "err");
+    return;
+  }
+
+  if (f.tipoGasto === "detalle" && (!f.subconceptos || f.subconceptos.length === 0 || totalDesglose <= 0)) {
+    toast_("Agregá al menos un ítem válido al desglose", "err");
     return;
   }
 
@@ -435,7 +454,7 @@ const guardarGasto = async (extra = {}) => {
       dia: f.dia,
       categoria: f.categoria,
       formaPago: f.formaPago,
-      servicio: f.servicio,
+      servicio: servicioLimpio,
       monto: Number(f.monto || 0),
       moneda: f.moneda || "ARS",
       estado: f.estado || "pagado",
@@ -1173,13 +1192,31 @@ const GastoRow=({item})=>{
         {view==="cargar"&&(<>
           {(() => {
             const categoriaSeleccionada = cfg.categorias.find(c => c.id === form.categoria);
-            const conceptoListo = !!form.categoria && !!form.servicio;
-            const montoListo = form.tipoGasto === "detalle"
-              ? (form.subconceptos || []).length > 0
-              : !!form.monto;
-            const listoParaGuardar = conceptoListo && montoListo;
+            const conceptoNombre = (form.servicio || "").trim();
+            const categoriaListo = !!form.categoria;
+            const conceptoNombreListo = conceptoNombre.length >= 2;
+            const conceptoListo = categoriaListo && conceptoNombreListo;
             const totalDetalle = (form.subconceptos || []).reduce((a,s)=>a + Number(s.monto ?? s.montoUSD ?? 0),0);
             const montoPreview = form.tipoGasto === "detalle" ? totalDetalle : Number(form.monto || 0);
+            const montoListo = form.tipoGasto === "detalle"
+              ? (form.subconceptos || []).length > 0 && totalDetalle > 0
+              : Number(form.monto || 0) > 0;
+            const formaPagoListo = !!form.formaPago;
+            const diaNumero = Number(form.dia);
+            const diaListo = !!diaNumero && diaNumero >= 1 && diaNumero <= 31;
+            const problemasCriticos = [
+              !categoriaListo && "Elegí una categoría",
+              !conceptoNombreListo && "Ingresá un concepto claro",
+              !formaPagoListo && "Elegí cómo lo pagaste",
+              !montoListo && (form.tipoGasto === "detalle" ? "Agregá un desglose válido" : "Ingresá un monto mayor a cero"),
+              !diaListo && "Revisá el día del gasto",
+            ].filter(Boolean);
+            const advertencias = [
+              form.vencimiento && form.estado !== "pendiente" && "Con vencimiento se guardará como pendiente",
+              form.esRecurrente && "Quedará marcado como recurrente para replicarlo después",
+              form.accionCompuesto === "existente" && gastoCompuestoExistente && "Se sumará al gasto existente del mes",
+            ].filter(Boolean);
+            const listoParaGuardar = problemasCriticos.length === 0;
             const observacionRevision = form.observacion
               ? `${form.observacion} · Revisar`
               : "Revisar";
@@ -1306,6 +1343,25 @@ const GastoRow=({item})=>{
                 </div>
 
                 {form.servicio && (
+                  <div className="card" style={{padding:16,border:formaPagoListo?"1px solid #4ade8044":"1px solid #fb923c55",background:formaPagoListo?"#111827":"#1a1210"}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:12}}>
+                      <div>
+                        <div style={{fontSize:13,fontWeight:800}}>¿Cómo lo pagaste?</div>
+                        <div style={{fontSize:11,color:formaPagoListo?"#94a3b8":"#fb923c",marginTop:2}}>{formaPagoListo ? form.formaPago : "Necesario para que no quede como Sin definir"}</div>
+                      </div>
+                      {!formaPagoListo && <span style={{fontSize:10,color:"#fb923c",fontWeight:900,background:"#422006",border:"1px solid #fb923c55",borderRadius:999,padding:"4px 8px",whiteSpace:"nowrap"}}>Falta</span>}
+                    </div>
+                    <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:4}}>
+                      {(cfg.formasPago || []).map(fp => (
+                        <Chip key={fp} active={form.formaPago===fp} tone="violet" onClick={()=>setForm(f=>({...f,formaPago:fp}))} style={{whiteSpace:"nowrap"}}>
+                          {fp}
+                        </Chip>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {form.servicio && (
                   <div className="card" style={{padding:16,border:"1px solid #2a2a3e"}}>
                     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
                       <div>
@@ -1429,6 +1485,21 @@ const GastoRow=({item})=>{
                   </div>
                 )}
 
+                {form.servicio && (problemasCriticos.length > 0 || advertencias.length > 0) && (
+                  <div className="card" style={{padding:14,border:problemasCriticos.length>0?"1px solid #fb923c55":"1px solid #38bdf844",background:problemasCriticos.length>0?"#1a1210":"#0f1a2e"}}>
+                    <div style={{display:"flex",gap:10,alignItems:"flex-start"}}>
+                      <div style={{fontSize:20}}>{problemasCriticos.length>0?"🛡️":"ℹ️"}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:900,color:problemasCriticos.length>0?"#fb923c":"#38bdf8"}}>{problemasCriticos.length>0?"Antes de guardar":"Avisos de guardado"}</div>
+                        <div style={{marginTop:8,display:"grid",gap:6}}>
+                          {problemasCriticos.map((p,i)=><div key={`p-${i}`} style={{fontSize:12,color:"#fed7aa"}}>• {p}</div>)}
+                          {advertencias.map((a,i)=><div key={`a-${i}`} style={{fontSize:12,color:"#bae6fd"}}>• {a}</div>)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {form.servicio && (
                   <div style={{position:"sticky",bottom:76,zIndex:50,background:"linear-gradient(180deg,rgba(10,10,15,0) 0%,#0a0a0f 28%)",paddingTop:18,marginTop:-2}}>
                     <div style={{background:"#13131a",border:"1px solid #2a2a3e",borderRadius:20,padding:12,boxShadow:"0 -12px 40px rgba(0,0,0,.35)"}}>
@@ -1440,6 +1511,7 @@ const GastoRow=({item})=>{
                         <div style={{textAlign:"right",flexShrink:0}}>
                           <div style={{fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:800,color:listoParaGuardar?"#e2e8f0":"#64748b"}}>{montoListo ? fmtMonto(montoPreview, form.moneda) : "—"}</div>
                           <div style={{fontSize:10,color:form.estado==="pagado"?"#4ade80":"#fb923c",fontWeight:800}}>{form.estado==="pagado"?"PAGADO":"PENDIENTE"}</div>
+                          <div style={{fontSize:10,color:formaPagoListo?"#94a3b8":"#fb923c",marginTop:2}}>{form.formaPago || "Sin medio de pago"}</div>
                         </div>
                       </div>
 
