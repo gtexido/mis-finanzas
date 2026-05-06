@@ -1012,9 +1012,18 @@ const guardarGasto = async (extra = {}) => {
     !!f.medioPagoId &&
     f.medioPagoId !== "mp_sin_definir";
 
+  const instrumentoSeleccionado = (cfg.instrumentosPago || []).find((ins) => ins.id === f.instrumentoId);
+  const instrumentoNombreNormalizado = String(instrumentoSeleccionado?.nombre || "")
+    .trim()
+    .toLowerCase();
+  const instrumentoIdNormalizado = String(f.instrumentoId || "")
+    .trim()
+    .toLowerCase();
+
   const instrumentoValido =
     !!f.instrumentoId &&
-    f.instrumentoId !== "ins_sin_definir";
+    !instrumentoIdNormalizado.includes("sin_definir") &&
+    instrumentoNombreNormalizado !== "sin definir";
 
   const categoriaValida =
     !!f.categoriaGastoId;
@@ -3037,7 +3046,11 @@ if (!authUser) {
               <span style={lbl}>¿CÓMO PAGASTE?</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
                 {(cfg.instrumentosPago || [])
-                  .filter(ins => ins.id !== "ins_sin_definir")
+                  .filter((ins) => {
+                    const id = String(ins.id || "").trim().toLowerCase();
+                    const nombre = String(ins.nombre || "").trim().toLowerCase();
+                    return !id.includes("sin_definir") && nombre !== "sin definir";
+                  })
                   .map(ins=>(
                   <button
                     key={ins.id}
