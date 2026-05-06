@@ -1012,6 +1012,11 @@ const guardarGasto = async (extra = {}) => {
     !!f.medioPagoId &&
     f.medioPagoId !== "mp_sin_definir";
 
+  const instrumentoValido =
+    !!f.instrumentoId &&
+    f.instrumentoId !== "ins_sin_definir" &&
+    f.instrumentoId !== "ins_manual";
+
   const categoriaValida =
     !!f.categoriaGastoId;
 
@@ -1032,6 +1037,11 @@ const guardarGasto = async (extra = {}) => {
 
   if (!medioPagoValido) {
     toast_("Seleccioná un medio de pago para evitar que quede como Sin definir.", "err");
+    return;
+  }
+
+  if (!instrumentoValido) {
+    toast_("Seleccioná cómo pagaste en Más opciones: débito, crédito, transferencia, efectivo o débito automático.", "err");
     return;
   }
 
@@ -1177,7 +1187,7 @@ if (!f.conceptoId && f.crearConceptoPendiente) {
       tipoMovimiento: "GASTO",
       categoriaGastoId: f.categoriaGastoId || "cg_otros",
       medioPagoId: f.medioPagoId || "mp_sin_definir",
-      instrumentoId: f.instrumentoId || "ins_manual",
+      instrumentoId: f.instrumentoId,
       monedaDefault: f.moneda || "ARS",
       etiquetasIds: f.etiquetasIds?.length ? f.etiquetasIds : ["tag_variable"],
     });
@@ -1200,7 +1210,7 @@ if (!f.conceptoId && f.crearConceptoPendiente) {
             conceptoId: conceptoCreadoId,
             nombre: conceptoCreado?.nombre || nombreConcepto,
             medioPagoId: conceptoCreado?.medio_pago_id || f.medioPagoId || "mp_sin_definir",
-            instrumentoId: conceptoCreado?.instrumento_id || f.instrumentoId || "ins_manual",
+            instrumentoId: conceptoCreado?.instrumento_id || f.instrumentoId,
             categoriaGastoId: conceptoCreado?.categoria_gasto_id || f.categoriaGastoId || "cg_otros",
             etiquetasIds: f.etiquetasIds || [],
             monedaDefault: conceptoCreado?.moneda_default || f.moneda || "ARS",
@@ -1213,7 +1223,7 @@ if (!f.conceptoId && f.crearConceptoPendiente) {
         conceptoId: conceptoActualizado.id,
         servicio: conceptoActualizado.nombre,
         medioPagoId: conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir",
-        instrumentoId: conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual",
+        instrumentoId: conceptoActualizado.instrumentoId || f.instrumentoId,
         categoriaGastoId: conceptoActualizado.categoriaGastoId || f.categoriaGastoId || "cg_otros",
         etiquetasIds: conceptoActualizado.etiquetasIds?.length
           ? conceptoActualizado.etiquetasIds
@@ -1223,7 +1233,7 @@ if (!f.conceptoId && f.crearConceptoPendiente) {
           conceptoActualizado.medioPagoId || f.medioPagoId || "mp_sin_definir"
         ),
         formaPago: formaPagoLegacyDesdeInstrumentoId(
-          conceptoActualizado.instrumentoId || f.instrumentoId || "ins_manual"
+          conceptoActualizado.instrumentoId || f.instrumentoId
         ),
         crearConceptoPendiente: false,
       };
@@ -1259,7 +1269,7 @@ try {
     formaPago: f.formaPago || formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
     conceptoId: f.conceptoId || null,
     medioPagoId: f.medioPagoId || medioPagoDesdeCategoriaLegacy(f.categoria),
-    instrumentoId: f.instrumentoId || instrumentoDesdeFormaPagoLegacy(f.formaPago),
+    instrumentoId: f.instrumentoId,
     categoriaGastoId: f.categoriaGastoId || categoriaGastoDesdeServicio(f.servicio),
     etiquetasIds: f.etiquetasIds?.length ? f.etiquetasIds : etiquetasDesdeServicio(f.servicio),
     servicio: f.servicio,
@@ -2245,7 +2255,7 @@ const GastoRow=({item})=>{
     conceptoId: concepto.id,
     servicio: concepto.nombre,
     medioPagoId: concepto.medioPagoId || f.medioPagoId || "mp_sin_definir",
-    instrumentoId: concepto.instrumentoId || f.instrumentoId || "ins_manual",
+    instrumentoId: concepto.instrumentoId || f.instrumentoId || "",
     categoriaGastoId: concepto.categoriaGastoId || f.categoriaGastoId || "",
     etiquetasIds: concepto.etiquetasIds?.length ? concepto.etiquetasIds : (f.etiquetasIds || []),
     moneda: concepto.monedaDefault || f.moneda || "ARS",
@@ -2961,10 +2971,10 @@ if (!authUser) {
         conceptoId:"",
         servicio:textoConcepto,
         medioPagoId:f.medioPagoId || "mp_sin_definir",
-        instrumentoId:f.instrumentoId || "ins_manual",
+        instrumentoId:f.instrumentoId || "",
         categoriaGastoId:f.categoriaGastoId || "",
         categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId || "mp_sin_definir"),
-        formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId || "ins_manual"),
+        formaPago:f.formaPago || (f.instrumentoId ? formaPagoLegacyDesdeInstrumentoId(f.instrumentoId) : ""),
         decisionManual:true,
         crearConceptoPendiente:false
       }))}
@@ -3027,14 +3037,17 @@ if (!authUser) {
             <div style={{ marginBottom:12 }}>
               <span style={lbl}>¿CÓMO PAGASTE?</span>
               <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                {(cfg.instrumentosPago || []).map(ins=>(
+                {(cfg.instrumentosPago || [])
+                  .filter(ins => !["ins_manual", "ins_sin_definir"].includes(ins.id))
+                  .map(ins=>(
                   <button
                     key={ins.id}
                     className="pb"
                     onClick={()=>setForm(f=>({
                       ...f,
                       instrumentoId:ins.id,
-                      formaPago:formaPagoLegacyDesdeInstrumentoId(ins.id)
+                      formaPago:formaPagoLegacyDesdeInstrumentoId(ins.id),
+                      decisionManual:true
                     }))}
                     style={{ background:form.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:form.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}
                   >
