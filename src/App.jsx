@@ -2261,6 +2261,34 @@ const GastoRow=({item})=>{
     etiquetasPreviewCarga.length ? etiquetasPreviewCarga.join(" · ") : null,
     form.moneda || conceptoPreviewCarga?.monedaDefault || "ARS"
   ].filter(Boolean);
+
+  const medioCargaSeleccionado = (cfg.mediosPago || []).find((m) => m.id === form.medioPagoId && form.medioPagoId !== "mp_sin_definir");
+  const instrumentoCargaSeleccionado = (cfg.instrumentosPago || []).find((i) => {
+    const id = String(i.id || "").trim().toLowerCase();
+    const nombre = String(i.nombre || "").trim().toLowerCase();
+    return i.id === form.instrumentoId && !id.includes("sin_definir") && nombre !== "sin definir";
+  });
+  const categoriaCargaSeleccionada = (cfg.categoriasGasto || []).find((c) => c.id === form.categoriaGastoId);
+  const diaCargaNumero = Number(form.dia || 0);
+  const ultimoDiaCarga = new Date(mes.y, mes.m + 1, 0).getDate();
+  const conceptoCargaOk = String(form.servicio || "").trim().length > 0;
+  const montoCargaOk =
+    form.tipoGasto === "detalle"
+      ? Array.isArray(form.subconceptos) && form.subconceptos.length > 0
+      : Number.isFinite(Number(form.monto || 0)) && Number(form.monto || 0) > 0;
+  const diaCargaOk = Number.isInteger(diaCargaNumero) && diaCargaNumero >= 1 && diaCargaNumero <= ultimoDiaCarga;
+
+  const validacionesCargaPreview = [
+    { id:"concepto", label:"Concepto", ok:conceptoCargaOk, detalle: conceptoCargaOk ? String(form.servicio || "").trim() : "Falta escribir qué pagaste" },
+    { id:"medio", label:"Medio de pago", ok:!!medioCargaSeleccionado, detalle: medioCargaSeleccionado?.nombre || "Falta elegir desde dónde salió la plata" },
+    { id:"instrumento", label:"Cómo pagaste", ok:!!instrumentoCargaSeleccionado, detalle: instrumentoCargaSeleccionado?.nombre || "Falta elegir manual, débito, crédito, transferencia o efectivo" },
+    { id:"categoria", label:"Categoría", ok:!!categoriaCargaSeleccionada, detalle: categoriaCargaSeleccionada?.nombre || "Falta clasificar el gasto" },
+    { id:"monto", label:form.tipoGasto === "detalle" ? "Desglose" : "Monto", ok:montoCargaOk, detalle:montoCargaOk ? (form.tipoGasto === "detalle" ? `${form.subconceptos.length} ítem(s)` : fmtMonto(Number(form.monto || 0), form.moneda || "ARS")) : "Falta un monto mayor a cero" },
+    { id:"dia", label:"Día", ok:diaCargaOk, detalle:diaCargaOk ? `Día ${form.dia}` : `Falta un día válido entre 1 y ${ultimoDiaCarga}` },
+  ];
+  const faltantesCargaPreview = validacionesCargaPreview.filter((item) => !item.ok);
+  const cargaListaParaGuardar = faltantesCargaPreview.length === 0;
+  const requiereOpcionesAvanzadasCarga = faltantesCargaPreview.some((item) => ["instrumento","categoria"].includes(item.id));
  
  const aplicarConceptoExistente = (concepto) => {
   if (!concepto) return;
@@ -3010,14 +3038,45 @@ if (!authUser) {
               )}
             </div>
 
-            <div style={{ marginBottom:12,background:"#0f172a",border:"1px solid #1e293b",borderRadius:14,padding:"12px 14px" }}>
-              <div style={{ fontSize:11,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:6 }}>Así se va a guardar</div>
-              <div style={{ fontSize:13,color:"#e2e8f0",fontWeight:700,lineHeight:1.4 }}>
-                {resumenPreviewCarga.join(" · ")}
+            <div style={{ marginBottom:12,background:cargaListaParaGuardar?"rgba(20,83,45,.18)":"#0f172a",border:cargaListaParaGuardar?"1px solid #22c55e55":"1px solid #1e293b",borderRadius:14,padding:"12px 14px" }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:10 }}>
+                <div>
+                  <div style={{ fontSize:11,color:cargaListaParaGuardar?"#4ade80":"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Antes de guardar</div>
+                  <div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>
+                    {cargaListaParaGuardar ? "Todo listo para registrar en Neon." : `Faltan ${faltantesCargaPreview.length} dato(s) para evitar registros incompletos.`}
+                  </div>
+                </div>
+                <span style={{ fontSize:11,fontWeight:900,borderRadius:999,padding:"5px 9px",background:cargaListaParaGuardar?"#14532d":"#422006",color:cargaListaParaGuardar?"#4ade80":"#fb923c",whiteSpace:"nowrap" }}>
+                  {cargaListaParaGuardar ? "Listo" : "Revisar"}
+                </span>
               </div>
-              <div style={{ fontSize:11,color:"#64748b",marginTop:6,lineHeight:1.4 }}>
-                La app completa estos datos automáticamente. Tocá “Más opciones” solo si necesitás ajustar categoría, etiquetas, desglose u observación.
+
+              <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:7,marginBottom:10 }}>
+                {validacionesCargaPreview.map((item)=>(
+                  <div key={item.id} style={{ display:"flex",alignItems:"flex-start",gap:8,background:item.ok?"rgba(34,197,94,.08)":"rgba(251,146,60,.08)",border:item.ok?"1px solid rgba(34,197,94,.22)":"1px solid rgba(251,146,60,.24)",borderRadius:12,padding:"8px 9px" }}>
+                    <span style={{ width:18,height:18,borderRadius:999,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:11,fontWeight:900,background:item.ok?"#14532d":"#422006",color:item.ok?"#4ade80":"#fb923c",flexShrink:0 }}>{item.ok?"✓":"!"}</span>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:12,fontWeight:900,color:item.ok?"#e2e8f0":"#fed7aa" }}>{item.label}</div>
+                      <div style={{ fontSize:11,color:item.ok?"#94a3b8":"#fb923c",lineHeight:1.35,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{item.detail}</div>
+                    </div>
+                  </div>
+                ))}
               </div>
+
+              <div style={{ fontSize:11,color:"#64748b",lineHeight:1.45 }}>
+                Resumen: <strong style={{ color:"#cbd5e1" }}>{resumenPreviewCarga.join(" · ")}</strong>
+              </div>
+
+              {!mostrarOpcionesCarga && requiereOpcionesAvanzadasCarga && (
+                <button
+                  type="button"
+                  className="pb"
+                  onClick={()=>setMostrarOpcionesCarga(true)}
+                  style={{ width:"100%",marginTop:10,background:"#1a1230",color:"#a78bfa",border:"1px solid #7c3aed66",fontSize:12,padding:"9px 10px" }}
+                >
+                  Completar cómo pagaste y categoría
+                </button>
+              )}
             </div>
 
             <div style={{ marginBottom:12 }}>
