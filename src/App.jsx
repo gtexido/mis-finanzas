@@ -2856,35 +2856,40 @@ if (!authUser) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
               <div>
                 <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase" }}>Principales categorías</div>
-                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Dónde se concentra el gasto</div>
+                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Top 3 del mes. Tocá una para ver el detalle.</div>
               </div>
               <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",fontSize:11,padding:"6px 8px" }} onClick={()=>setView("analisis")}>Analizar</button>
             </div>
             {topCategoriasHome.map((cat,idx)=>{
               const pctCat=totalGastos>0?Math.round((cat.total/totalGastos)*100):0;
-              return(<div key={cat.id} onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }} style={{ padding:"7px 0",borderBottom:idx<topCategoriasHome.length-1?"1px solid #1e1e2e":"none",cursor:"pointer" }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:5 }}>
+              return(<div key={cat.id} onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }} style={{ padding:"8px 0",borderBottom:idx<topCategoriasHome.length-1?"1px solid #1e1e2e":"none",cursor:"pointer" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6 }}>
                   <div style={{ display:"flex",alignItems:"center",gap:9,minWidth:0 }}>
-                    <div style={{ width:19,height:19,borderRadius:7,background:`${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:cat.color }}>{idx+1}</div>
+                    <div style={{ width:22,height:22,borderRadius:8,background:`${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:cat.color,flexShrink:0 }}>{idx+1}</div>
                     <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
-                      <div style={{ fontSize:10,color:"#64748b" }}>{cat.items.length} ítems · {pctCat}% del gasto</div>
+                      <div style={{ fontSize:13,fontWeight:900,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
+                      <div style={{ fontSize:10,color:"#64748b" }}>{cat.items.length} ítem{cat.items.length===1?"":"s"} · {pctCat}% del gasto</div>
                     </div>
                   </div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap",textAlign:"right" }}>{fmtARS(cat.total)}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:cat.color,whiteSpace:"nowrap",textAlign:"right" }}>{fmtARS(cat.total)}</div>
                 </div>
                 <div style={{ height:4,borderRadius:4,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",width:`${Math.min(pctCat,100)}%`,background:cat.color,borderRadius:4 }}/></div>
               </div>);
             })}
+            {categoriasConGasto.length>3&&(
+              <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#cbd5e1",marginTop:10,padding:"9px 12px",fontSize:12,border:"1px solid #2a2a3e" }} onClick={()=>{ setFiltroCatInicio(null); setFiltroEstado("todos"); setView("resumen"); }}>
+                Ver detalle completo →
+              </button>
+            )}
           </div>}
 
           {/* Card replicar mes */}
           {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#15111f 0%,#0f172a 100%)",border:"1px solid #2a1a4e",borderRadius:16,padding:"10px 11px",marginBottom:10 }}>
             <div style={{ display:"flex",alignItems:"center",gap:9,marginBottom:10 }}>
               <div style={{ width:26,height:26,borderRadius:9,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>📋</div>
-              <div>
+              <div style={{ minWidth:0 }}>
                 <div style={{ fontWeight:800,fontSize:12 }}>Preparar próximo mes</div>
-                <div style={{ fontSize:10,color:"#94a3b8",marginTop:1 }}>Copiá los gastos recurrentes de {MESES[mes.m]}</div>
+                <div style={{ fontSize:10,color:"#94a3b8",marginTop:1 }}>Copiá los gastos frecuentes de {MESES[mes.m]} como base para {mesNombreSig()}.</div>
               </div>
             </div>
             <div style={{ display:"flex",gap:10 }}>
@@ -2893,30 +2898,7 @@ if (!authUser) {
             </div>
           </div>}
 
-          {categoriasConGasto.map(cat=>{
-            const pendCat=cat.items.filter(i=>i.estado==="pendiente");
-            const pctGastado=totalIngresos>0?Math.round((cat.total/totalIngresos)*100):0;
-            return(<div key={cat.id} className="card" style={{ padding:"10px 12px",borderRadius:15,cursor:"pointer",transition:"all 0.15s",border:"1px solid #1e1e2e" }}
-              onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }}
-              onMouseEnter={e=>e.currentTarget.style.border=`1px solid ${cat.color}44`}
-              onMouseLeave={e=>e.currentTarget.style.border="1px solid #1e1e2e"}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:10 }}>
-                  <div style={{ width:10,height:10,borderRadius:"50%",background:cat.color }}/>
-                  <span style={{ fontWeight:700,fontSize:13 }}>{cat.label}</span>
-                  <span style={{ fontSize:10,color:"#64748b" }}>{cat.items.length}</span>
-                </div>
-                <div style={{ display:"flex",alignItems:"center",gap:8 }}>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:cat.color,whiteSpace:"nowrap" }}>{fmtARS(cat.total)}</div>
-                  <span style={{ fontSize:11,color:"#64748b" }}>›</span>
-                </div>
-              </div>
-              {totalIngresos>0&&<div style={{ height:3,borderRadius:2,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",borderRadius:2,background:cat.color,width:`${Math.min(pctGastado,100)}%`,opacity:0.6 }}/></div>}
-              {pendCat.length>0&&<div style={{ marginTop:5,display:"flex",alignItems:"center",gap:5 }}><span style={{ fontSize:11,color:"#fb923c" }}>⏳ {pendCat.length} pendiente(s): </span><span style={{ fontSize:11,color:"#fb923c",fontWeight:700 }}>{fmtARS(pendCat.reduce((a,g)=>a+toARS_(g),0))}</span></div>}
-            </div>);
-          })}
           {gastosDelMes.length===0&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:40,marginBottom:12 }}>💸</div><div style={{ fontWeight:600 }}>Sin gastos este mes</div><div style={{ fontSize:12,marginTop:6 }}>Cargá el primer gasto y el resumen se arma automáticamente.</div></div>}
-          <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#94a3b8",marginTop:6,padding:"8px 12px",fontSize:12 }} onClick={exportCSV}>Exportar CSV</button>
         </>)}
 
         {/* CARGAR */}
