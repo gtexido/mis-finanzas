@@ -2204,67 +2204,99 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
 const GastoRow=({item})=>{
   const dias=diasRestantes(item.vencimiento);
   const s=item.estado==="pendiente"?semaforo(dias):null;
-  const ars=toARS_(item);
   const tieneSubconceptos=item.subconceptos&&item.subconceptos.length>0;
   const totalMostrarARS = montoReal(item, tc);
   const totalUSDDetalle = montoUSDReal(item);
   const instrumentoDetalle = item.instrumentoNombre || item.instrumento || item.formaPago || "Sin instrumento";
   const categoriaDetalle = categoriaRealDesdeGasto(item).label || "";
   const detalleModeloNuevo = [instrumentoDetalle, categoriaDetalle].filter(Boolean).join(" · ");
+  const estadoPagado = item.estado === "pagado";
+  const estadoBg = estadoPagado ? "#052e16" : "#2a1608";
+  const estadoColor = estadoPagado ? "#4ade80" : "#fb923c";
 
   return(
-    <div style={{ padding:"7px 0",borderBottom:"1px solid #1e1e2e",cursor:"pointer",borderRadius:8 }} onClick={()=>openEdit(item)}>
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start" }}>
-        <div style={{ flex:1 }}>
-          <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:4 }}>
-            <div style={{ fontSize:14,fontWeight:500 }}>{item.servicio}</div>
-            {tieneSubconceptos&&<span style={{ fontSize:10,color:"#38bdf8",background:"#1e3a5f",padding:"1px 6px",borderRadius:10 }}>🧾 {item.subconceptos.length} ítems</span>}
-            <span style={{ fontSize:10,color:"#64748b",marginLeft:"auto" }}>✎</span>
-          </div>
+    <div
+      style={{
+        padding:"12px 0",
+        borderBottom:"1px solid #1e1e2e",
+        cursor:"pointer"
+      }}
+      onClick={()=>openEdit(item)}
+    >
+      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+        <div style={{ flex:1,minWidth:0 }}>
+          <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:7 }}>
+            <div style={{ minWidth:0 }}>
+              <div style={{ fontSize:14,fontWeight:900,color:"#e2e8f0",lineHeight:1.2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
+                {item.servicio}
+              </div>
+              <div style={{ fontSize:10,color:"#64748b",marginTop:3 }}>
+                Tocá para editar
+              </div>
+            </div>
 
-          {tieneSubconceptos&&(
-            <div style={{ marginBottom:6,padding:"6px 8px",background:"#0f1a2e",borderRadius:10,fontSize:11 }}>
-              {item.subconceptos.map(sub=>(
-                <div key={sub.id} style={{ display:"flex",justifyContent:"space-between",color:"#64748b",paddingBottom:2 }}>
-                  <span>{sub.nombre}</span>
-                  <span style={{ color:"#38bdf8",fontFamily:"'Space Mono',monospace" }}>
-                    {fmtMonto(
-                      Number(sub.monto ?? sub.montoUSD ?? 0),
-                      sub.moneda || item.moneda || "ARS"
-                    )}
-                  </span>
+            <div style={{ textAlign:"right",flexShrink:0 }}>
+              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:900,color:totalMostrarARS>0?"#f8fafc":"#64748b",lineHeight:1.1 }}>
+                {fmtARS(totalMostrarARS)}
+              </div>
+              {totalUSDDetalle > 0 && (
+                <div style={{ fontSize:10,color:"#a78bfa",fontWeight:800,marginTop:3 }}>
+                  {fmtUSD(totalUSDDetalle)} USD
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          </div>
 
-          <div style={{ display:"flex",gap:4,flexWrap:"wrap",marginBottom:4,alignItems:"center" }}>
-            <span onClick={e=>{e.stopPropagation();toggleEstado(item.id);}} style={{ display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:item.estado==="pagado"?"#14532d":"#422006",color:item.estado==="pagado"?"#4ade80":"#fb923c",cursor:"pointer" }}>
-              {item.estado==="pagado"?"✅ Pagado":"⏳ Pendiente"}
+          <div style={{ display:"flex",gap:5,flexWrap:"wrap",marginBottom:7,alignItems:"center" }}>
+            <span
+              onClick={e=>{e.stopPropagation();toggleEstado(item.id);}}
+              style={{
+                display:"inline-flex",
+                alignItems:"center",
+                gap:4,
+                padding:"3px 8px",
+                borderRadius:999,
+                fontSize:10,
+                fontWeight:900,
+                background:estadoBg,
+                color:estadoColor,
+                border:`1px solid ${estadoColor}33`,
+                cursor:"pointer"
+              }}
+            >
+              {estadoPagado?"✓ Pagado":"⏳ Pendiente"}
             </span>
-            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:800,background:"#2a1a4e",color:"#c4b5fd",border:"1px solid #7c3aed55" }}>🟣 Revisar</span>}
-            {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:20,fontSize:10,fontWeight:700,background:"#1e2a3e",color:"#60a5fa",border:"1px solid #60a5fa33" }}>🏦 Débito auto.</span>}
-            {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}
+
+            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:900,background:"#2a1a4e",color:"#c4b5fd",border:"1px solid #7c3aed55" }}>Revisar</span>}
+            {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1f33",color:"#60a5fa",border:"1px solid #60a5fa33" }}>Débito auto.</span>}
+            {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}          
+            {tieneSubconceptos&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1a2e",color:"#38bdf8",border:"1px solid #38bdf855" }}>Desglose · {item.subconceptos.length} ítems</span>}
           </div>
 
-          <div style={{ fontSize:11,color:"#64748b" }}>
-            {item.dia}/{mes.m+1} · {detalleModeloNuevo}{item.requiereRevision?" · Dato de referencia":""}{item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}{item.observacion?` · ${item.observacion}`:""}
+          <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.45 }}>
+            Día {item.dia}/{mes.m+1} · {detalleModeloNuevo || "Sin detalle"}
+            {item.requiereRevision?" · Dato de referencia":""}
+            {item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}
+            {item.observacion?` · ${item.observacion}`:""}
           </div>
         </div>
 
-        <div style={{ display:"flex",flexDirection:"column",alignItems:"flex-end",gap:4,marginLeft:8 }}>
-          <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:totalMostrarARS>0?"#e2e8f0":"#64748b" }}>
-            {fmtARS(totalMostrarARS)}
-          </div>
-
-          {totalUSDDetalle > 0 && (
-            <div style={{ fontSize:11,color:"#a78bfa" }}>
-              {fmtUSD(totalUSDDetalle)}
-            </div>
-          )}
-
-          <button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12 }} onClick={e=>{e.stopPropagation();setConfirmDel({...item,tipo:"gastos"});}}>✕</button>
-        </div>
+        <button
+          title="Eliminar"
+          style={{
+            background:"#1e1e2e",
+            border:"1px solid #2a2a3e",
+            color:"#94a3b8",
+            borderRadius:10,
+            padding:"5px 8px",
+            cursor:"pointer",
+            fontSize:11,
+            flexShrink:0
+          }}
+          onClick={e=>{e.stopPropagation();setConfirmDel({...item,tipo:"gastos"});}}
+        >
+          ✕
+        </button>
       </div>
     </div>
   );
