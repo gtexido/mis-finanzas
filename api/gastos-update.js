@@ -222,6 +222,12 @@ export default async function handler(req, res) {
       observacion,
       vencimiento,
       esRecurrente,
+      requiereRevision,
+      requiere_revision,
+      motivoRevision,
+      motivo_revision,
+      origenMovimiento,
+      origen_movimiento,
       subconceptos = [],
     } = body;
 
@@ -290,6 +296,27 @@ export default async function handler(req, res) {
       moneda || conceptoActivo?.moneda_default || movimientoActual.moneda || "ARS"
     );
 
+    const requiereRevisionPayload =
+      typeof requiereRevision === "boolean"
+        ? requiereRevision
+        : typeof requiere_revision === "boolean"
+          ? requiere_revision
+          : !!movimientoActual.requiere_revision;
+
+    const tieneMotivoRevisionPayload =
+      Object.prototype.hasOwnProperty.call(body, "motivoRevision") ||
+      Object.prototype.hasOwnProperty.call(body, "motivo_revision");
+    const motivoRevisionPayload = tieneMotivoRevisionPayload
+      ? (motivoRevision ?? motivo_revision ?? null)
+      : (movimientoActual.motivo_revision || null);
+
+    const tieneOrigenMovimientoPayload =
+      Object.prototype.hasOwnProperty.call(body, "origenMovimiento") ||
+      Object.prototype.hasOwnProperty.call(body, "origen_movimiento");
+    const origenMovimientoPayload = tieneOrigenMovimientoPayload
+      ? (origenMovimiento ?? origen_movimiento ?? null)
+      : (movimientoActual.origen_movimiento || null);
+
     const medioPagoNuevoId =
       medioPagoId || body.medio_pago_id || conceptoActivo?.medio_pago_id || movimientoActual.medio_pago_id || null;
     const instrumentoNuevoId =
@@ -354,6 +381,9 @@ export default async function handler(req, res) {
         vencimiento = ${vencimiento || null},
         observacion = ${observacion || null},
         es_recurrente = ${!!esRecurrente},
+        requiere_revision = ${!!requiereRevisionPayload},
+        motivo_revision = ${motivoRevisionPayload},
+        origen_movimiento = ${origenMovimientoPayload},
         updated_at = NOW()
       WHERE movimiento_id = ${id}
         AND usuario_id = ${usuarioId}

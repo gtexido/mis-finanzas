@@ -1418,6 +1418,9 @@ try {
       observacion: gastoEditado.observacion || "",
       vencimiento: gastoEditado.vencimiento || null,
       esRecurrente: !!gastoEditado.esRecurrente,
+      requiereRevision: !!gastoEditado.requiereRevision,
+      motivoRevision: gastoEditado.requiereRevision ? (gastoEditado.motivoRevision || null) : null,
+      origenMovimiento: gastoEditado.origenMovimiento || null,
       subconceptos: gastoEditado.subconceptos || [],
     });
 
@@ -1572,6 +1575,9 @@ const handleSubconceptosSave = (items) => {
       observacion: gastoActual.observacion || "",
       vencimiento: gastoActual.vencimiento || null,
       esRecurrente: !!gastoActual.esRecurrente,
+      requiereRevision: nuevoEstado === "pagado" ? false : !!gastoActual.requiereRevision,
+      motivoRevision: nuevoEstado === "pagado" ? null : (gastoActual.motivoRevision || null),
+      origenMovimiento: gastoActual.origenMovimiento || null,
       subconceptos: gastoActual.subconceptos || [],
     });
 
@@ -2115,6 +2121,9 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
         observacion: g.observacion || "",
         vencimiento: vencimientoReplica || null,
         esRecurrente: !!g.esRecurrente,
+        requiereRevision: true,
+        motivoRevision: vencimientoReplica ? "REVISAR_MONTO" : "REVISAR_MONTO_VENCIMIENTO",
+        origenMovimiento: "REPLICA_MES",
         subconceptos: subconceptosReplica,
       });
     }
@@ -2229,12 +2238,13 @@ const GastoRow=({item})=>{
             <span onClick={e=>{e.stopPropagation();toggleEstado(item.id);}} style={{ display:"inline-block",padding:"2px 10px",borderRadius:20,fontSize:11,fontWeight:700,background:item.estado==="pagado"?"#14532d":"#422006",color:item.estado==="pagado"?"#4ade80":"#fb923c",cursor:"pointer" }}>
               {item.estado==="pagado"?"✅ Pagado":"⏳ Pendiente"}
             </span>
+            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:3,padding:"2px 8px",borderRadius:20,fontSize:10,fontWeight:800,background:"#2a1a4e",color:"#c4b5fd",border:"1px solid #7c3aed55" }}>🟣 Revisar</span>}
             {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:3,padding:"2px 7px",borderRadius:20,fontSize:10,fontWeight:700,background:"#1e2a3e",color:"#60a5fa",border:"1px solid #60a5fa33" }}>🏦 Débito auto.</span>}
             {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}
           </div>
 
           <div style={{ fontSize:11,color:"#64748b" }}>
-            {item.dia}/{mes.m+1} · {detalleModeloNuevo}{item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}{item.observacion?` · ${item.observacion}`:""}
+            {item.dia}/{mes.m+1} · {detalleModeloNuevo}{item.requiereRevision?" · Dato de referencia":""}{item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}{item.observacion?` · ${item.observacion}`:""}
           </div>
         </div>
 
@@ -4331,7 +4341,7 @@ if (!authUser) {
             <div style={{ fontSize:12,color:"#64748b",marginBottom:10,fontWeight:700 }}>SE COPIA</div>
             {["Concepto y categoría","Forma de pago","Monto (como referencia)","Subconceptos USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
             <div style={{ borderTop:"1px solid #1e1e2e",marginTop:8,paddingTop:8 }}>
-              {["Estado → Pendiente (marcás cuando pagás)","Fecha vencimiento → vacía (la completás)"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
+              {["Estado → Pendiente (marcás cuando pagás)","Marca → Revisar monto y/o vencimiento","Fecha vencimiento → se mueve si existía; si no, la completás"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
             </div>
           </div>
           <div style={{ display:"flex",gap:10 }}>
@@ -4352,7 +4362,7 @@ if (!authUser) {
           </div>
           <div style={{ background:"#13131a",border:"1px solid #1e1e2e",borderRadius:16,padding:"14px 16px",marginBottom:24,textAlign:"left" }}>
             <div style={{ fontSize:12,color:"#64748b",marginBottom:8,fontWeight:700 }}>PRÓXIMOS PASOS</div>
-            {["Andá a "+mesNombreSig()+" con las flechas ‹ ›","En Detalle ajustá los montos que cambiaron","Marcá ✅ Pagado a medida que abonás","Actualizá las fechas de vencimiento"].map((paso,i)=>(<div key={i} style={{ display:"flex",gap:10,padding:"6px 0",borderBottom:i<3?"1px solid #1e1e2e":"none" }}><div style={{ width:20,height:20,borderRadius:"50%",background:"#7c3aed22",color:"#7c3aed",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div><span style={{ fontSize:13,color:"#94a3b8" }}>{paso}</span></div>))}
+            {["Andá a "+mesNombreSig()+" con las flechas ‹ ›","En Detalle filtrá visualmente los gastos con badge Revisar","Ajustá montos y vencimientos reales","Marcá ✅ Pagado a medida que abonás"].map((paso,i)=>(<div key={i} style={{ display:"flex",gap:10,padding:"6px 0",borderBottom:i<3?"1px solid #1e1e2e":"none" }}><div style={{ width:20,height:20,borderRadius:"50%",background:"#7c3aed22",color:"#7c3aed",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div><span style={{ fontSize:13,color:"#94a3b8" }}>{paso}</span></div>))}
           </div>
           <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }} onClick={()=>{ setReplicarStep(null); cambiarMes(1); }}>
             Ir a {mesNombreSig()} →

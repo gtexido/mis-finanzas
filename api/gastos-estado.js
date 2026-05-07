@@ -32,6 +32,8 @@ export default async function handler(req, res) {
       UPDATE movimientos
       SET
         estado = ${estado},
+        requiere_revision = CASE WHEN ${estado} = 'pagado' THEN false ELSE requiere_revision END,
+        motivo_revision = CASE WHEN ${estado} = 'pagado' THEN null ELSE motivo_revision END,
         updated_at = NOW()
       WHERE movimiento_id = ${movimientoId}
         AND usuario_id = ${user.usuarioId}

@@ -155,6 +155,9 @@ export const mapMovimientosDesdeApi = (apiData, periodo = getPeriodoActual()) =>
         observacion: m.observacion || "",
         vencimiento: m.vencimiento ? String(m.vencimiento).slice(0, 10) : "",
         esRecurrente: !!m.es_recurrente,
+        requiereRevision: !!m.requiere_revision,
+        motivoRevision: m.motivo_revision || "",
+        origenMovimiento: m.origen_movimiento || "",
 
         // Nuevo modelo multidimensional.
         workspaceId: m.workspace_id || "",

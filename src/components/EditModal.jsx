@@ -740,6 +740,28 @@ export default function EditModal({
           />
         </div>
 
+        {(f.origenMovimiento === "REPLICA_MES" || f.requiereRevision) && (
+          <div style={{ marginBottom: 14, background: "#15111f", border: "1px solid #7c3aed55", borderRadius: 14, padding: "12px 14px" }}>
+            <div style={{ fontSize: 12, color: "#c4b5fd", fontWeight: 800, marginBottom: 6 }}>🟣 Gasto copiado para revisar</div>
+            <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.45, marginBottom: 10 }}>
+              Confirmá el monto real y la fecha de vencimiento cuando tengas el dato.
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+              <input
+                type="checkbox"
+                checked={!f.requiereRevision}
+                onChange={(e) => setF((p) => ({
+                  ...p,
+                  requiereRevision: !e.target.checked,
+                  motivoRevision: e.target.checked ? null : (p.motivoRevision || "REVISAR_MONTO_VENCIMIENTO"),
+                  origenMovimiento: p.origenMovimiento || "REPLICA_MES",
+                }))}
+              />
+              <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 700 }}>Ya revisé este gasto</span>
+            </label>
+          </div>
+        )}
+
         <button
           onClick={() => {
             const totalFinal = tieneDesglose
@@ -755,6 +777,9 @@ export default function EditModal({
               instrumentoId: f.instrumentoId || "",
               categoriaGastoId: f.categoriaGastoId || "",
               etiquetasIds: f.etiquetasIds || [],
+              requiereRevision: !!f.requiereRevision,
+              motivoRevision: f.requiereRevision ? (f.motivoRevision || "REVISAR_MONTO_VENCIMIENTO") : null,
+              origenMovimiento: f.origenMovimiento || null,
             });
           }}
           style={{

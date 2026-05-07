@@ -221,6 +221,9 @@ export default async function handler(req, res) {
       observacion,
       vencimiento,
       esRecurrente,
+      requiereRevision = false,
+      motivoRevision = null,
+      origenMovimiento = null,
       subconceptos = [],
     } = body;
 
@@ -319,6 +322,9 @@ export default async function handler(req, res) {
         vencimiento,
         observacion,
         es_recurrente,
+        requiere_revision,
+        motivo_revision,
+        origen_movimiento,
         activo
       ) VALUES (
         ${movimientoId},
@@ -345,6 +351,9 @@ export default async function handler(req, res) {
         ${vencimiento || null},
         ${observacion || null},
         ${!!esRecurrente},
+        ${!!requiereRevision},
+        ${motivoRevision || null},
+        ${origenMovimiento || null},
         true
       );
     `;

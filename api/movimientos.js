@@ -67,6 +67,9 @@ export default async function handler(req, res) {
         m.vencimiento,
         m.observacion,
         m.es_recurrente,
+        m.requiere_revision,
+        m.motivo_revision,
+        m.origen_movimiento,
         m.activo,
         m.created_at,
         m.updated_at
