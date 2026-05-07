@@ -381,6 +381,16 @@ export default function App() {
   const [newFuente,setNewFuente]=useState(""); const [editFuente,setEditFuente]=useState(null);
 
   const mesKey=getMesKey(mes.y,mes.m);
+  const mesAnteriorInfo = (() => {
+    let m = mes.m - 1;
+    let y = mes.y;
+    if (m < 0) {
+      m = 11;
+      y -= 1;
+    }
+    return { key: getMesKey(y, m), label: `${MESES[m]} ${y}` };
+  })();
+  const mesAnteriorKey = mesAnteriorInfo.key;
   const tc=cfg.tipoCambio||1415;
   
     useEffect(() => {
@@ -388,22 +398,29 @@ export default function App() {
 
     const cargarMesSeleccionado = async () => {
       try {
-        const movimientosApi = await getMovimientos(mesKey);
+        const [movimientosApi, movimientosAnteriorApi] = await Promise.all([
+          getMovimientos(mesKey),
+          getMovimientos(mesAnteriorKey),
+        ]);
         const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
+        const dataAnterior = mapMovimientosDesdeApi(movimientosAnteriorApi, mesAnteriorKey);
 
         setData((prev) => ({
           ...prev,
           gastos: {
             ...prev.gastos,
             [mesKey]: nuevoData.gastos[mesKey] || [],
+            [mesAnteriorKey]: dataAnterior.gastos[mesAnteriorKey] || [],
           },
           ingresos: {
             ...prev.ingresos,
             [mesKey]: nuevoData.ingresos[mesKey] || [],
+            [mesAnteriorKey]: dataAnterior.ingresos[mesAnteriorKey] || [],
           },
           sueldo: {
             ...prev.sueldo,
             [mesKey]: nuevoData.sueldo[mesKey] || 0,
+            [mesAnteriorKey]: dataAnterior.sueldo[mesAnteriorKey] || 0,
           },
         }));
       } catch (e) {
@@ -412,7 +429,7 @@ export default function App() {
     };
 
     cargarMesSeleccionado();
-  }, [authUser, mesKey]);
+  }, [authUser, mesKey, mesAnteriorKey]);
   
   const normalizarFechaConversion = (gasto = {}) => {
   if (gasto.vencimiento) {
@@ -483,10 +500,15 @@ useEffect(() => {
     try {
       const catalogosApi = await getCatalogos();
       const periodoInicial = getMesKey(mes.y, mes.m);
-	  const movimientosApi = await getMovimientos(periodoInicial);
+      const periodoAnteriorInicial = mesAnteriorKey;
+	  const [movimientosApi, movimientosAnteriorApi] = await Promise.all([
+        getMovimientos(periodoInicial),
+        getMovimientos(periodoAnteriorInicial),
+      ]);
 
       const nuevoCfg = mapCatalogosDesdeApi(catalogosApi);
       const nuevoData = mapMovimientosDesdeApi(movimientosApi, periodoInicial);
+      const dataAnterior = mapMovimientosDesdeApi(movimientosAnteriorApi, periodoAnteriorInicial);
 
             setCfg(nuevoCfg);
       setData((prev) => ({
@@ -498,10 +520,12 @@ useEffect(() => {
         ingresos: {
           ...prev.ingresos,
           ...nuevoData.ingresos,
+          ...dataAnterior.ingresos,
         },
         sueldo: {
           ...prev.sueldo,
           ...nuevoData.sueldo,
+          ...dataAnterior.sueldo,
         },
       }));
 
@@ -569,6 +593,8 @@ useEffect(() => {
   const gastosDelMes=data.gastos[mesKey]||[];
 const ingresosDelMes=data.ingresos[mesKey]||[];
 const sueldoDelMes=data.sueldo[mesKey]||0;
+const ingresosMesAnterior=data.ingresos[mesAnteriorKey]||[];
+const sueldoMesAnterior=data.sueldo[mesAnteriorKey]||0;
 
 useEffect(() => {
   setSueldoInput(sueldoDelMes ? String(sueldoDelMes) : "");
@@ -580,6 +606,11 @@ useEffect(() => {
   const totalUSD_=gastosDelMes.reduce((a,g)=>a+montoUSDReal(g),0);
   const totalIngresosExtras=ingresosDelMes.reduce((a,i)=>a+Number(i.monto),0);
   const totalIngresos=totalIngresosExtras+Number(sueldoDelMes);
+  const totalIngresosExtrasAnterior=ingresosMesAnterior.reduce((a,i)=>a+Number(i.monto||0),0);
+  const totalIngresosAnterior=totalIngresosExtrasAnterior+Number(sueldoMesAnterior||0);
+  const tieneIngresosMesAnterior=ingresosMesAnterior.length>0 || Number(sueldoMesAnterior||0)>0;
+  const variacionIngresos=totalIngresos-totalIngresosAnterior;
+  const variacionIngresosPct=tieneIngresosMesAnterior && totalIngresosAnterior>0 ? Math.round((variacionIngresos/totalIngresosAnterior)*100) : null;
   const diaActualMes = mes.y === now.getFullYear() && mes.m === now.getMonth() ? now.getDate() : new Date(mes.y, mes.m + 1, 0).getDate();
   const diasDelMes = new Date(mes.y, mes.m + 1, 0).getDate();
   const ingresosHoy = ingresosDelMes.filter(i=>Number(i.dia)===diaActualMes).reduce((a,i)=>a+Number(i.monto||0),0);
@@ -4066,7 +4097,7 @@ if (!authUser) {
           <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
             <div>
               <div style={{ fontSize:11,color:"#7c3aed",fontWeight:900,letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-              <div style={{ fontWeight:900,fontSize:21,lineHeight:1.1 }}>Ingresos</div>
+              <div style={{ fontWeight:900,fontSize:22,lineHeight:1.1 }}>Ingresos</div>
               <div style={{ fontSize:13,color:"#94a3b8",marginTop:4 }}>{MESES[mes.m]} {mes.y}</div>
             </div>
             <div style={{ display:"flex",gap:8 }}>
@@ -4075,36 +4106,46 @@ if (!authUser) {
             </div>
           </div>
 
-          <div className="card" style={{ background:"linear-gradient(135deg,#111827 0%,#1f1235 100%)",border:"1px solid #7c3aed66",padding:14 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start" }}>
-              <div>
-                <span style={lbl}>INGRESOS DEL MES</span>
-                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:27,fontWeight:900,color:"#4ade80",lineHeight:1.1 }}>{fmtARS(totalIngresos)}</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>{movimientosIngresosMes} movimiento{movimientosIngresosMes!==1?"s":""} este mes · {ingresosHoy>0?`${fmtARS(ingresosHoy)} hoy`:"Hoy sin ingresos"}</div>
+          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#22c55e44 0%,transparent 36%),linear-gradient(135deg,#102018 0%,#111827 58%,#1a1230 100%)",border:"1px solid #22c55e55",padding:14,borderRadius:18 }}>
+            <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",position:"relative" }}>
+              <div style={{ minWidth:0 }}>
+                <div style={{ fontSize:10,color:"#86efac",fontWeight:900,letterSpacing:1,textTransform:"uppercase",marginBottom:5 }}>Ingresos del mes</div>
+                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:30,fontWeight:900,color:"#4ade80",lineHeight:1.05 }}>{fmtARS(totalIngresos)}</div>
+                <div style={{ fontSize:11,color:"#94a3b8",marginTop:5 }}>
+                  {movimientosIngresosMes} movimiento{movimientosIngresosMes!==1?"s":""} · {ingresosHoy>0?`${fmtARS(ingresosHoy)} hoy`:"Hoy sin ingresos"}
+                </div>
               </div>
-              <div style={{ minWidth:82,textAlign:"right" }}>
-                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,textTransform:"uppercase" }}>Avance</div>
-                <div style={{ fontSize:22,fontWeight:900,color:"#c4b5fd" }}>{avanceIngresosPct}%</div>
-                <div style={{ fontSize:10,color:"#64748b" }}>base actual</div>
+              <div style={{ minWidth:92,textAlign:"right",background:tieneIngresosMesAnterior?(variacionIngresos>=0?"#052e16":"#2a1212"):"#1e1e2e",border:`1px solid ${tieneIngresosMesAnterior?(variacionIngresos>=0?"#22c55e55":"#f8717155"):"#334155"}`,borderRadius:14,padding:"8px 9px" }}>
+                <div style={{ fontSize:9,color:"#94a3b8",fontWeight:900,textTransform:"uppercase" }}>vs mes anterior</div>
+                <div style={{ fontSize:15,fontWeight:900,color:tieneIngresosMesAnterior?(variacionIngresos>=0?"#4ade80":"#f87171"):"#cbd5e1",lineHeight:1.1 }}>
+                  {tieneIngresosMesAnterior ? `${variacionIngresos>=0?"▲":"▼"} ${variacionIngresosPct!==null?`${Math.abs(variacionIngresosPct)}%`:fmtARS(Math.abs(variacionIngresos))}` : "Sin base"}
+                </div>
+                <div style={{ fontSize:9,color:"#64748b",marginTop:3 }}>{mesAnteriorInfo.label}</div>
               </div>
             </div>
-            <div style={{ height:7,background:"#1e1e2e",borderRadius:999,overflow:"hidden",marginTop:12 }}>
-              <div style={{ width:`${avanceIngresosPct}%`,height:"100%",background:"linear-gradient(90deg,#22c55e,#a78bfa)",borderRadius:999 }} />
-            </div>
+            {tieneIngresosMesAnterior&&(
+              <div style={{ fontSize:11,color:"#94a3b8",marginTop:10 }}>
+                {variacionIngresos===0
+                  ? "Ingresaste lo mismo que el mes anterior."
+                  : variacionIngresos>0
+                    ? `Ingresaste ${fmtARS(Math.abs(variacionIngresos))} más que ${mesAnteriorInfo.label}.`
+                    : `Ingresaste ${fmtARS(Math.abs(variacionIngresos))} menos que ${mesAnteriorInfo.label}.`}
+              </div>
+            )}
           </div>
 
           <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>SUELDO FIJO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#4ade80" }}>{fmtARS(sueldoDelMes)}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>VARIABLE DEL MES</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#38bdf8" }}>{fmtARS(totalIngresosExtras)}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>PROM. DIARIO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#fbbf24" }}>{fmtARS(promedioDiarioIngresos)}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>PROYECCIÓN</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#a78bfa" }}>{fmtARS(proyeccionIngresosMes)}</div></div>
+            <div className="card" style={{ padding:11 }}><span style={lbl}>SUELDO FIJO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#4ade80" }}>{fmtARS(sueldoDelMes)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>Base mensual</div></div>
+            <div className="card" style={{ padding:11 }}><span style={lbl}>VARIABLE</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#38bdf8" }}>{fmtARS(totalIngresosExtras)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{ingresosDelMes.length} carga{ingresosDelMes.length!==1?"s":""}</div></div>
+            <div className="card" style={{ padding:11 }}><span style={lbl}>PROM. DIARIO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#fbbf24" }}>{fmtARS(promedioDiarioIngresos)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>según día {diaActualMes}</div></div>
+            <div className="card" style={{ padding:11 }}><span style={lbl}>PROYECCIÓN</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#a78bfa" }}>{fmtARS(proyeccionIngresosMes)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>si mantiene ritmo</div></div>
           </div>
 
           <div className="card" style={{ border:"1px solid #2563eb55",background:"#0f172a",padding:11 }}>
             <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
               <div style={{ width:28,height:28,borderRadius:11,display:"grid",placeItems:"center",background:"#1e3a8a",fontSize:15 }}>💡</div>
               <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Resumen del mes</div>
+                <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Resumen</div>
                 <div style={{ fontSize:13,fontWeight:800,color:"#e2e8f0",lineHeight:1.35,marginTop:3 }}>
                   {totalIngresos<=0
                     ? "Todavía no hay ingresos cargados para este mes."
@@ -4113,34 +4154,60 @@ if (!authUser) {
                       : "Este mes se sostiene principalmente con ingresos fijos."}
                 </div>
                 <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
-                  {totalIngresos>0
-                    ? `El ingreso fijo representa ${sueldoDelMes>0 ? Math.round((sueldoDelMes/totalIngresos)*100) : 0}% del total.`
-                    : "Cargá sueldo o ingresos diarios para ver el avance."}
+                  {tieneIngresosMesAnterior
+                    ? (variacionIngresos>=0 ? "La tendencia viene mejor que el mes anterior." : "La tendencia viene por debajo del mes anterior.")
+                    : "No hay base del mes anterior para comparar."}
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="card" style={{ padding:12 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-              <div><span style={lbl}>SUELDO DEL MES</span><div style={{ fontSize:11,color:"#64748b" }}>Base fija para calcular saldo y margen.</div></div>
-              {sueldoDelMes>0&&<div style={{ fontSize:12,color:"#4ade80",fontWeight:800 }}>{fmtARS(sueldoDelMes)}</div>}
+          <div className="card" style={{ padding:12,border:"1px solid #22c55e33" }}>
+            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
+              <div><span style={lbl}>SUELDO DEL MES</span><div style={{ fontSize:11,color:"#64748b" }}>Ingreso fijo usado para calcular saldo y margen.</div></div>
+              {sueldoDelMes>0&&<div style={{ fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(sueldoDelMes)}</div>}
             </div>
-            <div style={{ display:"flex",gap:8 }}><input className="inf" type="number" placeholder={sueldoDelMes?String(sueldoDelMes):"Monto sueldo"} value={sueldoInput} onChange={e=>setSueldoInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff",padding:"10px 14px" }} onClick={guardarSueldo}>Guardar</button></div>
+            <div style={{ display:"flex",gap:8 }}>
+              <input className="inf" type="number" placeholder={sueldoDelMes?String(sueldoDelMes):"Monto sueldo"} value={sueldoInput} onChange={e=>setSueldoInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/>
+              <button className="pb" style={{ background:"#7c3aed",color:"#fff",padding:"10px 14px" }} onClick={guardarSueldo}>Guardar</button>
+            </div>
           </div>
 
-          <div className="card" style={{ padding:12,border:"1px solid #22c55e44" }}>
+          <div className="card" style={{ padding:12,border:"1px solid #22c55e44",background:"linear-gradient(135deg,#0f1f17,#101827)" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
-              <div><span style={lbl}>INGRESO RÁPIDO</span><div style={{ fontSize:11,color:"#64748b" }}>Cargá ingresos variables del día: ventas, extras, cobros o trabajos.</div></div><div style={{ fontSize:18 }}>⚡</div>
+              <div><span style={lbl}>INGRESO VARIABLE</span><div style={{ fontSize:11,color:"#94a3b8" }}>Cargá ventas, extras, cobros o trabajos del día.</div></div><div style={{ fontSize:18 }}>⚡</div>
             </div>
             <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:10 }}>{[...new Set([...(cfg.fuentesIngreso || []), ...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))].map(f=>(<button key={f} className="pb" onClick={()=>setIngForm(i=>({...i,fuente:f}))} style={{ background:ingForm.fuente===f?"#14532d":"#1e1e2e",color:ingForm.fuente===f?"#4ade80":"#94a3b8",fontSize:12,padding:"7px 10px",border:ingForm.fuente===f?"1px solid #22c55e66":"1px solid #2a2a3e" }}>{f}</button>))}</div>
             <div style={{ display:"grid",gridTemplateColumns:"1fr 86px",gap:8,marginBottom:10 }}><input className="inf" type="number" placeholder="Monto" value={ingForm.monto} onChange={e=>setIngForm(i=>({...i,monto:e.target.value}))} inputMode="numeric" /><input className="inf" type="number" placeholder="Día" value={ingForm.dia} onChange={e=>setIngForm(i=>({...i,dia:e.target.value}))} inputMode="numeric" /></div>
             <button className="pb" style={{ width:"100%",background:"linear-gradient(90deg,#15803d,#16a34a)",color:"#dcfce7",fontWeight:900,padding:"11px 12px" }} onClick={guardarIngreso}>+ Registrar ingreso variable</button>
           </div>
 
-          {ingresosPorFuente.length>0&&(<div className="card" style={{ padding:12 }}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}><div><span style={lbl}>FUENTES VARIABLES</span><div style={{ fontSize:11,color:"#64748b" }}>Acumulado mensual de ingresos diarios o variables.</div></div><div style={{ fontSize:11,color:"#94a3b8" }}>{ingresosPorFuente.filter(f=>f.total>0).length} fuente(s)</div></div>{ingresosPorFuente.filter(f=>f.total>0).map(f=>{ const w = totalIngresosExtras>0 ? Math.min(100,Math.round((f.total/totalIngresosExtras)*100)) : 0; return <div key={f.fuente} style={{ marginBottom:10 }}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10 }}><div style={{ display:"flex",alignItems:"center",gap:8 }}><span style={{ width:8,height:8,borderRadius:999,background:f.color,display:"inline-block" }} /><span style={{ fontSize:13,fontWeight:800 }}>{f.fuente}</span><span style={{ fontSize:10,color:"#64748b" }}>{f.items.length}</span></div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(f.total)}</div></div><div style={{ height:4,background:"#1e1e2e",borderRadius:999,overflow:"hidden",marginTop:6 }}><div style={{ width:`${w}%`,height:"100%",background:f.color,borderRadius:999 }} /></div></div>; })}</div>)}
-
-          {ingresosDelMes.length>0&&(<div className="card" style={{ padding:12 }}><div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}><div><span style={lbl}>INGRESOS REGISTRADOS</span><div style={{ fontSize:11,color:"#64748b" }}>Ingresos variables cargados este mes.</div></div><div style={{ fontSize:11,color:"#94a3b8" }}>{ingresosDelMes.length} item(s)</div></div>{[...ingresosDelMes].sort((a,b)=>Number(b.dia)-Number(a.dia)).map(item=>(<div key={item.id} style={rowS}><div><div style={{ fontSize:14,fontWeight:800 }}>{normalizarFuenteIngreso(item.fuente)}</div><div style={{ fontSize:11,color:"#64748b" }}>Día {item.dia}</div></div><div style={{ display:"flex",alignItems:"center",gap:10 }}><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,color:"#4ade80",fontWeight:900 }}>{fmtARS(item.monto)}</div><button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:13 }} onClick={()=>setConfirmDel({...item,tipo:"ingresos",servicio:normalizarFuenteIngreso(item.fuente)})}>✕</button></div></div>))}<div style={{ borderTop:"1px solid #1e1e2e",paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between" }}><span style={{ fontSize:13,color:"#64748b" }}>Total ingresos</span><span style={{ fontFamily:"'Space Mono',monospace",fontSize:14,color:"#4ade80",fontWeight:900 }}>{fmtARS(totalIngresos)}</span></div></div>)}
+          {ingresosPorFuente.filter(f=>f.total>0).length>0&&(
+            <div className="card" style={{ padding:12 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+                <div><span style={lbl}>FUENTES DEL MES</span><div style={{ fontSize:11,color:"#64748b" }}>Agrupado por origen de ingreso.</div></div>
+                <div style={{ fontSize:11,color:"#94a3b8" }}>{ingresosPorFuente.filter(f=>f.total>0).length} fuente(s)</div>
+              </div>
+              {ingresosPorFuente.filter(f=>f.total>0).map(f=>{ const w = totalIngresosExtras>0 ? Math.min(100,Math.round((f.total/totalIngresosExtras)*100)) : 0; return (
+                <div key={f.fuente} style={{ marginBottom:12,padding:"9px 10px",border:"1px solid #1e293b",borderRadius:14,background:"#0f172a" }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:6 }}>
+                    <div style={{ display:"flex",alignItems:"center",gap:8,minWidth:0 }}><span style={{ width:9,height:9,borderRadius:999,background:f.color,display:"inline-block",flexShrink:0 }} /><span style={{ fontSize:13,fontWeight:900,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{f.fuente}</span><span style={{ fontSize:10,color:"#64748b" }}>{f.items.length}</span></div>
+                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(f.total)}</div>
+                  </div>
+                  <div style={{ height:4,background:"#1e1e2e",borderRadius:999,overflow:"hidden" }}><div style={{ width:`${w}%`,height:"100%",background:f.color,borderRadius:999 }} /></div>
+                  <div style={{ marginTop:8,display:"grid",gap:5 }}>
+                    {[...f.items].sort((a,b)=>Number(b.dia)-Number(a.dia)).map(item=>(
+                      <div key={item.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"6px 0",borderTop:"1px solid #1e293b" }}>
+                        <div style={{ fontSize:11,color:"#94a3b8" }}>Día {item.dia}</div>
+                        <div style={{ display:"flex",alignItems:"center",gap:8 }}><div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(item.monto)}</div><button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"3px 8px",cursor:"pointer",fontSize:12 }} onClick={()=>setConfirmDel({...item,tipo:"ingresos",servicio:normalizarFuenteIngreso(item.fuente)})}>×</button></div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );})}
+              <div style={{ borderTop:"1px solid #1e1e2e",paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between" }}><span style={{ fontSize:13,color:"#64748b" }}>Total ingresos</span><span style={{ fontFamily:"'Space Mono',monospace",fontSize:14,color:"#4ade80",fontWeight:900 }}>{fmtARS(totalIngresos)}</span></div>
+            </div>
+          )}
         </>)}
 
         {/* CONFIGURACIÓN */}
