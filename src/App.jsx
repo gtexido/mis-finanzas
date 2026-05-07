@@ -2203,6 +2203,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   // Render gasto en detalle
   // Render gasto en detalle
 const GastoRow=({item})=>{
+  const filaRef = useRef(null);
   const dias=diasRestantes(item.vencimiento);
   const s=item.estado==="pendiente"?semaforo(dias):null;
   const tieneSubconceptos=item.subconceptos&&item.subconceptos.length>0;
@@ -2218,6 +2219,7 @@ const GastoRow=({item})=>{
 
   return(
     <div
+      ref={filaRef}
       style={{
         padding:"12px 0",
         borderBottom:"1px solid #1e1e2e",
@@ -2275,8 +2277,19 @@ const GastoRow=({item})=>{
             {tieneSubconceptos&&<button
               type="button"
               onClick={(e)=>{
+                e.preventDefault();
                 e.stopPropagation();
+                const topAntes = filaRef.current?.getBoundingClientRect?.().top ?? 0;
                 setDesglosesAbiertos(prev=>({ ...prev, [item.id]: !prev[item.id] }));
+                requestAnimationFrame(()=>{
+                  requestAnimationFrame(()=>{
+                    const topDespues = filaRef.current?.getBoundingClientRect?.().top ?? topAntes;
+                    const diferencia = topDespues - topAntes;
+                    if (Math.abs(diferencia) > 1) {
+                      window.scrollBy({ top: diferencia, behavior: "auto" });
+                    }
+                  });
+                });
               }}
               style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:desgloseAbierto?"#12304a":"#0f1a2e",color:"#38bdf8",border:"1px solid #38bdf855",cursor:"pointer" }}
             >
@@ -2294,7 +2307,7 @@ const GastoRow=({item})=>{
           {tieneSubconceptos && desgloseAbierto && (
             <div
               onClick={(e)=>e.stopPropagation()}
-              style={{ marginTop:8,padding:"9px 10px",background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:12 }}
+              style={{ marginTop:8,padding:"9px 10px",background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:12,maxHeight:220,overflowY:"auto",overscrollBehavior:"contain" }}
             >
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6 }}>
                 <div style={{ fontSize:10,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Desglose</div>
