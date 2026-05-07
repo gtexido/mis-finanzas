@@ -351,6 +351,7 @@ export default function App() {
   const [subconceptosGasto,setSubconceptosGasto]=useState(null); // gasto en edición de subconceptos
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
+  const [desglosesAbiertos,setDesglosesAbiertos]=useState({});
   const [cfgTab,setCfgTab]=useState("conceptos");
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
   const [editConcepto,setEditConcepto]=useState(null);
@@ -2205,6 +2206,7 @@ const GastoRow=({item})=>{
   const dias=diasRestantes(item.vencimiento);
   const s=item.estado==="pendiente"?semaforo(dias):null;
   const tieneSubconceptos=item.subconceptos&&item.subconceptos.length>0;
+  const desgloseAbierto = !!desglosesAbiertos[item.id];
   const totalMostrarARS = montoReal(item, tc);
   const totalUSDDetalle = montoUSDReal(item);
   const instrumentoDetalle = item.instrumentoNombre || item.instrumento || item.formaPago || "Sin instrumento";
@@ -2270,7 +2272,16 @@ const GastoRow=({item})=>{
             {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:900,background:"#2a1a4e",color:"#c4b5fd",border:"1px solid #7c3aed55" }}>Revisar</span>}
             {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1f33",color:"#60a5fa",border:"1px solid #60a5fa33" }}>Débito auto.</span>}
             {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}          
-            {tieneSubconceptos&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1a2e",color:"#38bdf8",border:"1px solid #38bdf855" }}>Desglose · {item.subconceptos.length} ítems</span>}
+            {tieneSubconceptos&&<button
+              type="button"
+              onClick={(e)=>{
+                e.stopPropagation();
+                setDesglosesAbiertos(prev=>({ ...prev, [item.id]: !prev[item.id] }));
+              }}
+              style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:desgloseAbierto?"#12304a":"#0f1a2e",color:"#38bdf8",border:"1px solid #38bdf855",cursor:"pointer" }}
+            >
+              {desgloseAbierto?"Ocultar desglose":"Desglose"} · {item.subconceptos.length} ítems
+            </button>}
           </div>
 
           <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.45 }}>
@@ -2279,6 +2290,26 @@ const GastoRow=({item})=>{
             {item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}
             {item.observacion?` · ${item.observacion}`:""}
           </div>
+
+          {tieneSubconceptos && desgloseAbierto && (
+            <div
+              onClick={(e)=>e.stopPropagation()}
+              style={{ marginTop:8,padding:"9px 10px",background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:12 }}
+            >
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6 }}>
+                <div style={{ fontSize:10,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Desglose</div>
+                <div style={{ fontSize:10,color:"#94a3b8" }}>{item.subconceptos.length} ítem{item.subconceptos.length===1?"":"s"}</div>
+              </div>
+              {item.subconceptos.map((sub,idx)=>(
+                <div key={sub.id || `${item.id}_sub_${idx}`} style={{ display:"flex",justifyContent:"space-between",gap:10,padding:"5px 0",borderTop:idx?"1px solid #1e293b":"none" }}>
+                  <span style={{ fontSize:11,color:"#cbd5e1",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{sub.nombre}</span>
+                  <span style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:800,whiteSpace:"nowrap" }}>
+                    {fmtMonto(Number(sub.monto ?? sub.montoUSD ?? 0), sub.moneda || item.moneda || "ARS")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <button
@@ -3597,20 +3628,22 @@ if (!authUser) {
               : "Detalle";
 
           return(<>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
-              <div>
-                <div style={{ fontSize:11,color:"#7c3aed",fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:2 }}>MIS FINANZAS</div>
-                <div style={{ fontWeight:800,fontSize:22,lineHeight:1 }}>{tituloDetalle}</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>{MESES[mes.m]} {mes.y} · {cantidadDetalleFiltrada} movimiento{cantidadDetalleFiltrada===1?"":"s"}</div>
+            <div style={{ marginBottom:12 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:10 }}>
+                <div>
+                  <div style={{ fontSize:11,color:"#7c3aed",fontWeight:800,letterSpacing:1.5,textTransform:"uppercase",marginBottom:2 }}>MIS FINANZAS</div>
+                  <div style={{ fontWeight:800,fontSize:22,lineHeight:1 }}>{tituloDetalle}</div>
+                  <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>{MESES[mes.m]} {mes.y} · {cantidadDetalleFiltrada} movimiento{cantidadDetalleFiltrada===1?"":"s"}</div>
+                </div>
               </div>
-              <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0,overflowX:"auto",maxWidth:250 }}>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(4,minmax(0,1fr))",gap:6,width:"100%" }}>
                 {[
                   ["todos","Todos","#7c3aed"],
-                  ["pagado","Pagados","#22c55e"],
-                  ["pendiente","Pendientes","#fb923c"],
+                  ["pagado","Pag.","#22c55e"],
+                  ["pendiente","Pend.","#fb923c"],
                   ["revisar","Revisar","#a78bfa"]
                 ].map(([v,l,color])=>(
-                  <button key={v} className="tb" onClick={()=>setFiltroEstado(v)} style={{ background:filtroEstado===v?color:"#1e1e2e",color:filtroEstado===v?"#0a0a0f":"#94a3b8",padding:"8px 10px",borderRadius:12,whiteSpace:"nowrap",fontWeight:800 }}>{l}</button>
+                  <button key={v} className="tb" onClick={()=>setFiltroEstado(v)} style={{ background:filtroEstado===v?color:"#1e1e2e",color:filtroEstado===v?"#0a0a0f":"#94a3b8",padding:"8px 6px",borderRadius:12,whiteSpace:"nowrap",fontWeight:800,fontSize:11,textAlign:"center" }}>{l}</button>
                 ))}
               </div>
             </div>
