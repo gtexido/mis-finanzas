@@ -652,7 +652,11 @@ useEffect(() => {
 
   const gastosPorCat=agruparPorCategoriaReal(gastosDelMes);
   const [filtroCatInicio,setFiltroCatInicio]=useState(null); // categoría seleccionada desde inicio
-  const gastosFiltrados=filtroEstado==="todos"?gastosDelMes:gastosDelMes.filter(g=>g.estado===filtroEstado);
+  const gastosFiltrados = filtroEstado === "todos"
+    ? gastosDelMes
+    : filtroEstado === "revisar"
+      ? gastosDelMes.filter(g => !!g.requiereRevision)
+      : gastosDelMes.filter(g => g.estado === filtroEstado);
   const gastosPorCatF=agruparPorCategoriaReal(gastosFiltrados);
   const [busqueda,setBusqueda]=useState("");
   const [mostrarTodosConceptos,setMostrarTodosConceptos]=useState(false);
@@ -3549,10 +3553,16 @@ if (!authUser) {
           const gruposDetalle = gastosPorCatFiltrado2.filter(c=>c.items.length>0);
           const totalDetalleFiltrado = gruposDetalle.reduce((acc,c)=>acc+Number(c.total||0),0);
           const cantidadDetalleFiltrada = gruposDetalle.reduce((acc,c)=>acc+(c.items?.length||0),0);
+          const cantidadPendienteDetalle = gastosDetalleFiltrados.filter(g=>g.estado==="pendiente").length;
+          const totalPendienteDetalle = gastosDetalleFiltrados.filter(g=>g.estado==="pendiente").reduce((acc,g)=>acc+toARS_(g),0);
+          const cantidadRevisarDetalle = gastosDetalleFiltrados.filter(g=>!!g.requiereRevision).length;
+          const totalRevisarDetalle = gastosDetalleFiltrados.filter(g=>!!g.requiereRevision).reduce((acc,g)=>acc+toARS_(g),0);
           const hayFiltroActivo = filtroCatInicio || filtroEstado!=="todos" || busqueda.trim();
           const tituloDetalle = filtroCatInicio
             ? cfg.categorias.find(c=>c.id===filtroCatInicio)?.label || "Detalle"
-            : "Detalle";
+            : filtroEstado==="revisar"
+              ? "Para revisar"
+              : "Detalle";
 
           return(<>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
@@ -3561,22 +3571,27 @@ if (!authUser) {
                 <div style={{ fontWeight:800,fontSize:22,lineHeight:1 }}>{tituloDetalle}</div>
                 <div style={{ fontSize:12,color:"#94a3b8",marginTop:5 }}>{MESES[mes.m]} {mes.y} · {cantidadDetalleFiltrada} movimiento{cantidadDetalleFiltrada===1?"":"s"}</div>
               </div>
-              <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0 }}>
-                {[["todos","Todos"],["pagado","✅"],["pendiente","⏳"]].map(([v,l])=>(
-                  <button key={v} className="tb" onClick={()=>setFiltroEstado(v)} style={{ background:filtroEstado===v?"#7c3aed":"#1e1e2e",color:filtroEstado===v?"#fff":"#94a3b8",padding:"8px 10px",borderRadius:12 }}>{l}</button>
+              <div style={{ display:"flex",gap:6,alignItems:"center",flexShrink:0,overflowX:"auto",maxWidth:250 }}>
+                {[
+                  ["todos","Todos","#7c3aed"],
+                  ["pagado","Pagados","#22c55e"],
+                  ["pendiente","Pendientes","#fb923c"],
+                  ["revisar","Revisar","#a78bfa"]
+                ].map(([v,l,color])=>(
+                  <button key={v} className="tb" onClick={()=>setFiltroEstado(v)} style={{ background:filtroEstado===v?color:"#1e1e2e",color:filtroEstado===v?"#0a0a0f":"#94a3b8",padding:"8px 10px",borderRadius:12,whiteSpace:"nowrap",fontWeight:800 }}>{l}</button>
                 ))}
               </div>
             </div>
 
             <div className="card" style={{ padding:14,marginBottom:12,background:"linear-gradient(135deg,#111827 0%,#171226 100%)",border:"1px solid #2a1a4e" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
+              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,marginBottom:12 }}>
                 <div>
                   <div style={{ fontSize:11,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase",marginBottom:4 }}>
-                    {hayFiltroActivo?"Total filtrado":"Total del mes"}
+                    {hayFiltroActivo?"Resumen filtrado":"Resumen del detalle"}
                   </div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:22,fontWeight:900,color:filtroEstado==="pendiente"?"#fb923c":"#4ade80" }}>{fmtARS(totalDetalleFiltrado)}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:22,fontWeight:900,color:filtroEstado==="pendiente"?"#fb923c":filtroEstado==="revisar"?"#c4b5fd":"#4ade80" }}>{fmtARS(totalDetalleFiltrado)}</div>
                   <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>
-                    {filtroEstado==="todos"?"Todos los estados":filtroEstado==="pagado"?"Solo gastos pagados":"Solo gastos pendientes"}
+                    {cantidadDetalleFiltrada} movimiento{cantidadDetalleFiltrada===1?"":"s"} en vista
                   </div>
                 </div>
                 {hayFiltroActivo&&(
@@ -3587,6 +3602,22 @@ if (!authUser) {
                     Limpiar
                   </button>
                 )}
+              </div>
+              <div style={{ display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8 }}>
+                <div style={{ background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"8px 9px" }}>
+                  <div style={{ fontSize:9,color:"#94a3b8",fontWeight:900,letterSpacing:.7,textTransform:"uppercase" }}>Mov.</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:900,color:"#e2e8f0" }}>{cantidadDetalleFiltrada}</div>
+                </div>
+                <div style={{ background:"#21160b",border:"1px solid #fb923c44",borderRadius:12,padding:"8px 9px" }}>
+                  <div style={{ fontSize:9,color:"#fdba74",fontWeight:900,letterSpacing:.7,textTransform:"uppercase" }}>Pendiente</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:"#fb923c" }}>{fmtARS(totalPendienteDetalle)}</div>
+                  <div style={{ fontSize:9,color:"#94a3b8" }}>{cantidadPendienteDetalle} ítem{cantidadPendienteDetalle===1?"":"s"}</div>
+                </div>
+                <div style={{ background:"#1a1230",border:"1px solid #a78bfa44",borderRadius:12,padding:"8px 9px" }}>
+                  <div style={{ fontSize:9,color:"#c4b5fd",fontWeight:900,letterSpacing:.7,textTransform:"uppercase" }}>Revisar</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:"#c4b5fd" }}>{fmtARS(totalRevisarDetalle)}</div>
+                  <div style={{ fontSize:9,color:"#94a3b8" }}>{cantidadRevisarDetalle} ítem{cantidadRevisarDetalle===1?"":"s"}</div>
+                </div>
               </div>
             </div>
 
