@@ -241,7 +241,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
                       marginTop: 7,
                     }}
                   >
-                    ✅ Pagar
+                    ✓ Pagado
                   </button>
                 </div>
               </div>
@@ -263,7 +263,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
             Vencimientos
           </div>
           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-            {soloMes ? `${mesNombre} ${mesActual.y}` : "Todos los meses"}
+            {soloMes ? `${mesNombre} ${mesActual.y}` : "Todos los vencimientos"}
           </div>
         </div>
         <button
@@ -280,7 +280,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
             color: soloMes ? "#fff" : "#cbd5e1",
           }}
         >
-          {soloMes ? "Solo mes" : "Todos"}
+          {soloMes ? "Este mes" : "Todos"}
         </button>
       </div>
 
@@ -296,7 +296,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
           <div>
             <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 900, letterSpacing: 1 }}>
-              TOTAL PENDIENTE
+              TOTAL A PAGAR
             </div>
             <div style={{ fontSize: 25, color: totalPendiente > 0 ? "#fb923c" : "#4ade80", fontWeight: 900, lineHeight: 1.1 }}>
               {fmtARS(totalPendiente)}
@@ -307,10 +307,10 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
           </div>
           <div style={{ textAlign: "right" }}>
             <div style={{ fontSize: 10, color: "#94a3b8", fontWeight: 900, letterSpacing: 1 }}>
-              MÁS CERCANO
+              PRÓXIMO PAGO
             </div>
             <div style={{ fontSize: 17, color: masCercano ? "#f8fafc" : "#4ade80", fontWeight: 900 }}>
-              {masCercano ? (diasMasCercano === 0 ? "Hoy" : `${diasMasCercano} días`) : "Libre"}
+              {masCercano ? (diasMasCercano === 0 ? "Hoy" : `En ${diasMasCercano} días`) : "Libre"}
             </div>
             {totalUsd > 0 && (
               <div style={{ fontSize: 11, color: "#38bdf8", marginTop: 4 }}>
@@ -324,7 +324,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
         <StatCard label="VENCIDOS" value={vencidos.length} tone={vencidos.length ? "danger" : "neutral"} hint="requieren acción" />
         <StatCard label="HOY" value={hoy_.length} tone={hoy_.length ? "warn" : "neutral"} hint="vencen hoy" />
-        <StatCard label="SEMANA" value={estaSemana.length} tone={estaSemana.length ? "warn" : "neutral"} hint="próximos días" />
+        <StatCard label="ESTA SEMANA" value={estaSemana.length} tone={estaSemana.length ? "warn" : "neutral"} hint="próximos días" />
         <StatCard label="PRÓXIMOS" value={proximos.length} tone={proximos.length ? "ok" : "neutral"} hint="más adelante" />
       </div>
 
@@ -343,11 +343,11 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
         <div style={{ fontSize: 18 }}>💡</div>
         <div>
           <div style={{ fontSize: 11, color: "#38bdf8", fontWeight: 900, letterSpacing: 1 }}>
-            PANORAMA
+            RESUMEN
           </div>
           <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 800, lineHeight: 1.35 }}>
             {ordenados.length === 0
-              ? "No tenés vencimientos pendientes. Cuando cargues Mayo, acá vas a ver alertas y próximos pagos."
+              ? "No tenés pagos pendientes con fecha. Cuando cargues vencimientos, acá vas a ver alertas y próximos pagos."
               : vencidos.length > 0
                 ? `Tenés ${vencidos.length} vencimiento${vencidos.length !== 1 ? "s" : ""} vencido${vencidos.length !== 1 ? "s" : ""}. Conviene resolverlo primero.`
                 : hoy_.length > 0

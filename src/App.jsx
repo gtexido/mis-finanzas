@@ -2801,7 +2801,7 @@ if (!authUser) {
       )}
 
       {/* HEADER */}
-      {view!=="ingresos"&&(
+      {!["ingresos","vencimientos"].includes(view)&&(
         <div style={{ padding:"18px 14px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
           <div>
             <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
