@@ -238,7 +238,11 @@ export default async function handler(req, res) {
     const usuarioId = user.usuarioId;
     const usuarioIdCreador = user.usuarioId;
 
-    if (!id || !periodo || !monto) {
+    const tieneSubconceptosPayload = Array.isArray(subconceptos) && subconceptos.length > 0;
+    const montoPayload = Number(monto || 0);
+    const montoValidoParaGasto = Number.isFinite(montoPayload) && montoPayload > 0;
+
+    if (!id || !periodo || (!montoValidoParaGasto && !tieneSubconceptosPayload)) {
       return res.status(400).json({
         ok: false,
         error: "Faltan datos obligatorios",

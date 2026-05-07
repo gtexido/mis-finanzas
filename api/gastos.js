@@ -236,7 +236,11 @@ export default async function handler(req, res) {
 
     const conceptoNuevoId = conceptoId || body.concepto_id || null;
 
-    if (!periodo || !monto || (!servicio && !conceptoNuevoId)) {
+    const tieneSubconceptosPayload = Array.isArray(subconceptos) && subconceptos.length > 0;
+    const montoPayload = Number(monto || 0);
+    const montoValidoParaGasto = Number.isFinite(montoPayload) && montoPayload > 0;
+
+    if (!periodo || (!montoValidoParaGasto && !tieneSubconceptosPayload) || (!servicio && !conceptoNuevoId)) {
       return res.status(400).json({
         ok: false,
         error: "Faltan datos obligatorios",
