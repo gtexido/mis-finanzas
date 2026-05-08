@@ -624,11 +624,19 @@ useEffect(() => {
   const promedioPorCargaIngreso = ingresosDelMes.length > 0 ? totalIngresosExtras / ingresosDelMes.length : 0;
   const metaIngresosMes = Math.max(Number(sueldoDelMes || 0), totalIngresos, 1);
   const avanceIngresosPct = Math.min(100, Math.round((totalIngresos / metaIngresosMes) * 100));
-  const ingresosPorFuente = (cfg.fuentesIngreso || FUENTES_INGRESO_GENERICAS).map((fuente, idx)=>{
-    const items = ingresosDelMes.filter(i=>normalizarFuenteIngreso(i.fuente)===fuente);
-    const total = items.reduce((a,i)=>a+Number(i.monto||0),0);
-    return { fuente, total, items, color: COLORES[idx % COLORES.length] };
-  }).filter(f=>f.total>0 || f.fuente===ingForm.fuente);
+  const fuentesIngresoNormalizadas = [
+  ...new Set([
+    ...(cfg.fuentesIngreso || []),
+    ...FUENTES_INGRESO_GENERICAS
+  ].map(normalizarFuenteIngreso))
+];
+
+const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
+  const fuenteNormalizada = normalizarFuenteIngreso(fuente);
+  const items = ingresosDelMes.filter(i=>normalizarFuenteIngreso(i.fuente)===fuenteNormalizada);
+  const total = items.reduce((a,i)=>a+Number(i.monto||0),0);
+  return { fuente: fuenteNormalizada, total, items, color: COLORES[idx % COLORES.length] };
+}).filter(f=>f.total>0 || f.fuente===normalizarFuenteIngreso(ingForm.fuente));
   const fuenteMayorIngreso = ingresosPorFuente.filter(f=>f.total>0).sort((a,b)=>b.total-a.total)[0] || null;
   const saldo=totalIngresos-totalGastos;
   const saldoColor=saldo>=0?"#4ade80":"#f87171";
