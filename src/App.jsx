@@ -4278,16 +4278,27 @@ if (!authUser) {
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
-          <div className="card" style={{ padding:14,border:"1px solid #334155",background:"linear-gradient(180deg,#111827,#0f172a)",marginBottom:14 }}>
-            <div style={{ fontSize:15,fontWeight:900,marginBottom:6 }}>⚙️ Centro de ajustes</div>
-            <div style={{ fontSize:12,color:"#93c5fd",lineHeight:1.45 }}>
-              Configurá cómo se cargan y analizan los movimientos. <strong>Conceptos</strong> son plantillas de carga; <strong>Medios</strong> indican desde dónde pagás; <strong>Categorías</strong> explican en qué gastás; <strong>Etiquetas</strong> agregan lectura transversal.
+          <div className="card" style={{ padding:14,border:"1px solid #334155",background:"radial-gradient(circle at top right,#7c3aed33 0%,transparent 38%),linear-gradient(180deg,#111827,#0f172a)",marginBottom:14 }}>
+            <div style={{ fontSize:11,color:"#a78bfa",fontWeight:900,letterSpacing:1.4,textTransform:"uppercase",marginBottom:5 }}>Mis Finanzas</div>
+            <div style={{ fontSize:21,fontWeight:900,marginBottom:6,lineHeight:1.08 }}>Ajustes</div>
+            <div style={{ fontSize:12,color:"#93c5fd",lineHeight:1.5,marginBottom:12 }}>
+              Configurá cómo se cargan, clasifican y respaldan tus datos. Lo diario queda arriba; lo técnico y sensible queda separado.
+            </div>
+            <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7 }}>
+              {[
+                ["Conceptos",(cfg.conceptos||[]).length],
+                ["Medios",(cfg.mediosPago||[]).filter(m=>m.activo!==false).length],
+                ["Categorías",(cfg.categoriasGasto||[]).filter(c=>c.activo!==false).length],
+                ["Etiquetas",(cfg.etiquetas||[]).filter(e=>e.activo!==false).length],
+              ].map(([label,val])=>(<div key={label} style={{ background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"8px 7px" }}><div style={{ fontSize:9,color:"#64748b",fontWeight:900,textTransform:"uppercase" }}>{label}</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:900,color:"#e2e8f0",marginTop:2 }}>{val}</div></div>))}
             </div>
           </div>
 
           <div className="card" style={{ padding:12,marginBottom:18 }}>
-            <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",marginBottom:8 }}>Ajustes principales</div>
-            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["medios","💳 Medios de pago"],["categorias","🏷️ Categorías"],["etiquetas","🏷️ Etiquetas"],["fuentes","💰 Fuentes de ingreso"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
+            <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",marginBottom:8 }}>Configuración principal</div>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["medios","💳 Medios"],["categorias","🏷️ Categorías"],["etiquetas","🏷️ Etiquetas"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
+            <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",margin:"14px 0 8px" }}>Ingresos</div>
+            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["fuentes","💰 Orígenes de ingreso"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
             <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",margin:"14px 0 8px" }}>Herramientas</div>
             <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["tc","💵 Tipo de cambio"],["backup","💾 Backup y datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
           </div>
@@ -4486,7 +4497,16 @@ if (!authUser) {
               </div>
             </div>
           )}
-          {cfgTab==="fuentes"&&(<><div className="card"><span style={lbl}>NUEVA</span><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Ej: Freelance" value={newFuente} onChange={e=>setNewFuente(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={addFuente}>+</button></div></div><div className="card"><span style={lbl}>ACTUALES</span>{cfg.fuentesIngreso.map((f,idx)=>(<div key={idx}>{editFuente?.idx===idx?(<div style={{ display:"flex",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e",alignItems:"center" }}><input className="ei" value={editFuente.val} onChange={e=>setEditFuente(ef=>({...ef,val:e.target.value}))}/><button style={ib("#14532d","#4ade80")} onClick={saveFuente}>✓</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditFuente(null)}>✕</button></div>):(<div style={rowS}><span style={{ fontSize:14 }}>{f}</span><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditFuente({idx,val:f})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delFuente(idx)}>✕</button></div></div>)}</div>))}</div></>)}
+          {cfgTab==="fuentes"&&(<>
+            <div className="card" style={{ border:"1px solid #14532d55",background:"#0f1f17" }}>
+              <div style={{ fontWeight:900,marginBottom:6 }}>💰 Orígenes de ingreso</div>
+              <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>
+                Definí las fuentes que aparecen en la pantalla Ingresos. Usalas para ordenar cargas variables como Hogar, Ventas, Trabajo Diario u Otros.
+              </div>
+            </div>
+            <div className="card"><span style={lbl}>NUEVO ORIGEN</span><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Ej: Ventas, Extras, Trabajo diario" value={newFuente} onChange={e=>setNewFuente(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#16a34a",color:"#dcfce7" }} onClick={addFuente}>+</button></div><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>Esto solo cambia las opciones disponibles al cargar ingresos; no modifica movimientos históricos.</div></div>
+            <div className="card"><span style={lbl}>ORÍGENES ACTIVOS</span>{cfg.fuentesIngreso.map((f,idx)=>(<div key={idx}>{editFuente?.idx===idx?(<div style={{ display:"flex",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e",alignItems:"center" }}><input className="ei" value={editFuente.val} onChange={e=>setEditFuente(ef=>({...ef,val:e.target.value}))}/><button style={ib("#14532d","#4ade80")} onClick={saveFuente}>✓</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditFuente(null)}>✕</button></div>):(<div style={rowS}><div><div style={{ fontSize:14,fontWeight:800 }}>{normalizarFuenteIngreso(f)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{f!==normalizarFuenteIngreso(f)?`Alias anterior: ${f}`:"Disponible en Ingresos"}</div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditFuente({idx,val:f})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delFuente(idx)}>✕</button></div></div>)}</div>))}</div>
+          </>)}
         </>)}
       </div>
 
