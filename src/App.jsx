@@ -911,6 +911,7 @@ const opcionesAnalisis = [
 ];
 
 const analisisActual = opcionesAnalisis.find((o) => o.id === analisisTab) || opcionesAnalisis[0];
+const esAnalisisEtiqueta = analisisTab === "etiqueta";
 const mayorAnalisis = analisisActual.items[0] || null;
 const maxAnalisis = Math.max(...analisisActual.items.map((x) => x.total), 1);
 const top3Analisis = analisisActual.items.slice(0, 3);
@@ -938,7 +939,7 @@ const insightAnalisis = (() => {
   }
 
   if (analisisTab === "etiqueta") {
-    return `${nombre} domina esta lectura. Recordá que un gasto puede aportar a más de una etiqueta.`;
+    return `${nombre} tiene el mayor acumulado por etiqueta. Esta vista no es excluyente: un mismo gasto puede aportar a más de una etiqueta.`;
   }
 
   return `${nombre} concentra ${pct}% del gasto del mes.`;
@@ -3894,24 +3895,24 @@ if (!authUser) {
                   <div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#e2e8f0" }}>{analisisActual.items.length}</div>
                 </div>
                 <div style={{ background:"#1a1230",border:"1px solid #7c3aed55",borderRadius:13,padding:"9px 10px" }}>
-                  <div style={{ fontSize:9,color:"#c4b5fd",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Top 1</div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#c4b5fd" }}>{pctMayorAnalisis}%</div>
+                  <div style={{ fontSize:9,color:"#c4b5fd",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>{esAnalisisEtiqueta?"Mayor":"Top 1"}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:esAnalisisEtiqueta?12:15,fontWeight:900,color:"#c4b5fd",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{esAnalisisEtiqueta?(mayorAnalisis?.nombre||"—"):`${pctMayorAnalisis}%`}</div>
                 </div>
                 <div style={{ background:"#0f172a",border:"1px solid #334155",borderRadius:13,padding:"9px 10px" }}>
-                  <div style={{ fontSize:9,color:"#94a3b8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Top 3</div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:15,fontWeight:900,color:"#38bdf8" }}>{pctTop3Analisis}%</div>
+                  <div style={{ fontSize:9,color:"#94a3b8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>{esAnalisisEtiqueta?"Lectura":"Top 3"}</div>
+                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:esAnalisisEtiqueta?12:15,fontWeight:900,color:"#38bdf8" }}>{esAnalisisEtiqueta?"No excl.":`${pctTop3Analisis}%`}</div>
                 </div>
               </div>
 
               {mayorAnalisis&&(<div style={{ padding:"11px 12px",borderRadius:14,background:"#0b1020",border:"1px solid #1e293b" }}>
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:6 }}>
                   <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Mayor concentración</div>
+                    <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>{esAnalisisEtiqueta?"Mayor acumulado":"Mayor concentración"}</div>
                     <div style={{ fontSize:14,fontWeight:900,color:"#f8fafc",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{mayorAnalisis.nombre}</div>
                   </div>
                   <div style={{ textAlign:"right",flexShrink:0 }}>
                     <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:900,color:"#e2e8f0" }}>{fmtARS(mayorAnalisis.total)}</div>
-                    <div style={{ fontSize:10,color:"#94a3b8" }}>{pctMayorAnalisis}% del mes</div>
+                    <div style={{ fontSize:10,color:"#94a3b8" }}>{esAnalisisEtiqueta?"acumulado por etiqueta":`${pctMayorAnalisis}% del mes`}</div>
                   </div>
                 </div>
                 <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.45 }}>{insightAnalisis}</div>
@@ -3968,7 +3969,7 @@ if (!authUser) {
                         <span style={{ width:10,height:10,borderRadius:"50%",background:item.color||"#64748b",flexShrink:0,marginTop:4 }} />
                         <div style={{ minWidth:0 }}>
                           <div style={{ fontSize:14,fontWeight:900,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",color:"#e2e8f0" }}>{item.nombre}</div>
-                          <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>{item.cantidad} movimiento{item.cantidad!==1?"s":""} · {pctTotal}% del mes</div>
+                          <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>{item.cantidad} movimiento{item.cantidad!==1?"s":""} · {esAnalisisEtiqueta?"acumulado por etiqueta":`${pctTotal}% del mes`}</div>
                         </div>
                       </div>
                       <div style={{ textAlign:"right",flexShrink:0 }}>
@@ -3987,7 +3988,7 @@ if (!authUser) {
             {analisisTab==="etiqueta"&&(
               <div className="card" style={{ border:"1px solid #1e3a5f",background:"#0f172a" }}>
                 <div style={{ fontSize:13,color:"#94a3b8",lineHeight:1.6 }}>
-                  Nota: un mismo gasto puede tener más de una etiqueta. Por eso, en esta vista un gasto puede aportar a más de un grupo.
+                  Nota: las etiquetas no son excluyentes. Un mismo gasto puede tener varias etiquetas, por eso los acumulados por etiqueta pueden superar el total del mes.
                 </div>
               </div>
             )}
