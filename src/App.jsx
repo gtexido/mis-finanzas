@@ -4146,19 +4146,45 @@ if (!authUser) {
           const diffTotal = totalActual - totalAnterior;
           const pctTotal = pct_(totalActual,totalAnterior);
           const tieneBase = totalAnterior > 0;
+          const claveVariacionGasto = (g = {}) => {
+            const conceptoBase = normalizarTexto(g.servicio || g.conceptoManual || g.conceptoNombre || "Sin concepto") || "sin_concepto";
+            const medioBase = g.medioPagoId || g.medio_pago_id || slugKey(g.medioPagoNombre || g.medioPago || "medio_no_definido");
+            const categoriaMeta = categoriaRealDesdeGasto(g);
+            const categoriaBase = g.categoriaGastoId || g.categoria_gasto_id || categoriaMeta.id || "sin_categoria";
+            return [conceptoBase, medioBase, categoriaBase].map((x)=>slugKey(x) || "sin_dato").join("__");
+          };
+
           const conceptoMap = ml.reduce((acc,{key})=>{
             (data.gastos[key] || []).forEach(g=>{
               const nombre = (g.servicio || g.conceptoManual || "Sin concepto").trim() || "Sin concepto";
-              if (!acc[nombre]) acc[nombre] = {};
-              acc[nombre][key] = (acc[nombre][key] || 0) + toARS__(g,tc);
+              const categoriaMeta = categoriaRealDesdeGasto(g);
+              const medioNombre = normalizarEtiquetaVisual(g.medioPagoNombre || g.medioPago, "Medio no definido");
+              const categoriaNombre = normalizarEtiquetaVisual(categoriaMeta.label, "Sin categoría");
+              const clave = claveVariacionGasto(g);
+
+              if (!acc[clave]) {
+                acc[clave] = {
+                  id: clave,
+                  nombre,
+                  medioNombre,
+                  categoriaNombre,
+                  vals: {},
+                };
+              }
+
+              acc[clave].nombre = acc[clave].nombre || nombre;
+              acc[clave].medioNombre = acc[clave].medioNombre || medioNombre;
+              acc[clave].categoriaNombre = acc[clave].categoriaNombre || categoriaNombre;
+              acc[clave].vals[key] = (acc[clave].vals[key] || 0) + toARS__(g,tc);
             });
             return acc;
           },{});
-          const conceptos = Object.entries(conceptoMap)
-            .map(([nombre,vals])=>{
+          const conceptos = Object.values(conceptoMap)
+            .map((item)=>{
+              const vals = item.vals || {};
               const actual = vals[actualKey] || 0;
               const anterior = anteriorKey ? (vals[anteriorKey] || 0) : 0;
-              return { nombre, vals, actual, anterior, diff: actual - anterior, pct: pct_(actual, anterior) };
+              return { ...item, vals, actual, anterior, diff: actual - anterior, pct: pct_(actual, anterior) };
             })
             .sort((a,b)=>b.actual-a.actual || Math.abs(b.diff)-Math.abs(a.diff));
           const subieron = conceptos.filter(x=>x.actual>0 && x.anterior>0 && x.diff>0).sort((a,b)=>b.diff-a.diff).slice(0,4);
@@ -4181,6 +4207,50 @@ if (!authUser) {
               <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{subtitulo}</div>
             </div>
           );
+          const badgeVariacionItem = (item) => {
+            const baseStyle = {
+              display:"inline-flex",
+              alignItems:"center",
+              gap:5,
+              padding:"4px 8px",
+              borderRadius:999,
+              fontSize:10,
+              fontWeight:900,
+              border:"1px solid transparent",
+              whiteSpace:"nowrap",
+            };
+
+            if (!anteriorKey) {
+              return <span style={{ ...baseStyle,background:"#1e1e2e",color:"#cbd5e1",borderColor:"#334155" }}>Sin base</span>;
+            }
+
+            if (item.actual > 0 && item.anterior === 0) {
+              return <span style={{ ...baseStyle,background:"#1a1230",color:"#c4b5fd",borderColor:"#7c3aed55" }}>🆕 Nuevo</span>;
+            }
+
+            if (item.actual === 0 && item.anterior > 0) {
+              return <span style={{ ...baseStyle,background:"#111827",color:"#94a3b8",borderColor:"#47556955" }}>♻️ Sin gasto</span>;
+            }
+
+            if (item.diff > 0) {
+              return (
+                <span style={{ ...baseStyle,background:"#2a1212",color:"#fca5a5",borderColor:"#f8717155" }}>
+                  ▲ +{fmtARS(Math.abs(item.diff))}{item.pct!==null?` · ${Math.abs(item.pct)}%`:""}
+                </span>
+              );
+            }
+
+            if (item.diff < 0) {
+              return (
+                <span style={{ ...baseStyle,background:"#052e16",color:"#86efac",borderColor:"#22c55e55" }}>
+                  ▼ -{fmtARS(Math.abs(item.diff))}{item.pct!==null?` · ${Math.abs(item.pct)}%`:""}
+                </span>
+              );
+            }
+
+            return <span style={{ ...baseStyle,background:"#1e1e2e",color:"#facc15",borderColor:"#facc1533" }}>= Sin cambios</span>;
+          };
+
           const listaVariacion = (titulo, icono, items, tipo) => (
             <div className="card" style={{ padding:12 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
@@ -4260,19 +4330,25 @@ if (!authUser) {
                 <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
                   <div>
                     <div style={{ fontSize:14,fontWeight:900 }}>Detalle histórico</div>
-                    <div style={{ fontSize:11,color:"#64748b" }}>Comparación por concepto.</div>
+                    <div style={{ fontSize:11,color:"#64748b" }}>Comparación por concepto, medio y categoría.</div>
                   </div>
                   <div style={{ fontSize:10,color:"#64748b" }}>{conceptos.length} concepto{conceptos.length!==1?"s":""}</div>
                 </div>
                 <div style={{ overflowX:"auto",paddingBottom:4 }}>
-                  <div style={{ minWidth: 120 + (ml.length*82) }}>
-                    <div style={{ display:"grid",gridTemplateColumns:`minmax(120px,1fr) repeat(${ml.length},82px)`,borderBottom:"1px solid #1e1e2e" }}>
+                  <div style={{ minWidth: 145 + (ml.length*82) }}>
+                    <div style={{ display:"grid",gridTemplateColumns:`minmax(145px,1fr) repeat(${ml.length},82px)`,borderBottom:"1px solid #1e1e2e" }}>
                       <div style={{ padding:"9px 6px",fontSize:10,color:"#64748b",fontWeight:900 }}>CONCEPTO</div>
                       {ml.map(({key,label})=><div key={key} style={{ padding:"9px 6px",fontSize:10,color:key===actualKey?"#a78bfa":"#64748b",fontWeight:900,textAlign:"right" }}>{label}</div>)}
                     </div>
                     {conceptos.map((item,idx)=>(
-                      <div key={item.nombre} style={{ display:"grid",gridTemplateColumns:`minmax(120px,1fr) repeat(${ml.length},82px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none" }}>
-                        <div style={{ padding:"10px 6px",fontSize:11,fontWeight:800,lineHeight:1.25,wordBreak:"break-word" }}>{item.nombre}</div>
+                      <div key={item.id || item.nombre} style={{ display:"grid",gridTemplateColumns:`minmax(145px,1fr) repeat(${ml.length},82px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none" }}>
+                        <div style={{ padding:"10px 6px",minWidth:0 }}>
+                          <div style={{ fontSize:11,fontWeight:900,lineHeight:1.25,wordBreak:"break-word" }}>{item.nombre}</div>
+                          <div style={{ fontSize:9,color:"#64748b",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
+                            {item.medioNombre} · {item.categoriaNombre}
+                          </div>
+                          <div style={{ marginTop:6 }}>{badgeVariacionItem(item)}</div>
+                        </div>
                         {ml.map(({key})=><div key={key} style={{ padding:"10px 6px",textAlign:"right",fontFamily:"'Space Mono',monospace",fontSize:10,color:key===actualKey?"#e2e8f0":"#64748b" }}>{item.vals[key]?fmtARS(item.vals[key]):<span style={{ color:"#2a2a3e" }}>—</span>}</div>)}
                       </div>
                     ))}
