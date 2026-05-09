@@ -2285,9 +2285,30 @@ const GastoRow=({item})=>{
   const desgloseAbierto = !!desglosesAbiertos[item.id];
   const totalMostrarARS = montoReal(item, tc);
   const totalUSDDetalle = montoUSDReal(item);
+  const medioPagoDetalle = item.medioPagoNombre || item.medioPago || "";
   const instrumentoDetalle = item.instrumentoNombre || item.instrumento || item.formaPago || "Sin instrumento";
   const categoriaDetalle = categoriaRealDesdeGasto(item).label || "";
-  const detalleModeloNuevo = [instrumentoDetalle, categoriaDetalle].filter(Boolean).join(" · ");
+
+  const detalleModeloNuevo = [
+    medioPagoDetalle,
+    instrumentoDetalle,
+    categoriaDetalle
+  ].filter(Boolean).join(" · ");
+
+  const textoInstrumentoNormalizado = String(
+    item.instrumentoId ||
+    item.instrumentoNombre ||
+    item.instrumento ||
+    item.formaPago ||
+    ""
+  )
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  const esDebitoAutomatico =
+    item.instrumentoId === "ins_debito_automatico" ||
+    textoInstrumentoNormalizado.includes("debito automatico");
   const estadoPagado = item.estado === "pagado";
   const estadoBg = estadoPagado ? "#052e16" : "#2a1608";
   const estadoColor = estadoPagado ? "#4ade80" : "#fb923c";
@@ -2347,7 +2368,7 @@ const GastoRow=({item})=>{
             </span>
 
             {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:900,background:"#2a1a4e",color:"#c4b5fd",border:"1px solid #7c3aed55" }}>Revisar</span>}
-            {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1f33",color:"#60a5fa",border:"1px solid #60a5fa33" }}>Débito auto.</span>}
+            {esDebitoAutomatico&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1f33",color:"#60a5fa",border:"1px solid #60a5fa33" }}>Débito auto.</span>}
             {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}          
             {tieneSubconceptos&&<button
               type="button"
