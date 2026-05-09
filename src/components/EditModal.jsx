@@ -740,27 +740,96 @@ export default function EditModal({
           />
         </div>
 
-        {(f.origenMovimiento === "REPLICA_MES" || f.requiereRevision) && (
-          <div style={{ marginBottom: 14, background: "#15111f", border: "1px solid #7c3aed55", borderRadius: 14, padding: "12px 14px" }}>
-            <div style={{ fontSize: 12, color: "#c4b5fd", fontWeight: 800, marginBottom: 6 }}>🟣 Gasto copiado para revisar</div>
-            <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.45, marginBottom: 10 }}>
-              Confirmá el monto real y la fecha de vencimiento cuando tengas el dato.
+        <div
+          style={{
+            marginBottom: 14,
+            background: f.requiereRevision
+              ? "linear-gradient(135deg,#1b1230,#13131a)"
+              : "#101018",
+            border: f.requiereRevision
+              ? "1px solid #a855f766"
+              : "1px solid #2a2a3e",
+            borderRadius: 14,
+            padding: "12px 14px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: 12,
+            }}
+          >
+            <div style={{ minWidth: 0 }}>
+              <div
+                style={{
+                  fontSize: 12,
+                  color: f.requiereRevision ? "#d8b4fe" : "#94a3b8",
+                  fontWeight: 900,
+                  marginBottom: 4,
+                  letterSpacing: .4,
+                }}
+              >
+                🔎 Revisar después
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.45 }}>
+                Marcá este gasto si querés volver a controlarlo o ajustarlo más tarde.
+              </div>
             </div>
-            <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={!f.requiereRevision}
-                onChange={(e) => setF((p) => ({
-                  ...p,
-                  requiereRevision: !e.target.checked,
-                  motivoRevision: e.target.checked ? null : (p.motivoRevision || "REVISAR_MONTO_VENCIMIENTO"),
-                  origenMovimiento: p.origenMovimiento || "REPLICA_MES",
-                }))}
-              />
-              <span style={{ fontSize: 13, color: "#e2e8f0", fontWeight: 700 }}>Ya revisé este gasto</span>
-            </label>
+
+            <button
+              type="button"
+              onClick={() =>
+                setF((p) => {
+                  const nuevoValor = !p.requiereRevision;
+
+                  return {
+                    ...p,
+                    requiereRevision: nuevoValor,
+                    motivoRevision: nuevoValor
+                      ? (p.motivoRevision || "REVISAR_MANUAL")
+                      : null,
+                    origenMovimiento: p.origenMovimiento || null,
+                  };
+                })
+              }
+              style={{
+                minWidth: 48,
+                height: 28,
+                borderRadius: 999,
+                border: f.requiereRevision
+                  ? "1px solid #c084fc"
+                  : "1px solid #334155",
+                background: f.requiereRevision ? "#7c3aed" : "#1e1e2e",
+                color: "#fff",
+                cursor: "pointer",
+                fontSize: 12,
+                fontWeight: 900,
+                fontFamily: "'DM Sans',sans-serif",
+                boxShadow: f.requiereRevision ? "0 0 18px #7c3aed44" : "none",
+              }}
+            >
+              {f.requiereRevision ? "Sí" : "No"}
+            </button>
           </div>
-        )}
+
+          {f.requiereRevision && (
+            <div
+              style={{
+                marginTop: 10,
+                fontSize: 11,
+                color: "#c4b5fd",
+                background: "rgba(124,58,237,.14)",
+                border: "1px solid rgba(168,85,247,.24)",
+                borderRadius: 10,
+                padding: "8px 10px",
+              }}
+            >
+              Quedará marcado con el badge “Revisar” hasta que lo desmarques.
+            </div>
+          )}
+        </div>
 
         <button
           onClick={() => {
@@ -778,7 +847,7 @@ export default function EditModal({
               categoriaGastoId: f.categoriaGastoId || "",
               etiquetasIds: f.etiquetasIds || [],
               requiereRevision: !!f.requiereRevision,
-              motivoRevision: f.requiereRevision ? (f.motivoRevision || "REVISAR_MONTO_VENCIMIENTO") : null,
+              motivoRevision: f.requiereRevision ? (f.motivoRevision || "REVISAR_MANUAL") : null,
               origenMovimiento: f.origenMovimiento || null,
             });
           }}
