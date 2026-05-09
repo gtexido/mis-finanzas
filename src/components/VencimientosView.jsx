@@ -82,7 +82,7 @@ const normalizarEtiquetaVisual = (valor, fallback = "") => {
   return texto;
 };
 
-export default function VencimientosView({ data, config, mesActual, tc, onEdit, onMarcarPagado }) {
+export default function VencimientosView({ data, config, mesActual, tc, onPrevMonth, onNextMonth, onEdit, onMarcarPagado }) {
   const [soloMes, setSoloMes] = React.useState(false);
 
   const getMesKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
@@ -362,7 +362,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
             Vencimientos
           </div>
           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-            {soloMes ? `${mesNombre} ${mesActual.y}` : "Todos los vencimientos"}
+            {soloMes ? `Mostrando ${mesNombre} ${mesActual.y}` : `Referencia ${mesNombre} ${mesActual.y}`}
           </div>
         </div>
         <button
@@ -380,6 +380,70 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
           }}
         >
           {soloMes ? "Este mes" : "Todos"}
+        </button>
+      </div>
+
+      <div
+        style={{
+          marginBottom: 12,
+          padding: "11px 12px",
+          borderRadius: 18,
+          border: "1px solid #2a1a4e",
+          background: "linear-gradient(135deg,#111827,#15111f)",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 10,
+        }}
+      >
+        <button
+          onClick={onPrevMonth}
+          disabled={!onPrevMonth}
+          style={{
+            border: "1px solid #2a1a4e",
+            borderRadius: 12,
+            padding: "8px 12px",
+            minWidth: 38,
+            cursor: onPrevMonth ? "pointer" : "default",
+            background: "#1e1e2e",
+            color: "#c4b5fd",
+            fontFamily: "'DM Sans',sans-serif",
+            fontWeight: 900,
+            fontSize: 16,
+            opacity: onPrevMonth ? 1 : 0.45,
+          }}
+        >
+          ‹
+        </button>
+        <div style={{ textAlign: "center", minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase" }}>
+            Período de referencia
+          </div>
+          <div style={{ fontSize: 17, fontWeight: 900, color: "#f8fafc", lineHeight: 1.2 }}>
+            {mesNombre} {mesActual.y}
+          </div>
+          <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
+            {soloMes ? "Filtrado por este mes" : "Mostrando todos los vencimientos"}
+          </div>
+        </div>
+        <button
+          onClick={onNextMonth}
+          disabled={!onNextMonth}
+          style={{
+            border: "1px solid #2a1a4e",
+            borderRadius: 12,
+            padding: "8px 12px",
+            minWidth: 38,
+            cursor: onNextMonth ? "pointer" : "default",
+            background: "#1e1e2e",
+            color: "#c4b5fd",
+            fontFamily: "'DM Sans',sans-serif",
+            fontWeight: 900,
+            fontSize: 16,
+            opacity: onNextMonth ? 1 : 0.45,
+          }}
+        >
+          ›
         </button>
       </div>
 

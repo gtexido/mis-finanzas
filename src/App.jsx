@@ -2937,7 +2937,7 @@ if (!authUser) {
             <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
             <div style={{ fontSize:18,fontWeight:700 }}>{view==="config"?"Ajustes":view==="analisis"?"Análisis":view==="variacion"?"Evolución":view==="vencimientos"?"Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
           </div>
-          {!["config","variacion","vencimientos"].includes(view)&&(
+          {!["config","variacion","vencimientos","analisis"].includes(view)&&(
             <div style={{ display:"flex",gap:8 }}>
               <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(-1)}>‹</button>
               <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(1)}>›</button>
@@ -3884,6 +3884,8 @@ if (!authUser) {
     config={cfg}
     mesActual={mes}
     tc={tc}
+    onPrevMonth={() => cambiarMes(-1)}
+    onNextMonth={() => cambiarMes(1)}
     onEdit={(g,key)=>openEdit(g,key)}
     onMarcarPagado={async (id, itemMesKey) => {
       try {
@@ -3930,6 +3932,39 @@ if (!authUser) {
         {/* ANÁLISIS */}
         {view==="analisis"&&(
           <div>
+            <div
+              className="card"
+              style={{
+                marginBottom:10,
+                padding:"11px 12px",
+                border:"1px solid #2a1a4e",
+                background:"linear-gradient(135deg,#111827,#15111f)",
+                display:"flex",
+                alignItems:"center",
+                justifyContent:"space-between",
+                gap:10,
+                borderRadius:18
+              }}
+            >
+              <button
+                className="pb"
+                onClick={()=>cambiarMes(-1)}
+                style={{ background:"#1e1e2e",color:"#c4b5fd",padding:"8px 12px",minWidth:38,border:"1px solid #2a1a4e" }}
+              >
+                ‹
+              </button>
+              <div style={{ textAlign:"center",minWidth:0 }}>
+                <div style={{ fontSize:10,color:"#8b5cf6",fontWeight:900,letterSpacing:1.4,textTransform:"uppercase" }}>Período analizado</div>
+                <div style={{ fontSize:17,fontWeight:900,color:"#f8fafc",lineHeight:1.2 }}>{MESES[mes.m]} {mes.y}</div>
+              </div>
+              <button
+                className="pb"
+                onClick={()=>cambiarMes(1)}
+                style={{ background:"#1e1e2e",color:"#c4b5fd",padding:"8px 12px",minWidth:38,border:"1px solid #2a1a4e" }}
+              >
+                ›
+              </button>
+            </div>
             <div className="card" style={{ background:"radial-gradient(circle at top right,#7c3aed44 0%,transparent 34%),linear-gradient(135deg,#111827 0%,#181124 55%,#0f172a 100%)",border:"1px solid #2a1a4e",padding:14 }}>
               <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:13 }}>
                 <div style={{ minWidth:0 }}>
