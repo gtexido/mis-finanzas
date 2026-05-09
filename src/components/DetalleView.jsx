@@ -67,6 +67,21 @@ const getObservacionVisual = (observacion = "") => {
   };
 };
 
+
+const normalizarEtiquetaVisual = (valor, fallback = "") => {
+  const texto = String(valor || "").trim();
+  const normalizado = texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (!texto) return fallback;
+  if (normalizado === "sin definir" || normalizado === "sin instrumento") return fallback || "Manual";
+  if (normalizado === "sin medio") return fallback || "Medio no definido";
+
+  return texto;
+};
+
 export default function VencimientosView({ data, config, mesActual, tc, onEdit }) {
   const [soloMes, setSoloMes] = React.useState(false);
 
@@ -180,7 +195,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit }
                     </div>
                   )}
 
-                  {g.formaPago === "Débito automático" && (
+                  {normalizarEtiquetaVisual(g.formaPago, "Manual") === "Débito automático" && (
                     <span
                       style={{
                         display: "inline-flex",

@@ -73,6 +73,21 @@ import VencimientosView from "./components/VencimientosView";
 // ======================================================
 
 
+
+const normalizarEtiquetaVisual = (valor, fallback = "") => {
+  const texto = String(valor || "").trim();
+  const normalizado = texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (!texto) return fallback;
+  if (normalizado === "sin definir" || normalizado === "sin instrumento") return fallback || "Manual";
+  if (normalizado === "sin medio") return fallback || "Medio no definido";
+
+  return texto;
+};
+
 const COLORES = ["#4ade80","#f87171","#60a5fa","#a78bfa","#fbbf24","#94a3b8","#fb923c","#f472b6","#34d399","#38bdf8","#e879f9","#facc15"];
 const TIPOS_MEDIO_PAGO = [
   { id:"banco", label:"Banco" },
@@ -710,14 +725,15 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
   const metaGrupoDetalle = (g) => {
     const legacyCat = cfg.categorias.find((cat) => cat.id === g.categoria);
 
-    const nombre =
+    const nombre = normalizarEtiquetaVisual(
       g.medioPagoNombre ||
       g.medioPago ||
       g.categoriaGastoNombre ||
       g.categoriaGasto ||
       g.categoriaNombre ||
-      legacyCat?.label ||
-      "Sin definir";
+      legacyCat?.label,
+      "Medio no definido"
+    );
 
     const tieneMedioNuevo = Boolean(g.medioPagoNombre || g.medioPago);
 const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
@@ -831,7 +847,7 @@ const crearRankingAnalisis = (items, obtenerClave, obtenerMeta = () => ({})) => 
   const mapa = new Map();
 
   items.forEach((g) => {
-    const clave = obtenerClave(g) || "Sin definir";
+    const clave = normalizarEtiquetaVisual(obtenerClave(g), "No clasificado");
     const meta = obtenerMeta(g) || {};
     const actual = mapa.get(clave) || {
       nombre: clave,
@@ -886,7 +902,7 @@ const crearRankingEtiquetas = (items) => {
 
 const analisisPorMedio = crearRankingAnalisis(
   gastosDelMes,
-  (g) => g.medioPagoNombre || g.medioPago || g.categoriaNombre || "Sin definir",
+  (g) => normalizarEtiquetaVisual(g.medioPagoNombre || g.medioPago || g.categoriaNombre, "Medio no definido"),
   (g) => ({ color: g.medioPagoColor })
 );
 
@@ -898,7 +914,7 @@ const analisisPorCategoriaReal = crearRankingAnalisis(
 
 const analisisPorInstrumento = crearRankingAnalisis(
   gastosDelMes,
-  (g) => g.instrumentoNombre || g.instrumento || g.formaPago || "Sin instrumento"
+  (g) => normalizarEtiquetaVisual(g.instrumentoNombre || g.instrumento || g.formaPago, "Manual")
 );
 
 const analisisPorEtiqueta = crearRankingEtiquetas(gastosDelMes);
@@ -1132,7 +1148,7 @@ const guardarGasto = async (extra = {}) => {
   }
 
   if (!medioPagoValido) {
-    toast_("Seleccioná un medio de pago para evitar que quede como Sin definir.", "err");
+    toast_("Seleccioná un medio de pago para evitar que quede sin clasificar.", "err");
     return;
   }
 
@@ -2288,9 +2304,9 @@ const GastoRow=({item})=>{
   const desgloseAbierto = !!desglosesAbiertos[item.id];
   const totalMostrarARS = montoReal(item, tc);
   const totalUSDDetalle = montoUSDReal(item);
-  const medioPagoDetalle = item.medioPagoNombre || item.medioPago || "";
-  const instrumentoDetalle = item.instrumentoNombre || item.instrumento || item.formaPago || "Sin instrumento";
-  const categoriaDetalle = categoriaRealDesdeGasto(item).label || "";
+  const medioPagoDetalle = normalizarEtiquetaVisual(item.medioPagoNombre || item.medioPago, "");
+  const instrumentoDetalle = normalizarEtiquetaVisual(item.instrumentoNombre || item.instrumento || item.formaPago, "Manual");
+  const categoriaDetalle = normalizarEtiquetaVisual(categoriaRealDesdeGasto(item).label, "");
 
   const detalleModeloNuevo = [
     medioPagoDetalle,
@@ -4381,7 +4397,7 @@ if (!authUser) {
 
               <div className="card"><span style={lbl}>CONCEPTOS ACTIVOS</span>
                 {conceptosConfigFiltrados.slice(0,80).map(con=>{ const cg=(cfg.categoriasGasto||[]).find(x=>x.id===con.categoriaGastoId); const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); const tags=(con.etiquetasIds||[]).map(id=>(cfg.etiquetas||[]).find(t=>t.id===id)?.nombre).filter(Boolean); return(
-                  <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{cg?.nombre||"Sin categoría"} · {mp?.nombre||"Sin medio"} · {ins?.nombre||"Sin instrumento"} · {con.monedaDefault||"ARS"}</div>{tags.length>0&&<div style={{ display:"flex",gap:5,flexWrap:"wrap",marginTop:7 }}>{tags.map(t=><span key={t} style={{ fontSize:10,background:"#1e1e2e",color:"#94a3b8",borderRadius:999,padding:"3px 7px" }}>{t}</span>)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarConcepto(con)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarConceptoCfg(con)}>✕</button></div></div></div>
+                  <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{normalizarEtiquetaVisual(cg?.nombre, "Sin categoría")} · {normalizarEtiquetaVisual(mp?.nombre, "Medio no definido")} · {normalizarEtiquetaVisual(ins?.nombre, "Manual")} · {con.monedaDefault||"ARS"}</div>{tags.length>0&&<div style={{ display:"flex",gap:5,flexWrap:"wrap",marginTop:7 }}>{tags.map(t=><span key={t} style={{ fontSize:10,background:"#1e1e2e",color:"#94a3b8",borderRadius:999,padding:"3px 7px" }}>{t}</span>)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarConcepto(con)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarConceptoCfg(con)}>✕</button></div></div></div>
                 );})}
                 {conceptosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay conceptos con ese filtro.</div>}
               </div>
