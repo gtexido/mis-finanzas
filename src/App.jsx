@@ -1482,12 +1482,15 @@ try {
 
   try {
 	  await actualizarGasto({
-      id: gastoEditado.id,
-      periodo: key,
-      dia: gastoEditado.dia,
-      categoria: gastoEditado.categoria,
-      formaPago: gastoEditado.formaPago,
-      medioPagoId: gastoEditado.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoEditado.categoria),
+  id: gastoEditado.id,
+  periodo: key,
+  dia: gastoEditado.dia,
+  categoria: gastoEditado.categoria,
+  formaPago: gastoEditado.formaPago,
+  conceptoId: Object.prototype.hasOwnProperty.call(gastoEditado, "conceptoId")
+    ? gastoEditado.conceptoId
+    : (gastoEditado.concepto_id || ""),
+  medioPagoId: gastoEditado.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoEditado.categoria),
       instrumentoId: gastoEditado.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoEditado.formaPago),
       categoriaGastoId: gastoEditado.categoriaGastoId || categoriaGastoDesdeServicio(gastoEditado.servicio),
       etiquetasIds: gastoEditado.etiquetasIds || gastoEditado.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoEditado.servicio),
