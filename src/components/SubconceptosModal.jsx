@@ -1,29 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { fmtARS, fmtUSD } from "../utils/formatters";
-
-const SUBCONCEPTOS_SUGERIDOS = [
-  "Google One",
-  "YouTube",
-  "ChatGPT",
-  "Netflix",
-  "Spotify",
-  "Microsoft 365",
-  "Apple",
-  "Amazon",
-  "iCloud",
-  "Disney+",
-  "HBO",
-  "Canva",
-  "Notion",
-  "Dropbox",
-  "Shell",
-  "YPF",
-  "Axion",
-  "Carrefour",
-  "Chango Mas",
-  "Dino",
-  "Otro",
-];
 
 const normalizarMoneda = (moneda) => {
   return String(moneda || "ARS").trim().toUpperCase();
@@ -34,8 +10,11 @@ const toNumber = (value, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
+const crearIdTemporal = () =>
+  `sc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
 export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
-  const monedaMovimiento = normalizarMoneda(gasto.moneda || "ARS");
+  const monedaMovimiento = normalizarMoneda(gasto?.moneda || "ARS");
   const tipoCambioActual = toNumber(tc, 1);
 
   const calcularMontoARS = (monto, moneda, tipoCambio = tipoCambioActual) => {
@@ -49,120 +28,198 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
     return n;
   };
 
-  const normalizarItem = (item) => {
-    const monedaItem = normalizarMoneda(item.moneda || monedaMovimiento);
-    const monto = toNumber(item.monto ?? item.montoUSD ?? 0);
+  const normalizarItem = (item, index = 0) => {
+    const monedaItem = normalizarMoneda(item?.moneda || monedaMovimiento);
+    const monto = toNumber(item?.monto ?? item?.montoUSD ?? 0);
 
     const tipoCambio =
-      item.tipoCambio !== null && item.tipoCambio !== undefined && item.tipoCambio !== ""
+      item?.tipoCambio !== null && item?.tipoCambio !== undefined && item?.tipoCambio !== ""
         ? toNumber(item.tipoCambio, null)
-        : item.tipo_cambio !== null && item.tipo_cambio !== undefined && item.tipo_cambio !== ""
+        : item?.tipo_cambio !== null && item?.tipo_cambio !== undefined && item?.tipo_cambio !== ""
           ? toNumber(item.tipo_cambio, null)
           : monedaItem === "USD"
             ? tipoCambioActual
             : null;
 
     const montoARSCalculado =
-      item.montoARSCalculado !== null &&
-      item.montoARSCalculado !== undefined &&
-      item.montoARSCalculado !== ""
+      item?.montoARSCalculado !== null &&
+      item?.montoARSCalculado !== undefined &&
+      item?.montoARSCalculado !== ""
         ? toNumber(item.montoARSCalculado, null)
-        : item.monto_ars_calculado !== null &&
-          item.monto_ars_calculado !== undefined &&
-          item.monto_ars_calculado !== ""
+        : item?.monto_ars_calculado !== null &&
+          item?.monto_ars_calculado !== undefined &&
+          item?.monto_ars_calculado !== ""
           ? toNumber(item.monto_ars_calculado, null)
           : calcularMontoARS(monto, monedaItem, tipoCambio);
 
     return {
       ...item,
-      id: item.id || item.detalleId || `sc_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      nombre: item.nombre || item.nombreItem || item.nombre_item || "",
+      id: item?.id || item?.detalleId || item?.detalle_id || `sc_exist_${index}_${crearIdTemporal()}`,
+      detalleId: item?.detalleId || item?.detalle_id || item?.id || "",
+      nombre: item?.nombre || item?.nombreItem || item?.nombre_item || "",
       monto,
       moneda: monedaItem,
       tipoCambio,
       montoARSCalculado,
+      observacion: item?.observacion || "",
+      orden: item?.orden || index + 1,
     };
   };
 
   const [items, setItems] = useState(
-    gasto.subconceptos ? gasto.subconceptos.map(normalizarItem) : []
+    Array.isArray(gasto?.subconceptos)
+      ? gasto.subconceptos.map((item, index) => normalizarItem(item, index))
+      : []
   );
 
-  const [newNombre, setNewNombre] = useState("");
-  const [newMonto, setNewMonto] = useState("");
-  const [newMoneda, setNewMoneda] = useState(monedaMovimiento);
-  const [sugerido, setSugerido] = useState("");
+  const [nuevoItem, setNuevoItem] = useState({
+    nombre: "",
+    monto: "",
+    moneda: monedaMovimiento,
+    observacion: "",
+  });
 
   const fmtMonto = (monto, mon = "ARS") => {
     const n = toNumber(monto);
     return normalizarMoneda(mon) === "USD" ? fmtUSD(n) : fmtARS(n);
   };
 
-  const totalARS = items.reduce((acc, item) => {
-    return acc + calcularMontoARS(item.monto, item.moneda, item.tipoCambio);
-  }, 0);
+  const actualizarItem = (id, patch) => {
+    setItems((prev) =>
+      prev.map((item) => {
+        if (item.id !== id) return item;
 
-  const totalUSD = items.reduce((acc, item) => {
-    return normalizarMoneda(item.moneda) === "USD" ? acc + toNumber(item.monto) : acc;
-  }, 0);
+        const siguiente = {
+          ...item,
+          ...patch,
+        };
 
-  const totalARSDirecto = items.reduce((acc, item) => {
-    return normalizarMoneda(item.moneda) === "ARS" ? acc + toNumber(item.monto) : acc;
-  }, 0);
+        const moneda = normalizarMoneda(siguiente.moneda);
+        const monto = toNumber(siguiente.monto);
+        const tipoCambio = moneda === "USD" ? toNumber(siguiente.tipoCambio || tipoCambioActual, 1) : null;
+
+        return {
+          ...siguiente,
+          moneda,
+          monto,
+          tipoCambio,
+          montoARSCalculado: calcularMontoARS(monto, moneda, tipoCambio),
+        };
+      })
+    );
+  };
+
+  const eliminarItem = (id) => {
+    setItems((prev) => prev.filter((item) => item.id !== id));
+  };
+
+  const limpiarNuevoItem = () => {
+    setNuevoItem({
+      nombre: "",
+      monto: "",
+      moneda: monedaMovimiento,
+      observacion: "",
+    });
+  };
+
+  const agregarItem = () => {
+    const nombre = String(nuevoItem.nombre || "").trim();
+    const monto = toNumber(nuevoItem.monto, null);
+    const moneda = normalizarMoneda(nuevoItem.moneda);
+
+    if (!nombre || !Number.isFinite(monto) || monto <= 0) {
+      return;
+    }
+
+    const tipoCambio = moneda === "USD" ? tipoCambioActual : null;
+
+    setItems((prev) => [
+      ...prev,
+      {
+        id: crearIdTemporal(),
+        nombre,
+        monto,
+        moneda,
+        tipoCambio,
+        montoARSCalculado: calcularMontoARS(monto, moneda, tipoCambio),
+        observacion: String(nuevoItem.observacion || "").trim(),
+        orden: prev.length + 1,
+      },
+    ]);
+
+    limpiarNuevoItem();
+  };
+
+  const itemsValidos = useMemo(
+    () =>
+      items
+        .map((item, index) => {
+          const nombre = String(item.nombre || item.nombreItem || "").trim();
+          const moneda = normalizarMoneda(item.moneda);
+          const monto = toNumber(item.monto, null);
+          const tipoCambio = moneda === "USD" ? toNumber(item.tipoCambio || tipoCambioActual, 1) : null;
+
+          if (!nombre || !Number.isFinite(monto) || monto <= 0) {
+            return null;
+          }
+
+          return {
+            ...item,
+            id: item.id,
+            detalleId: item.detalleId || item.detalle_id || "",
+            nombre,
+            monto,
+            moneda,
+            tipoCambio,
+            montoARSCalculado: calcularMontoARS(monto, moneda, tipoCambio),
+            observacion: String(item.observacion || "").trim(),
+            orden: index + 1,
+          };
+        })
+        .filter(Boolean),
+    [items, tipoCambioActual]
+  );
+
+  const totalARS = itemsValidos.reduce(
+    (acc, item) => acc + calcularMontoARS(item.monto, item.moneda, item.tipoCambio),
+    0
+  );
+
+  const totalUSD = itemsValidos.reduce(
+    (acc, item) => normalizarMoneda(item.moneda) === "USD" ? acc + toNumber(item.monto) : acc,
+    0
+  );
+
+  const totalARSDirecto = itemsValidos.reduce(
+    (acc, item) => normalizarMoneda(item.moneda) === "ARS" ? acc + toNumber(item.monto) : acc,
+    0
+  );
 
   const tieneUSD = totalUSD > 0;
   const tieneARS = totalARSDirecto > 0;
   const tieneMonedaMixta = tieneUSD && tieneARS;
+  const hayItemsInvalidos = items.length !== itemsValidos.length;
+  const puedeGuardar = itemsValidos.length > 0 && !hayItemsInvalidos;
 
-  const buildNuevoItem = () => {
-    const nombre = (sugerido || newNombre || "").trim();
-    const monto = toNumber(newMonto);
-    const moneda = normalizarMoneda(newMoneda);
-
-    if (!nombre || !newMonto) return null;
-
-    const tipoCambio = moneda === "USD" ? tipoCambioActual : null;
-    const montoARSCalculado = calcularMontoARS(monto, moneda, tipoCambio);
-
-    return {
-      id: `sc_${Date.now()}`,
-      nombre,
-      monto,
-      moneda,
-      tipoCambio,
-      montoARSCalculado,
-    };
+  const inputStyle = {
+    width: "100%",
+    background: "#1a1a24",
+    border: "1.5px solid #2a2a3e",
+    borderRadius: 12,
+    padding: "10px 12px",
+    color: "#e2e8f0",
+    fontSize: 13,
+    outline: "none",
+    fontFamily: "'DM Sans',sans-serif",
   };
 
-  const addItem = () => {
-    const nuevo = buildNuevoItem();
-    if (!nuevo) return;
-
-    setItems((prev) => [...prev, nuevo]);
-    setNewNombre("");
-    setNewMonto("");
-    setSugerido("");
-  };
-
-  const delItem = (id) => setItems((prev) => prev.filter((s) => s.id !== id));
-
-  const prepararItemsParaGuardar = (itemsFinales) => {
-    return itemsFinales.map((item, index) => {
-      const moneda = normalizarMoneda(item.moneda);
-      const monto = toNumber(item.monto);
-      const tipoCambio = moneda === "USD" ? toNumber(item.tipoCambio || tipoCambioActual, 1) : null;
-      const montoARSCalculado = calcularMontoARS(monto, moneda, tipoCambio);
-
-      return {
-        ...item,
-        nombre: item.nombre || item.nombreItem || "Item",
-        monto,
-        moneda,
-        tipoCambio,
-        montoARSCalculado,
-        orden: index + 1,
-      };
-    });
+  const labelStyle = {
+    fontSize: 10,
+    color: "#64748b",
+    fontWeight: 800,
+    letterSpacing: 0.8,
+    textTransform: "uppercase",
+    marginBottom: 5,
   };
 
   return (
@@ -192,8 +249,13 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-          <div style={{ fontWeight: 700, fontSize: 17 }}>
-            🧾 {gasto.servicio}
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontWeight: 800, fontSize: 17, color: "#e2e8f0" }}>
+              🧾 Desglose
+            </div>
+            <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+              {gasto?.servicio || "Gasto"}
+            </div>
           </div>
 
           <button
@@ -205,6 +267,8 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
               borderRadius: 10,
               padding: "6px 12px",
               cursor: "pointer",
+              fontFamily: "'DM Sans',sans-serif",
+              fontWeight: 700,
             }}
           >
             Cancelar
@@ -212,12 +276,12 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         </div>
 
         <div style={{ fontSize: 12, color: "#64748b", marginBottom: 10, lineHeight: 1.45 }}>
-          Desglose por ítem · ARS/USD
+          Editá los ítems de este pago · ARS/USD
           {tipoCambioActual ? ` · TC $${tipoCambioActual.toLocaleString("es-AR")}` : ""}
         </div>
 
         <div style={{ background:"rgba(30,58,95,.16)",border:"1px solid #38bdf8",borderRadius:14,padding:"10px 12px",fontSize:12,color:"#cbd5e1",lineHeight:1.45,marginBottom:16 }}>
-          Agregá los ítems de este mismo pago y tocá <b>Guardar desglose y volver</b>. Después guardá el gasto principal.
+          Los ítems se guardan dentro de este gasto. Podés modificar nombres, montos, moneda, observaciones o eliminar ítems. Después tocá <b>Guardar desglose y volver</b> y guardá el gasto principal.
         </div>
 
         <div
@@ -231,14 +295,14 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         >
           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
             <div>
-              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+              <div style={{ fontSize: 11, color: "#64748b", fontWeight: 800 }}>
                 TOTAL EN PESOS
               </div>
               <div
                 style={{
                   fontFamily: "'Space Mono',monospace",
                   fontSize: 22,
-                  fontWeight: 700,
+                  fontWeight: 800,
                   color: "#38bdf8",
                 }}
               >
@@ -248,14 +312,14 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
 
             {tieneUSD && (
               <div style={{ textAlign: "right" }}>
-                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 700 }}>
+                <div style={{ fontSize: 11, color: "#64748b", fontWeight: 800 }}>
                   TOTAL USD
                 </div>
                 <div
                   style={{
                     fontFamily: "'Space Mono',monospace",
                     fontSize: 16,
-                    fontWeight: 700,
+                    fontWeight: 800,
                     color: "#a78bfa",
                   }}
                 >
@@ -272,62 +336,140 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
           )}
         </div>
 
-        {items.map((s) => (
+        {items.length === 0 && (
           <div
-            key={s.id}
             style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              padding: "10px 0",
-              borderBottom: "1px solid #1e1e2e",
+              background: "#0f0f18",
+              border: "1px dashed #334155",
+              borderRadius: 16,
+              padding: "18px 14px",
+              textAlign: "center",
+              color: "#94a3b8",
+              fontSize: 13,
+              marginBottom: 14,
+              lineHeight: 1.5,
             }}
           >
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{s.nombre}</div>
-              <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
-                {normalizarMoneda(s.moneda)}
-                {normalizarMoneda(s.moneda) === "USD" ? ` · TC $${toNumber(s.tipoCambio || tipoCambioActual).toLocaleString("es-AR")}` : ""}
-              </div>
-            </div>
+            Todavía no hay ítems. Agregá el primer detalle abajo.
+          </div>
+        )}
 
-            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-              <div style={{ textAlign: "right" }}>
-                <div
-                  style={{
-                    fontFamily: "'Space Mono',monospace",
-                    fontSize: 13,
-                    color: "#38bdf8",
-                    fontWeight: 700,
-                  }}
-                >
-                  {fmtMonto(s.monto, s.moneda)}
+        {items.map((item, index) => {
+          const moneda = normalizarMoneda(item.moneda);
+          const montoValido = toNumber(item.monto, null);
+          const nombreValido = String(item.nombre || "").trim();
+          const itemInvalido = !nombreValido || !Number.isFinite(montoValido) || montoValido <= 0;
+
+          return (
+            <div
+              key={item.id}
+              style={{
+                background: itemInvalido ? "#211617" : "#0f0f18",
+                border: itemInvalido ? "1px solid #f8717144" : "1px solid #1e1e2e",
+                borderRadius: 16,
+                padding: 12,
+                marginBottom: 10,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 900 }}>
+                  Ítem {index + 1}
                 </div>
 
-                {normalizarMoneda(s.moneda) === "USD" && (
-                  <div style={{ fontSize: 10, color: "#64748b" }}>
-                    {fmtARS(calcularMontoARS(s.monto, s.moneda, s.tipoCambio))}
-                  </div>
-                )}
+                <button
+                  onClick={() => eliminarItem(item.id)}
+                  style={{
+                    background: "#2a1a1a",
+                    border: "none",
+                    color: "#f87171",
+                    borderRadius: 9,
+                    padding: "5px 10px",
+                    cursor: "pointer",
+                    fontSize: 12,
+                    fontFamily: "'DM Sans',sans-serif",
+                    fontWeight: 800,
+                  }}
+                >
+                  Eliminar
+                </button>
               </div>
 
-              <button
-                onClick={() => delItem(s.id)}
-                style={{
-                  background: "#2a1a1a",
-                  border: "none",
-                  color: "#f87171",
-                  borderRadius: 8,
-                  padding: "4px 10px",
-                  cursor: "pointer",
-                  fontSize: 12,
-                }}
-              >
-                ✕
-              </button>
+              <div style={{ marginBottom: 9 }}>
+                <div style={labelStyle}>Nombre</div>
+                <input
+                  style={inputStyle}
+                  value={item.nombre}
+                  placeholder="Ej: Netflix, Shell, Carrefour..."
+                  onChange={(e) => actualizarItem(item.id, { nombre: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "92px 1fr", gap: 8, marginBottom: 9 }}>
+                <div>
+                  <div style={labelStyle}>Moneda</div>
+                  <select
+                    value={moneda}
+                    onChange={(e) => actualizarItem(item.id, { moneda: e.target.value })}
+                    style={{
+                      ...inputStyle,
+                      padding: "10px 8px",
+                      borderColor: moneda === "USD" ? "#38bdf866" : "#2a2a3e",
+                      fontWeight: 800,
+                    }}
+                  >
+                    <option value="ARS">ARS</option>
+                    <option value="USD">USD</option>
+                  </select>
+                </div>
+
+                <div>
+                  <div style={labelStyle}>Monto</div>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    style={{
+                      ...inputStyle,
+                      borderColor: itemInvalido ? "#f8717166" : "#2a2a3e",
+                      fontFamily: "'Space Mono',monospace",
+                      fontWeight: 800,
+                    }}
+                    value={item.monto === "" ? "" : item.monto}
+                    placeholder="0.00"
+                    onChange={(e) => actualizarItem(item.id, { monto: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 9 }}>
+                <div style={labelStyle}>Observación del ítem</div>
+                <input
+                  style={inputStyle}
+                  value={item.observacion || ""}
+                  placeholder="Opcional"
+                  onChange={(e) => actualizarItem(item.id, { observacion: e.target.value })}
+                />
+              </div>
+
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 11, color: "#64748b" }}>
+                <span>
+                  {moneda}
+                  {moneda === "USD" ? ` · TC $${toNumber(item.tipoCambio || tipoCambioActual).toLocaleString("es-AR")}` : ""}
+                </span>
+                <span style={{ color: moneda === "USD" ? "#a78bfa" : "#38bdf8", fontWeight: 800 }}>
+                  {fmtMonto(item.monto, moneda)}
+                  {moneda === "USD" ? ` · ${fmtARS(calcularMontoARS(item.monto, moneda, item.tipoCambio))}` : ""}
+                </span>
+              </div>
+
+              {itemInvalido && (
+                <div style={{ marginTop: 8, fontSize: 11, color: "#f87171", fontWeight: 800 }}>
+                  Completá nombre y monto mayor a cero para poder guardar.
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <div
           style={{
@@ -342,170 +484,105 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
             style={{
               fontSize: 11,
               color: "#64748b",
-              fontWeight: 700,
+              fontWeight: 800,
               letterSpacing: 1,
               marginBottom: 10,
             }}
           >
-            + AGREGAR ÍTEM
-          </div>
-
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 10 }}>
-            {SUBCONCEPTOS_SUGERIDOS.filter((s) => !items.some((i) => i.nombre === s))
-              .slice(0, 8)
-              .map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setSugerido(s === sugerido ? "" : s)}
-                  style={{
-                    border: "none",
-                    borderRadius: 10,
-                    padding: "5px 10px",
-                    cursor: "pointer",
-                    fontFamily: "'DM Sans',sans-serif",
-                    fontWeight: 600,
-                    fontSize: 12,
-                    background: sugerido === s ? "#1e3a5f" : "#1e1e2e",
-                    color: sugerido === s ? "#38bdf8" : "#64748b",
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
+            + AGREGAR ÍTEM MANUAL
           </div>
 
           <input
             style={{
-              width: "100%",
-              background: "#1a1a24",
-              border: "1.5px solid #2a2a3e",
-              borderRadius: 12,
-              padding: "10px 13px",
-              color: "#e2e8f0",
-              fontSize: 14,
-              outline: "none",
-              fontFamily: "'DM Sans',sans-serif",
+              ...inputStyle,
               marginBottom: 8,
             }}
-            placeholder="O escribí el nombre..."
-            value={sugerido || newNombre}
-            onChange={(e) => {
-              setSugerido("");
-              setNewNombre(e.target.value);
-            }}
+            placeholder="Nombre del ítem..."
+            value={nuevoItem.nombre}
+            onChange={(e) => setNuevoItem((p) => ({ ...p, nombre: e.target.value }))}
           />
 
-          <div style={{ display: "flex", gap: 8 }}>
-            <div style={{ width: 92 }}>
-              <select
-                value={newMoneda}
-                onChange={(e) => setNewMoneda(e.target.value)}
-                style={{
-                  width: "100%",
-                  background: "#1a1a24",
-                  border: "1.5px solid #1e3a5f",
-                  borderRadius: 12,
-                  padding: "10px 8px",
-                  color: "#e2e8f0",
-                  fontSize: 14,
-                  outline: "none",
-                  fontFamily: "'DM Sans',sans-serif",
-                  fontWeight: 700,
-                  height: "100%",
-                }}
-              >
-                <option value="ARS">ARS</option>
-                <option value="USD">USD</option>
-              </select>
-            </div>
+          <div style={{ display: "grid", gridTemplateColumns: "92px 1fr 48px", gap: 8, marginBottom: 8 }}>
+            <select
+              value={nuevoItem.moneda}
+              onChange={(e) => setNuevoItem((p) => ({ ...p, moneda: e.target.value }))}
+              style={{
+                ...inputStyle,
+                padding: "10px 8px",
+                borderColor: nuevoItem.moneda === "USD" ? "#38bdf866" : "#2a2a3e",
+                fontWeight: 800,
+              }}
+            >
+              <option value="ARS">ARS</option>
+              <option value="USD">USD</option>
+            </select>
 
-            <div style={{ flex: 1, position: "relative" }}>
-              <span
-                style={{
-                  position: "absolute",
-                  left: 12,
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  color: "#38bdf8",
-                  fontWeight: 700,
-                  fontSize: 14,
-                }}
-              >
-                {newMoneda === "USD" ? "USD" : "$"}
-              </span>
-
-              <input
-                type="number"
-                inputMode="decimal"
-                step="0.01"
-                style={{
-                  width: "100%",
-                  background: "#1a1a24",
-                  border: "1.5px solid #1e3a5f",
-                  borderRadius: 12,
-                  padding: "10px 13px 10px 52px",
-                  color: "#e2e8f0",
-                  fontSize: 14,
-                  outline: "none",
-                  fontFamily: "'DM Sans',sans-serif",
-                }}
-                placeholder="0.00"
-                value={newMonto}
-                onChange={(e) => setNewMonto(e.target.value)}
-              />
-            </div>
+            <input
+              type="number"
+              inputMode="decimal"
+              step="0.01"
+              style={{
+                ...inputStyle,
+                fontFamily: "'Space Mono',monospace",
+                fontWeight: 800,
+              }}
+              placeholder="0.00"
+              value={nuevoItem.monto}
+              onChange={(e) => setNuevoItem((p) => ({ ...p, monto: e.target.value }))}
+            />
 
             <button
-              onClick={addItem}
+              onClick={agregarItem}
               style={{
                 background: "#1e3a5f",
                 border: "none",
                 color: "#38bdf8",
                 borderRadius: 12,
-                padding: "10px 18px",
                 cursor: "pointer",
                 fontFamily: "'DM Sans',sans-serif",
-                fontWeight: 700,
-                fontSize: 15,
+                fontWeight: 900,
+                fontSize: 18,
               }}
             >
               +
             </button>
           </div>
 
-          {newMonto && newMoneda === "USD" && (
+          <input
+            style={{
+              ...inputStyle,
+            }}
+            placeholder="Observación opcional del ítem..."
+            value={nuevoItem.observacion}
+            onChange={(e) => setNuevoItem((p) => ({ ...p, observacion: e.target.value }))}
+          />
+
+          {nuevoItem.monto && nuevoItem.moneda === "USD" && (
             <div style={{ fontSize: 11, color: "#38bdf8", marginTop: 6 }}>
-              ≈ {fmtARS(toNumber(newMonto) * tipoCambioActual)}
+              ≈ {fmtARS(toNumber(nuevoItem.monto) * tipoCambioActual)}
             </div>
           )}
         </div>
 
+        {hayItemsInvalidos && (
+          <div style={{ marginTop: 12, fontSize: 12, color: "#f87171", lineHeight: 1.45, fontWeight: 800 }}>
+            Hay ítems incompletos. Corregilos o eliminalos antes de guardar.
+          </div>
+        )}
+
         <button
-          onClick={() => {
-            const nuevoPendiente = buildNuevoItem();
-
-            const itemsFinales = nuevoPendiente
-              ? [...items, nuevoPendiente]
-              : items;
-
-            onSave(prepararItemsParaGuardar(itemsFinales));
-
-            if (nuevoPendiente) {
-              setNewNombre("");
-              setNewMonto("");
-              setSugerido("");
-            }
-          }}
+          disabled={!puedeGuardar}
+          onClick={() => onSave(itemsValidos)}
           style={{
             width: "100%",
-            background: "#1e3a5f",
-            border: "1px solid #38bdf844",
-            color: "#38bdf8",
+            background: puedeGuardar ? "#1e3a5f" : "#1e1e2e",
+            border: puedeGuardar ? "1px solid #38bdf844" : "1px solid #334155",
+            color: puedeGuardar ? "#38bdf8" : "#64748b",
             borderRadius: 14,
             padding: 16,
-            cursor: "pointer",
+            cursor: puedeGuardar ? "pointer" : "not-allowed",
             fontFamily: "'DM Sans',sans-serif",
-            fontWeight: 700,
+            fontWeight: 800,
             fontSize: 16,
             marginTop: 16,
           }}
