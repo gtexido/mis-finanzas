@@ -95,6 +95,27 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit }
                     {" "}· Vence {fmtFecha(g.vencimiento)}
                   </div>
 
+                  {g.observacion && (
+                    <div
+                      style={{
+                        marginBottom: 8,
+                        display: "flex",
+                        alignItems: "flex-start",
+                        gap: 6,
+                        padding: "7px 9px",
+                        borderRadius: 12,
+                        background: "linear-gradient(135deg,rgba(15,23,42,.92),rgba(30,41,59,.55))",
+                        border: "1px solid rgba(148,163,184,.18)",
+                        color: "#cbd5e1",
+                        fontSize: 11,
+                        lineHeight: 1.45,
+                      }}
+                    >
+                      <span style={{ fontSize: 12, lineHeight: 1.3, color: "#a78bfa", flexShrink: 0 }}>📝</span>
+                      <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{g.observacion}</span>
+                    </div>
+                  )}
+
                   {g.formaPago === "Débito automático" && (
                     <span
                       style={{

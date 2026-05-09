@@ -2382,8 +2382,28 @@ const GastoRow=({item})=>{
             Día {item.dia}/{mes.m+1} · {detalleModeloNuevo || "Sin detalle"}
             {item.requiereRevision?" · Dato de referencia":""}
             {item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}
-            {item.observacion?` · ${item.observacion}`:""}
           </div>
+
+          {item.observacion && (
+            <div
+              style={{
+                marginTop: 7,
+                display: "flex",
+                alignItems: "flex-start",
+                gap: 6,
+                padding: "7px 9px",
+                borderRadius: 12,
+                background: "linear-gradient(135deg,rgba(15,23,42,.92),rgba(30,41,59,.55))",
+                border: "1px solid rgba(148,163,184,.18)",
+                color: "#cbd5e1",
+                fontSize: 11,
+                lineHeight: 1.45,
+              }}
+            >
+              <span style={{ fontSize: 12, lineHeight: 1.3, color: "#a78bfa", flexShrink: 0 }}>📝</span>
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{item.observacion}</span>
+            </div>
+          )}
 
           {tieneSubconceptos && desgloseAbierto && (
             <div
