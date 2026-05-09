@@ -59,6 +59,29 @@ export default function EditModal({
     });
   }, [gasto, config.conceptos]);
 
+  const [busquedaConceptoEdit, setBusquedaConceptoEdit] = React.useState("");
+
+  const normalizarTextoBusqueda = (valor) =>
+    String(valor || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const textoBusquedaConceptoEdit = normalizarTextoBusqueda(busquedaConceptoEdit);
+
+  const conceptosEditFiltrados = (config.conceptos || [])
+    .filter((concepto) => {
+      if (!textoBusquedaConceptoEdit) return true;
+
+      const textoConcepto = normalizarTextoBusqueda(
+        `${concepto.nombre || ""} ${concepto.label || ""}`
+      );
+
+      return textoConcepto.includes(textoBusquedaConceptoEdit);
+    })
+    .slice(0, textoBusquedaConceptoEdit ? 40 : 18);
+
   const toNumber = (value, fallback = 0) => {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
@@ -311,8 +334,14 @@ export default function EditModal({
 
             <div style={{ marginBottom: 12 }}>
               <div style={EL2}>CONCEPTO SUGERIDO</div>
+              <input
+                style={{ ...EI2, marginBottom: 8, fontSize: 13, padding: "9px 11px" }}
+                value={busquedaConceptoEdit}
+                onChange={(e) => setBusquedaConceptoEdit(e.target.value)}
+                placeholder="Buscar concepto sugerido..."
+              />
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                {(config.conceptos || []).map((concepto) => {
+                {conceptosEditFiltrados.map((concepto) => {
                   const activo =
                     f.conceptoId === concepto.id ||
                     f.conceptoId === concepto.conceptoId;
@@ -328,6 +357,11 @@ export default function EditModal({
                   );
                 })}
               </div>
+              {conceptosEditFiltrados.length === 0 && (
+                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>
+                  No encontré conceptos con ese texto. Podés escribir el concepto arriba y guardar como texto manual.
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: 12 }}>
