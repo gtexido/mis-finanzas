@@ -68,69 +68,6 @@ import EditModal from "./components/EditModal";
 import DetalleView from "./components/DetalleView";
 import VencimientosView from "./components/VencimientosView";
 
-const getObservacionVisual = (observacion = "") => {
-  const texto = String(observacion || "").trim();
-  if (!texto) return null;
-
-  const normalizado = texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  if (normalizado.includes("cierra") || normalizado.includes("cierre")) {
-    return {
-      icon: "💳",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(14,116,144,.20),rgba(30,41,59,.55))",
-      border: "1px solid rgba(56,189,248,.32)",
-      color: "#bae6fd",
-      iconColor: "#38bdf8",
-    };
-  }
-
-  if (normalizado.includes("cuota")) {
-    return {
-      icon: "🧾",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(124,58,237,.18),rgba(30,41,59,.55))",
-      border: "1px solid rgba(167,139,250,.30)",
-      color: "#ddd6fe",
-      iconColor: "#a78bfa",
-    };
-  }
-
-  if (normalizado.includes("revisar")) {
-    return {
-      icon: "🔎",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(88,28,135,.24),rgba(30,41,59,.55))",
-      border: "1px solid rgba(196,181,253,.30)",
-      color: "#ede9fe",
-      iconColor: "#c4b5fd",
-    };
-  }
-
-  if (normalizado.includes("pagar") || normalizado.includes("manual")) {
-    return {
-      icon: "⚠️",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(146,64,14,.22),rgba(30,41,59,.55))",
-      border: "1px solid rgba(251,146,60,.32)",
-      color: "#fed7aa",
-      iconColor: "#fb923c",
-    };
-  }
-
-  return {
-    icon: "📝",
-    text: texto,
-    background: "linear-gradient(135deg,rgba(15,23,42,.92),rgba(30,41,59,.55))",
-    border: "1px solid rgba(148,163,184,.18)",
-    color: "#cbd5e1",
-    iconColor: "#a78bfa",
-  };
-};
-
 // ======================================================
 // ⚙️ CONFIGURACIÓN / CONSTANTES
 // ======================================================
@@ -1521,13 +1458,26 @@ try {
   const estadoAnterior = String(editingGasto?.estado || "").toLowerCase();
   const estadoNuevo = String(gastoEditado?.estado || "").toLowerCase();
   const sinVencimiento = !String(gastoEditado?.vencimiento || "").trim();
-  const esPendienteSinVencimiento =
+  const pasaAPendienteSinVencimiento =
+    estadoAnterior === "pagado" &&
     estadoNuevo === "pendiente" &&
     sinVencimiento;
 
-  if (esPendienteSinVencimiento) {
-    toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente.", "err");
-    return;
+  if (pasaAPendienteSinVencimiento) {
+    const guardarIgual = await pedirConfirmacion({
+      title: "Pendiente sin vencimiento",
+      message: "Este gasto pasó de Pagado a Pendiente y no tiene fecha de vencimiento.",
+      note: "Podés guardarlo igual, pero no aparecerá en Vence con una fecha clara. Si querés agregar una fecha, volvés al formulario y completás el vencimiento.",
+      icon: "⚠️",
+      variant: "warn",
+      confirmLabel: "Guardar igual",
+      cancelLabel: "Agregar vencimiento",
+    });
+
+    if (!guardarIgual) {
+      toast_("Agregá una fecha de vencimiento antes de guardar.", "warn");
+      return;
+    }
   }
 
   try {
@@ -1673,10 +1623,22 @@ const handleSubconceptosSave = (items) => {
       gastoActual.estado === "pagado" ? "pendiente" : "pagado";
 
     if (nuevoEstado === "pendiente" && !String(gastoActual.vencimiento || "").trim()) {
-      setEditingGasto({ ...gastoActual, estado: "pendiente" });
-      setEditingMesKey(mesKey);
-      toast_("Agregá una fecha de vencimiento para marcarlo como pendiente.", "err");
-      return;
+      const marcarIgual = await pedirConfirmacion({
+        title: "Pendiente sin vencimiento",
+        message: "Este gasto quedará pendiente sin fecha de vencimiento.",
+        note: "Podés marcarlo igual o abrir la edición para agregar una fecha y verlo correctamente en Vence.",
+        icon: "⚠️",
+        variant: "warn",
+        confirmLabel: "Marcar igual",
+        cancelLabel: "Agregar vencimiento",
+      });
+
+      if (!marcarIgual) {
+        setEditingGasto({ ...gastoActual, estado: "pendiente" });
+        setEditingMesKey(mesKey);
+        toast_("Agregá el vencimiento y guardá los cambios.", "warn");
+        return;
+      }
     }
 
     await actualizarGasto({
@@ -2357,7 +2319,6 @@ const GastoRow=({item})=>{
     textoInstrumentoNormalizado.includes("ins_debito_automatico") ||
     textoInstrumentoNormalizado.includes("fp_debito_automatico") ||
     textoInstrumentoNormalizado.includes("debito automatico");
-  const obsVisual = getObservacionVisual(item.observacion);
   const estadoPagado = item.estado === "pagado";
   const estadoBg = estadoPagado ? "#052e16" : "#2a1608";
   const estadoColor = estadoPagado ? "#4ade80" : "#fb923c";
@@ -2446,28 +2407,8 @@ const GastoRow=({item})=>{
             Día {item.dia}/{mes.m+1} · {detalleModeloNuevo || "Sin detalle"}
             {item.requiereRevision?" · Dato de referencia":""}
             {item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}
+            {item.observacion?` · ${item.observacion}`:""}
           </div>
-
-          {obsVisual && (
-            <div
-              style={{
-                marginTop: 7,
-                display: "flex",
-                alignItems: "flex-start",
-                gap: 6,
-                padding: "7px 9px",
-                borderRadius: 12,
-                background: obsVisual.background,
-                border: obsVisual.border,
-                color: obsVisual.color,
-                fontSize: 11,
-                lineHeight: 1.45,
-              }}
-            >
-              <span style={{ fontSize: 12, lineHeight: 1.3, color: obsVisual.iconColor, flexShrink: 0 }}>{obsVisual.icon}</span>
-              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{obsVisual.text}</span>
-            </div>
-          )}
 
           {tieneSubconceptos && desgloseAbierto && (
             <div
@@ -2479,11 +2420,19 @@ const GastoRow=({item})=>{
                 <div style={{ fontSize:10,color:"#94a3b8" }}>{item.subconceptos.length} ítem{item.subconceptos.length===1?"":"s"}</div>
               </div>
               {item.subconceptos.map((sub,idx)=>(
-                <div key={sub.id || `${item.id}_sub_${idx}`} style={{ display:"flex",justifyContent:"space-between",gap:10,padding:"5px 0",borderTop:idx?"1px solid #1e293b":"none" }}>
-                  <span style={{ fontSize:11,color:"#cbd5e1",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{sub.nombre}</span>
-                  <span style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:800,whiteSpace:"nowrap" }}>
-                    {fmtMonto(Number(sub.monto ?? sub.montoUSD ?? 0), sub.moneda || item.moneda || "ARS")}
-                  </span>
+                <div key={sub.id || `${item.id}_sub_${idx}`} style={{ padding:"6px 0",borderTop:idx?"1px solid #1e293b":"none" }}>
+                  <div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}>
+                    <span style={{ fontSize:11,color:"#cbd5e1",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{sub.nombre}</span>
+                    <span style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:800,whiteSpace:"nowrap",flexShrink:0 }}>
+                      {fmtMonto(Number(sub.monto ?? sub.montoUSD ?? 0), sub.moneda || item.moneda || "ARS")}
+                    </span>
+                  </div>
+                  {sub.observacion&&(
+                    <div style={{ marginTop:3,fontSize:10,color:"#94a3b8",lineHeight:1.35,display:"flex",gap:5,alignItems:"flex-start" }}>
+                      <span style={{ flexShrink:0 }}>📝</span>
+                      <span style={{ minWidth:0,overflow:"hidden",textOverflow:"ellipsis" }}>{sub.observacion}</span>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
