@@ -2295,19 +2295,26 @@ const GastoRow=({item})=>{
     categoriaDetalle
   ].filter(Boolean).join(" · ");
 
-  const textoInstrumentoNormalizado = String(
-    item.instrumentoId ||
-    item.instrumentoNombre ||
-    item.instrumento ||
-    item.formaPago ||
-    ""
-  )
+  const textoInstrumentoNormalizado = [
+    item.instrumentoId,
+    item.instrumentoNombre,
+    item.instrumento,
+    item.formaPago,
+    item.formaPagoId,
+  ]
+    .filter(Boolean)
+    .join(" ")
     .toLowerCase()
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/dã©bito|dãƒÂ©bito|dã©bito/g, "debito")
+    .replace(/automã¡tico|automãƒÂ¡tico|automã¡tico/g, "automatico");
 
   const esDebitoAutomatico =
     item.instrumentoId === "ins_debito_automatico" ||
+    item.formaPagoId === "fp_debito_automatico" ||
+    textoInstrumentoNormalizado.includes("ins_debito_automatico") ||
+    textoInstrumentoNormalizado.includes("fp_debito_automatico") ||
     textoInstrumentoNormalizado.includes("debito automatico");
   const estadoPagado = item.estado === "pagado";
   const estadoBg = estadoPagado ? "#052e16" : "#2a1608";
@@ -2367,8 +2374,8 @@ const GastoRow=({item})=>{
               {estadoPagado?"✓ Pagado":"⏳ Pendiente"}
             </span>
 
-            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:900,background:"#2a1a4e",color:"#c4b5fd",border:"1px solid #7c3aed55" }}>Revisar</span>}
-            {esDebitoAutomatico&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1f33",color:"#60a5fa",border:"1px solid #60a5fa33" }}>Débito auto.</span>}
+            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:999,fontSize:10,fontWeight:900,background:"linear-gradient(135deg,rgba(124,58,237,.20),rgba(76,29,149,.10))",color:"#ddd6fe",border:"1px solid rgba(167,139,250,.35)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}>🔎 Revisar</span>}
+            {esDebitoAutomatico&&<span title="Este gasto está marcado como débito automático" style={{ display:"inline-flex",alignItems:"center",gap:5,padding:"4px 9px",borderRadius:999,fontSize:10,fontWeight:900,letterSpacing:.2,background:"linear-gradient(135deg,rgba(139,92,246,.18),rgba(30,41,59,.18))",color:"#ddd6fe",border:"1px solid rgba(196,181,253,.42)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}><span style={{ fontSize:11,lineHeight:1 }}>↻</span> Débito auto</span>}
             {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}          
             {tieneSubconceptos&&<button
               type="button"
