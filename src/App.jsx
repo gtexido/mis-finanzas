@@ -1471,56 +1471,99 @@ try {
   const handleEditSave = async (gastoEditado) => {
   const key = editingMesKey || mesKey;
 
-  const estadoAnterior = String(editingGasto?.estado || "").toLowerCase();
   const estadoNuevo = String(gastoEditado?.estado || "").toLowerCase();
   const sinVencimiento = !String(gastoEditado?.vencimiento || "").trim();
-  const pasaAPendienteSinVencimiento =
-    estadoAnterior === "pagado" &&
-    estadoNuevo === "pendiente" &&
-    sinVencimiento;
 
-  if (pasaAPendienteSinVencimiento) {
-    const guardarIgual = await pedirConfirmacion({
-      title: "Pendiente sin vencimiento",
-      message: "Este gasto pasó de Pagado a Pendiente y no tiene fecha de vencimiento.",
-      note: "Podés guardarlo igual, pero no aparecerá en Vence con una fecha clara. Si querés agregar una fecha, volvés al formulario y completás el vencimiento.",
-      icon: "⚠️",
-      variant: "warn",
-      confirmLabel: "Guardar igual",
-      cancelLabel: "Agregar vencimiento",
-    });
-
-    if (!guardarIgual) {
-      toast_("Agregá una fecha de vencimiento antes de guardar.", "warn");
-      return;
-    }
+  if (estadoNuevo === "pendiente" && sinVencimiento) {
+    toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente.", "err");
+    return;
   }
 
   try {
-	  await actualizarGasto({
-  id: gastoEditado.id,
-  periodo: key,
-  dia: gastoEditado.dia,
-  categoria: gastoEditado.categoria,
-  formaPago: gastoEditado.formaPago,
-  conceptoId: Object.prototype.hasOwnProperty.call(gastoEditado, "conceptoId")
-    ? gastoEditado.conceptoId
-    : (gastoEditado.concepto_id || ""),
-  medioPagoId: gastoEditado.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoEditado.categoria),
-      instrumentoId: gastoEditado.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoEditado.formaPago),
-      categoriaGastoId: gastoEditado.categoriaGastoId || categoriaGastoDesdeServicio(gastoEditado.servicio),
-      etiquetasIds: gastoEditado.etiquetasIds || gastoEditado.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoEditado.servicio),
-      servicio: gastoEditado.servicio,
-      monto: Number(gastoEditado.monto || 0),
-      moneda: gastoEditado.moneda || "ARS",
-      estado: gastoEditado.estado || "pendiente",
-      observacion: gastoEditado.observacion || "",
-      vencimiento: gastoEditado.vencimiento || null,
-      esRecurrente: !!gastoEditado.esRecurrente,
-      requiereRevision: !!gastoEditado.requiereRevision,
-      motivoRevision: gastoEditado.requiereRevision ? (gastoEditado.motivoRevision || null) : null,
-      origenMovimiento: gastoEditado.origenMovimiento || null,
-      subconceptos: gastoEditado.subconceptos || [],
+    let gastoParaGuardar = { ...gastoEditado };
+
+    if (
+      gastoParaGuardar.guardarComoConceptoFrecuente &&
+      !gastoParaGuardar.conceptoId &&
+      String(gastoParaGuardar.servicio || "").trim()
+    ) {
+      const nombreConcepto = String(gastoParaGuardar.servicio || "").trim();
+
+      const conceptoCreado = await crearConcepto({
+        nombre: nombreConcepto,
+        tipoMovimiento: "GASTO",
+        categoriaGastoId: gastoParaGuardar.categoriaGastoId || "cg_otros",
+        medioPagoId: gastoParaGuardar.medioPagoId || "mp_sin_definir",
+        instrumentoId: gastoParaGuardar.instrumentoId || "ins_manual",
+        monedaDefault: gastoParaGuardar.moneda || "ARS",
+        etiquetasIds: gastoParaGuardar.etiquetasIds || [],
+      });
+
+      const catalogosApi = await getCatalogos();
+      const cfgActualizada = mapCatalogosDesdeApi(catalogosApi, tc);
+      setCfg(cfgActualizada);
+
+      const conceptoCreadoId =
+        conceptoCreado?.concepto_id || conceptoCreado?.conceptoId || conceptoCreado?.id;
+
+      const conceptoActualizado =
+        (cfgActualizada.conceptos || []).find((c) => c.id === conceptoCreadoId) ||
+        (cfgActualizada.conceptos || []).find(
+          (c) => String(c.nombre || "").trim().toLowerCase() === nombreConcepto.toLowerCase()
+        ) ||
+        (conceptoCreadoId
+          ? {
+              id: conceptoCreadoId,
+              conceptoId: conceptoCreadoId,
+              nombre: conceptoCreado?.nombre || nombreConcepto,
+              medioPagoId: conceptoCreado?.medio_pago_id || gastoParaGuardar.medioPagoId || "mp_sin_definir",
+              instrumentoId: conceptoCreado?.instrumento_id || gastoParaGuardar.instrumentoId || "ins_manual",
+              categoriaGastoId: conceptoCreado?.categoria_gasto_id || gastoParaGuardar.categoriaGastoId || "cg_otros",
+              etiquetasIds: gastoParaGuardar.etiquetasIds || [],
+              monedaDefault: conceptoCreado?.moneda_default || gastoParaGuardar.moneda || "ARS",
+            }
+          : null);
+
+      if (conceptoActualizado) {
+        gastoParaGuardar = {
+          ...gastoParaGuardar,
+          conceptoId: conceptoActualizado.id || conceptoActualizado.conceptoId,
+          servicio: conceptoActualizado.nombre || nombreConcepto,
+          medioPagoId: conceptoActualizado.medioPagoId || gastoParaGuardar.medioPagoId || "mp_sin_definir",
+          instrumentoId: conceptoActualizado.instrumentoId || gastoParaGuardar.instrumentoId || "ins_manual",
+          categoriaGastoId: conceptoActualizado.categoriaGastoId || gastoParaGuardar.categoriaGastoId || "cg_otros",
+          etiquetasIds: conceptoActualizado.etiquetasIds?.length
+            ? conceptoActualizado.etiquetasIds
+            : gastoParaGuardar.etiquetasIds || [],
+          moneda: conceptoActualizado.monedaDefault || gastoParaGuardar.moneda || "ARS",
+        };
+      }
+    }
+
+    await actualizarGasto({
+      id: gastoParaGuardar.id,
+      periodo: key,
+      dia: gastoParaGuardar.dia,
+      categoria: gastoParaGuardar.categoria,
+      formaPago: gastoParaGuardar.formaPago,
+      conceptoId: Object.prototype.hasOwnProperty.call(gastoParaGuardar, "conceptoId")
+        ? gastoParaGuardar.conceptoId
+        : (gastoParaGuardar.concepto_id || ""),
+      medioPagoId: gastoParaGuardar.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoParaGuardar.categoria),
+      instrumentoId: gastoParaGuardar.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoParaGuardar.formaPago),
+      categoriaGastoId: gastoParaGuardar.categoriaGastoId || categoriaGastoDesdeServicio(gastoParaGuardar.servicio),
+      etiquetasIds: gastoParaGuardar.etiquetasIds || gastoParaGuardar.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoParaGuardar.servicio),
+      servicio: gastoParaGuardar.servicio,
+      monto: Number(gastoParaGuardar.monto || 0),
+      moneda: gastoParaGuardar.moneda || "ARS",
+      estado: gastoParaGuardar.estado || "pendiente",
+      observacion: gastoParaGuardar.observacion || "",
+      vencimiento: gastoParaGuardar.vencimiento || null,
+      esRecurrente: !!gastoParaGuardar.esRecurrente,
+      requiereRevision: !!gastoParaGuardar.requiereRevision,
+      motivoRevision: gastoParaGuardar.requiereRevision ? (gastoParaGuardar.motivoRevision || null) : null,
+      origenMovimiento: gastoParaGuardar.origenMovimiento || null,
+      subconceptos: gastoParaGuardar.subconceptos || [],
     });
 
     const movimientosApi = await getMovimientos(key);
@@ -1544,10 +1587,10 @@ try {
 
     setEditingGasto(null);
     setEditingMesKey(null);
-    toast_("✅ Cambios guardados en Neon");
+    toast_(gastoEditado.guardarComoConceptoFrecuente ? "✅ Concepto guardado y gasto actualizado" : "✅ Cambios guardados en Neon");
   } catch (e) {
     console.error("ERROR EN handleEditSave", e);
-    toast_("No se pudo editar en Neon", "err");
+    toast_(e.message || "No se pudo editar en Neon", "err");
   }
 };
 
@@ -3726,16 +3769,8 @@ if (!authUser) {
   style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
   onClick={async () => {
     if (form.estado === "pendiente" && !form.vencimiento) {
-      const guardarSinVencimiento = await pedirConfirmacion({
-        title: "Pendiente sin vencimiento",
-        message: "Este gasto quedó pendiente sin fecha de vencimiento.",
-        note: "Podés guardarlo igual, pero no aparecerá con una fecha clara de recordatorio.",
-        icon: "⚠️",
-        variant: "warn",
-        confirmLabel: "Guardar igual",
-        cancelLabel: "Volver",
-      });
-      if (!guardarSinVencimiento) return;
+      toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente.", "err");
+      return;
     }
     if (form.tipoGasto === "detalle" && form.subconceptos.length === 0) {
       toast_("Primero agregá ítems al desglose y guardá el desglose", "err");

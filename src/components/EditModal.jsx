@@ -43,6 +43,7 @@ export default function EditModal({
     medioPagoId: gasto?.medioPagoId || gasto?.medio_pago_id || "",
     instrumentoId: gasto?.instrumentoId || gasto?.instrumento_id || "",
     categoriaGastoId: categoriaGastoIdInicial(gasto),
+    guardarComoConceptoFrecuente: false,
     ...gasto,
   });
 
@@ -55,6 +56,7 @@ export default function EditModal({
       medioPagoId: gasto?.medioPagoId || gasto?.medio_pago_id || "",
       instrumentoId: gasto?.instrumentoId || gasto?.instrumento_id || "",
       categoriaGastoId: categoriaGastoIdInicial(gasto),
+      guardarComoConceptoFrecuente: false,
       ...gasto,
     });
   }, [gasto, config.conceptos]);
@@ -121,6 +123,7 @@ export default function EditModal({
     setF((p) => ({
       ...p,
       conceptoId: concepto.id || concepto.conceptoId,
+      guardarComoConceptoFrecuente: false,
       servicio: concepto.nombre || concepto.label || p.servicio,
       medioPagoId: concepto.medioPagoId || p.medioPagoId,
       instrumentoId: concepto.instrumentoId || p.instrumentoId,
@@ -316,10 +319,59 @@ export default function EditModal({
                 ...p,
                 servicio: e.target.value,
                 conceptoId: "",
+                guardarComoConceptoFrecuente: false,
               }))
             }
           />
         </div>
+
+        {!f.conceptoId && String(f.servicio || "").trim() && (
+          <div
+            onClick={() =>
+              setF((p) => ({
+                ...p,
+                guardarComoConceptoFrecuente: !p.guardarComoConceptoFrecuente,
+              }))
+            }
+            style={{
+              marginBottom: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              background: f.guardarComoConceptoFrecuente ? "#15111f" : "#13131a",
+              border: f.guardarComoConceptoFrecuente ? "1px solid #7c3aed66" : "1px solid #1e1e2e",
+              borderRadius: 14,
+              padding: "12px 14px",
+              cursor: "pointer",
+            }}
+          >
+            <div
+              style={{
+                width: 20,
+                height: 20,
+                borderRadius: 6,
+                border: "2px solid #7c3aed",
+                background: f.guardarComoConceptoFrecuente ? "#7c3aed" : "transparent",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                flexShrink: 0,
+              }}
+            >
+              {f.guardarComoConceptoFrecuente && (
+                <span style={{ color: "#fff", fontSize: 13 }}>✓</span>
+              )}
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: "#e2e8f0" }}>
+                Guardar también como concepto frecuente
+              </div>
+              <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.45, marginTop: 2 }}>
+                Se agregará a Conceptos usando el medio, instrumento, categoría y etiquetas actuales.
+              </div>
+            </div>
+          </div>
+        )}
 
         {(config.conceptos || []).length > 0 && (
           <div
@@ -901,6 +953,7 @@ export default function EditModal({
               instrumentoId: f.instrumentoId || "",
               categoriaGastoId: f.categoriaGastoId || "",
               etiquetasIds: f.etiquetasIds || [],
+              guardarComoConceptoFrecuente: !!f.guardarComoConceptoFrecuente && !f.conceptoId,
               requiereRevision: !!f.requiereRevision,
               motivoRevision: f.requiereRevision ? (f.motivoRevision || "REVISAR_MANUAL") : null,
               origenMovimiento: f.origenMovimiento || null,
