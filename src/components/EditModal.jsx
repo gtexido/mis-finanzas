@@ -220,6 +220,9 @@ export default function EditModal({
   const tieneUSDDetalle = totalDetalleUSD > 0;
   const tieneARSDetalle = totalARSDirecto > 0;
   const tieneMonedaMixta = tieneUSDDetalle && tieneARSDetalle;
+  const pendienteSinVencimiento =
+    String(f.estado || "").toLowerCase() === "pendiente" &&
+    !String(f.vencimiento || "").trim();
 
   const EL2 = {
     fontSize: 11,
@@ -739,6 +742,20 @@ export default function EditModal({
             onChange={(e) => setF((p) => ({ ...p, vencimiento: e.target.value }))}
           />
 
+          {pendienteSinVencimiento && (
+            <div
+              style={{
+                fontSize: 11,
+                color: "#fb923c",
+                marginTop: 6,
+                lineHeight: 1.45,
+                fontWeight: 700,
+              }}
+            >
+              Obligatorio para guardar un gasto pendiente.
+            </div>
+          )}
+
           {f.vencimiento &&
             (() => {
               const dias = diasRestantes(f.vencimiento);
@@ -867,6 +884,10 @@ export default function EditModal({
 
         <button
           onClick={() => {
+            if (pendienteSinVencimiento) {
+              return;
+            }
+
             const totalFinal = tieneDesglose
               ? totalDetalleARS
               : Number(f.monto || 0);
@@ -887,12 +908,12 @@ export default function EditModal({
           }}
           style={{
             width: "100%",
-            background: "#7c3aed",
+            background: pendienteSinVencimiento ? "#3f3f46" : "#7c3aed",
             border: "none",
-            color: "#fff",
+            color: pendienteSinVencimiento ? "#a1a1aa" : "#fff",
             borderRadius: 14,
             padding: 16,
-            cursor: "pointer",
+            cursor: pendienteSinVencimiento ? "not-allowed" : "pointer",
             fontFamily: "'DM Sans',sans-serif",
             fontWeight: 700,
             fontSize: 16,
