@@ -261,7 +261,10 @@ export default async function handler(req, res) {
         instrumento_id,
         categoria_gasto_id,
         moneda,
-        workspace_id
+	requiere_revision,
+	motivo_revision,
+	origen_movimiento,
+	workspace_id
       FROM movimientos
       WHERE movimiento_id = ${id}
         AND usuario_id = ${usuarioId}
@@ -278,7 +281,19 @@ export default async function handler(req, res) {
     }
 
     const movimientoActual = movimientoPropio[0];
-    const conceptoNuevoId = conceptoId || body.concepto_id || movimientoActual.concepto_id || null;
+    // QA-01: distinguir entre "no vino conceptoId" y "vino vacío".
+	// - Si no viene conceptoId/concepto_id: conservar el concepto anterior.
+// - Si viene vacío/null: limpiar concepto_id para permitir guardar texto manual.
+// - Si viene con valor: usar el nuevo concepto seleccionado.
+const tieneConceptoPayload =
+  Object.prototype.hasOwnProperty.call(body, "conceptoId") ||
+  Object.prototype.hasOwnProperty.call(body, "concepto_id");
+
+const conceptoPayload = conceptoId ?? body.concepto_id;
+
+const conceptoNuevoId = tieneConceptoPayload
+  ? (conceptoPayload ? String(conceptoPayload).trim() || null : null)
+  : (movimientoActual.concepto_id || null);
 
     if (!servicio && !conceptoNuevoId && !movimientoActual.concepto_manual && !movimientoActual.servicio_id) {
       return res.status(400).json({
