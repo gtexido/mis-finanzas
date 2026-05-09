@@ -68,6 +68,69 @@ import EditModal from "./components/EditModal";
 import DetalleView from "./components/DetalleView";
 import VencimientosView from "./components/VencimientosView";
 
+const getObservacionVisual = (observacion = "") => {
+  const texto = String(observacion || "").trim();
+  if (!texto) return null;
+
+  const normalizado = texto
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (normalizado.includes("cierra") || normalizado.includes("cierre")) {
+    return {
+      icon: "💳",
+      text: texto,
+      background: "linear-gradient(135deg,rgba(14,116,144,.20),rgba(30,41,59,.55))",
+      border: "1px solid rgba(56,189,248,.32)",
+      color: "#bae6fd",
+      iconColor: "#38bdf8",
+    };
+  }
+
+  if (normalizado.includes("cuota")) {
+    return {
+      icon: "🧾",
+      text: texto,
+      background: "linear-gradient(135deg,rgba(124,58,237,.18),rgba(30,41,59,.55))",
+      border: "1px solid rgba(167,139,250,.30)",
+      color: "#ddd6fe",
+      iconColor: "#a78bfa",
+    };
+  }
+
+  if (normalizado.includes("revisar")) {
+    return {
+      icon: "🔎",
+      text: texto,
+      background: "linear-gradient(135deg,rgba(88,28,135,.24),rgba(30,41,59,.55))",
+      border: "1px solid rgba(196,181,253,.30)",
+      color: "#ede9fe",
+      iconColor: "#c4b5fd",
+    };
+  }
+
+  if (normalizado.includes("pagar") || normalizado.includes("manual")) {
+    return {
+      icon: "⚠️",
+      text: texto,
+      background: "linear-gradient(135deg,rgba(146,64,14,.22),rgba(30,41,59,.55))",
+      border: "1px solid rgba(251,146,60,.32)",
+      color: "#fed7aa",
+      iconColor: "#fb923c",
+    };
+  }
+
+  return {
+    icon: "📝",
+    text: texto,
+    background: "linear-gradient(135deg,rgba(15,23,42,.92),rgba(30,41,59,.55))",
+    border: "1px solid rgba(148,163,184,.18)",
+    color: "#cbd5e1",
+    iconColor: "#a78bfa",
+  };
+};
+
 // ======================================================
 // ⚙️ CONFIGURACIÓN / CONSTANTES
 // ======================================================
@@ -2294,6 +2357,7 @@ const GastoRow=({item})=>{
     textoInstrumentoNormalizado.includes("ins_debito_automatico") ||
     textoInstrumentoNormalizado.includes("fp_debito_automatico") ||
     textoInstrumentoNormalizado.includes("debito automatico");
+  const obsVisual = getObservacionVisual(item.observacion);
   const estadoPagado = item.estado === "pagado";
   const estadoBg = estadoPagado ? "#052e16" : "#2a1608";
   const estadoColor = estadoPagado ? "#4ade80" : "#fb923c";
@@ -2384,7 +2448,7 @@ const GastoRow=({item})=>{
             {item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}
           </div>
 
-          {item.observacion && (
+          {obsVisual && (
             <div
               style={{
                 marginTop: 7,
@@ -2393,15 +2457,15 @@ const GastoRow=({item})=>{
                 gap: 6,
                 padding: "7px 9px",
                 borderRadius: 12,
-                background: "linear-gradient(135deg,rgba(15,23,42,.92),rgba(30,41,59,.55))",
-                border: "1px solid rgba(148,163,184,.18)",
-                color: "#cbd5e1",
+                background: obsVisual.background,
+                border: obsVisual.border,
+                color: obsVisual.color,
                 fontSize: 11,
                 lineHeight: 1.45,
               }}
             >
-              <span style={{ fontSize: 12, lineHeight: 1.3, color: "#a78bfa", flexShrink: 0 }}>📝</span>
-              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{item.observacion}</span>
+              <span style={{ fontSize: 12, lineHeight: 1.3, color: obsVisual.iconColor, flexShrink: 0 }}>{obsVisual.icon}</span>
+              <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{obsVisual.text}</span>
             </div>
           )}
 
