@@ -349,6 +349,8 @@ export default function App() {
   tipoGasto:"simple",
   accionCompuesto:"nuevo",
   decisionManual:false,
+  requiereRevision:false,
+  motivoRevision:null,
 });
   const [sueldoInput,setSueldoInput]=useState("");
   const [ingForm,setIngForm]=useState({fuente:"",monto:"",dia:String(now.getDate())});
@@ -1391,6 +1393,9 @@ try {
     observacion: f.observacion || "",
     vencimiento: f.vencimiento || null,
     esRecurrente: !!f.esRecurrente,
+    requiereRevision: !!f.requiereRevision,
+    motivoRevision: f.requiereRevision ? (f.motivoRevision || "REVISAR_MANUAL") : null,
+    origenMovimiento: f.requiereRevision ? (f.origenMovimiento || "CARGA_MANUAL") : null,
     subconceptos: subconceptosPayload,
   });
 
@@ -1451,7 +1456,7 @@ try {
       return updated;
     });
     if(f.esRecurrente&&!f.recurrenteId) setRecurrentes(prev=>[...prev,{id:Date.now()+1,categoria:f.categoria,formaPago:f.formaPago,servicio:f.servicio,monto:f.monto,moneda:f.moneda,observacion:f.observacion}]);
-    setForm(p=>({...p,servicio:"",monto:"",observacion:"",dia:String(now.getDate()),esRecurrente:false,vencimiento:"",subconceptos:[]}));
+    setForm(p=>({...p,servicio:"",monto:"",observacion:"",dia:String(now.getDate()),esRecurrente:false,vencimiento:"",subconceptos:[],requiereRevision:false,motivoRevision:null,origenMovimiento:null}));
     toast_("Gasto guardado correctamente");
   };
 
@@ -1463,7 +1468,7 @@ try {
       return updated;
     });
     setAcumModal(null);
-    setForm(p=>({...p,servicio:"",monto:"",observacion:"",dia:String(now.getDate()),esRecurrente:false,vencimiento:"",subconceptos:[]}));
+    setForm(p=>({...p,servicio:"",monto:"",observacion:"",dia:String(now.getDate()),esRecurrente:false,vencimiento:"",subconceptos:[],requiereRevision:false,motivoRevision:null,origenMovimiento:null}));
     toast_(`+${fmtARS(nuevo.monto)} sumado a ${existente.servicio}`);
   };
   const handleNuevaNota=()=>{ _guardarNuevo(acumModal.nuevo); setAcumModal(null); };
@@ -3747,6 +3752,60 @@ if (!authUser) {
           {(mostrarOpcionesCarga || form.estado === "pendiente") && (
           <div style={{ marginBottom:14 }}><span style={lbl}>📅 VENCIMIENTO</span><input className="inf" type="date" style={{ colorScheme:"dark" }} value={form.vencimiento} onChange={e=>setForm(f=>({...f,vencimiento:e.target.value}))}/>{form.estado === "pendiente" && !form.vencimiento && <div style={{ fontSize:11,color:"#fb923c",marginTop:6,lineHeight:1.4 }}>Recomendado para recordar cuándo hay que pagarlo.</div>}{form.vencimiento&&(()=>{const dias=diasRestantes(form.vencimiento);const s=semaforo(dias);return s?<div style={{ fontSize:12,color:s.color,marginTop:6,fontWeight:600 }}>{s.icon} {dias===0?"¡Hoy!":dias<0?`Venció hace ${Math.abs(dias)}d`:`Faltan ${dias}d`}</div>:null;})()}</div>
           )}
+          <div
+            onClick={() => setForm(f => ({
+              ...f,
+              requiereRevision: !f.requiereRevision,
+              motivoRevision: !f.requiereRevision ? "REVISAR_MANUAL" : null,
+              origenMovimiento: !f.requiereRevision ? "CARGA_MANUAL" : null,
+            }))}
+            style={{
+              marginBottom:14,
+              background: form.requiereRevision
+                ? "linear-gradient(135deg,rgba(124,58,237,.20),rgba(30,41,59,.52))"
+                : "#13131a",
+              border: form.requiereRevision
+                ? "1px solid rgba(167,139,250,.55)"
+                : "1px solid #1e1e2e",
+              borderRadius:16,
+              padding:"12px 14px",
+              display:"flex",
+              alignItems:"center",
+              justifyContent:"space-between",
+              gap:12,
+              cursor:"pointer",
+              boxShadow: form.requiereRevision ? "0 12px 28px rgba(124,58,237,.12)" : "none"
+            }}
+          >
+            <div>
+              <div style={{ fontSize:14,fontWeight:900,color:form.requiereRevision?"#ddd6fe":"#cbd5e1",display:"flex",gap:6,alignItems:"center" }}>
+                🔎 Revisar después
+              </div>
+              <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.35,marginTop:4 }}>
+                Marcá este gasto si necesitás controlar monto, factura o vencimiento más tarde.
+              </div>
+              {form.requiereRevision && (
+                <div style={{ marginTop:8,fontSize:11,color:"#c4b5fd",background:"rgba(124,58,237,.13)",border:"1px solid rgba(167,139,250,.28)",borderRadius:10,padding:"7px 9px" }}>
+                  Se verá con badge “Revisar” y, si no tiene vencimiento confirmado, aparecerá en Pendientes de revisar.
+                </div>
+              )}
+            </div>
+            <div style={{
+              flexShrink:0,
+              minWidth:54,
+              textAlign:"center",
+              padding:"8px 12px",
+              borderRadius:999,
+              background:form.requiereRevision?"#7c3aed":"#1e1e2e",
+              color:form.requiereRevision?"#fff":"#cbd5e1",
+              fontWeight:900,
+              fontSize:13,
+              border:form.requiereRevision?"1px solid #a78bfa":"1px solid #334155"
+            }}>
+              {form.requiereRevision ? "Sí" : "No"}
+            </div>
+          </div>
+
           {mostrarOpcionesCarga && <>
           <div style={{ marginBottom:14 }}><span style={lbl}>OBSERVACIÓN</span><input className="inf" placeholder="Ej: Cuota 2" value={form.observacion} onChange={e=>setForm(f=>({...f,observacion:e.target.value}))}/></div>
           <div style={{ marginBottom:20,display:"flex",alignItems:"center",gap:12,background:"#13131a",borderRadius:14,padding:"12px 14px",border:"1px solid #1e1e2e",cursor:"pointer" }} onClick={()=>setForm(f=>({...f,esRecurrente:!f.esRecurrente}))}>
@@ -3771,8 +3830,8 @@ if (!authUser) {
   className="pb"
   style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
   onClick={async () => {
-    if (form.estado === "pendiente" && !form.vencimiento) {
-      toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente.", "err");
+    if (form.estado === "pendiente" && !form.vencimiento && !form.requiereRevision) {
+      toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente, o marcá Revisar después.", "err");
       return;
     }
     if (form.tipoGasto === "detalle" && form.subconceptos.length === 0) {
