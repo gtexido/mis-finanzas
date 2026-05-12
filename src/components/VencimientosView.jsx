@@ -4,85 +4,7 @@ import { diasRestantes, getGrupoVencimiento, semaforo } from "../utils/dates";
 import { fmtARS, fmtFecha } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
 
-const getObservacionVisual = (observacion = "") => {
-  const texto = String(observacion || "").trim();
-  if (!texto) return null;
-
-  const normalizado = texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  if (normalizado.includes("cierra") || normalizado.includes("cierre")) {
-    return {
-      icon: "💳",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(14,116,144,.20),rgba(30,41,59,.55))",
-      border: "1px solid rgba(56,189,248,.32)",
-      color: "#bae6fd",
-      iconColor: "#38bdf8",
-    };
-  }
-
-  if (normalizado.includes("cuota")) {
-    return {
-      icon: "🧾",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(124,58,237,.18),rgba(30,41,59,.55))",
-      border: "1px solid rgba(167,139,250,.30)",
-      color: "#ddd6fe",
-      iconColor: "#a78bfa",
-    };
-  }
-
-  if (normalizado.includes("revisar")) {
-    return {
-      icon: "🔎",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(88,28,135,.24),rgba(30,41,59,.55))",
-      border: "1px solid rgba(196,181,253,.30)",
-      color: "#ede9fe",
-      iconColor: "#c4b5fd",
-    };
-  }
-
-  if (normalizado.includes("pagar") || normalizado.includes("manual")) {
-    return {
-      icon: "⚠️",
-      text: texto,
-      background: "linear-gradient(135deg,rgba(146,64,14,.22),rgba(30,41,59,.55))",
-      border: "1px solid rgba(251,146,60,.32)",
-      color: "#fed7aa",
-      iconColor: "#fb923c",
-    };
-  }
-
-  return {
-    icon: "📝",
-    text: texto,
-    background: "linear-gradient(135deg,rgba(15,23,42,.92),rgba(30,41,59,.55))",
-    border: "1px solid rgba(148,163,184,.18)",
-    color: "#cbd5e1",
-    iconColor: "#a78bfa",
-  };
-};
-
-
-const normalizarEtiquetaVisual = (valor, fallback = "") => {
-  const texto = String(valor || "").trim();
-  const normalizado = texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  if (!texto) return fallback;
-  if (normalizado === "sin definir" || normalizado === "sin instrumento") return fallback || "Manual";
-  if (normalizado === "sin medio") return fallback || "Medio no definido";
-
-  return texto;
-};
-
-export default function VencimientosView({ data, config, mesActual, tc, onPrevMonth, onNextMonth, onEdit, onMarcarPagado }) {
+export default function VencimientosView({ data, config, mesActual, tc, onEdit, onMarcarPagado }) {
   const [soloMes, setSoloMes] = React.useState(false);
 
   const getMesKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
@@ -94,11 +16,44 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
   const mesKey = getMesKey(mesActual.y, mesActual.m);
   const mesNombre = MESES[mesActual.m] || "Mes";
 
-  const todos = Object.entries(data.gastos || {}).flatMap(([key, gastos]) =>
-    (gastos || [])
-      .filter((g) => g.estado === "pendiente" && g.vencimiento)
-      .map((g) => ({ ...g, mesKey: key }))
+  const todosLosGastos = Object.entries(data.gastos || {}).flatMap(([key, gastos]) =>
+    (gastos || []).map((g) => ({ ...g, mesKey: key }))
   );
+
+  const todos = todosLosGastos
+    .filter((g) => g.estado === "pendiente" && g.vencimiento);
+
+  const claveRevision = (g = {}) =>
+    String(g.conceptoId || g.conceptoNombre || g.conceptoManual || g.servicio || "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const pendientesRevisionBase = todosLosGastos
+    .filter((g) => !!g.requiereRevision)
+    .filter((g) => String(g.estado || "").toLowerCase() !== "pagado")
+    .filter((g) => !g.vencimiento || Number(g.monto || 0) <= 0);
+
+  const pendientesRevision = (soloMes
+    ? pendientesRevisionBase.filter((g) => g.mesKey === mesKey)
+    : pendientesRevisionBase
+  ).sort((a, b) => String(a.servicio || "").localeCompare(String(b.servicio || ""), "es"));
+
+  const getUltimoRegistroRevision = (g) => {
+    const clave = claveRevision(g);
+    if (!clave) return null;
+
+    return [...todosLosGastos]
+      .filter((item) => item.id !== g.id)
+      .filter((item) => claveRevision(item) === clave)
+      .filter((item) => item.vencimiento || Number(item.monto || 0) > 0)
+      .sort((a, b) => {
+        const fechaA = a.vencimiento || `${a.mesKey || "0000-00"}-${String(a.dia || 1).padStart(2, "0")}`;
+        const fechaB = b.vencimiento || `${b.mesKey || "0000-00"}-${String(b.dia || 1).padStart(2, "0")}`;
+        return new Date(fechaB) - new Date(fechaA);
+      })[0] || null;
+  };
 
   const filtrados = soloMes ? todos.filter((g) => g.mesKey === mesKey) : todos;
   const ordenados = [...filtrados].sort(
@@ -187,7 +142,6 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
           const s = semaforo(dias);
           const monto = montoReal(g, tc);
           const usd = montoUSDReal(g);
-          const obsVisual = getObservacionVisual(g.observacion);
 
           return (
             <div
@@ -223,33 +177,13 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
                   </div>
 
                   <div style={{ fontSize: 11, color: "#64748b", marginBottom: 7, lineHeight: 1.35 }}>
-                    {normalizarEtiquetaVisual(cat?.label, "Sin categoría")}
+                    {cat?.label || "Sin categoría"}
                     {g.mesKey !== mesKey && (
                       <span style={{ color: "#a78bfa" }}> · {getNombreMesKey(g.mesKey)}</span>
                     )}
                     {" "}· Vence {fmtFecha(g.vencimiento)}
+                    {g.observacion ? ` · ${g.observacion}` : ""}
                   </div>
-
-                  {obsVisual && (
-                    <div
-                      style={{
-                        marginBottom: 8,
-                        display: "flex",
-                        alignItems: "flex-start",
-                        gap: 6,
-                        padding: "7px 9px",
-                        borderRadius: 12,
-                        background: obsVisual.background,
-                        border: obsVisual.border,
-                        color: obsVisual.color,
-                        fontSize: 11,
-                        lineHeight: 1.45,
-                      }}
-                    >
-                      <span style={{ fontSize: 12, lineHeight: 1.3, color: obsVisual.iconColor, flexShrink: 0 }}>{obsVisual.icon}</span>
-                      <span style={{ minWidth: 0, overflowWrap: "anywhere" }}>{obsVisual.text}</span>
-                    </div>
-                  )}
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                     <span
@@ -269,7 +203,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
                       ⏳ Pendiente
                     </span>
 
-                    {normalizarEtiquetaVisual(g.formaPago, "Manual") === "Débito automático" && (
+                    {g.formaPago === "Débito automático" && (
                       <span
                         style={{
                           display: "inline-flex",
@@ -351,6 +285,116 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
     );
   };
 
+
+  const RevisionCard = ({ g }) => {
+    const ultimo = getUltimoRegistroRevision(g);
+    const ultimoMonto = ultimo ? montoReal(ultimo, tc) : 0;
+    const ultimoFecha = ultimo?.vencimiento ? fmtFecha(ultimo.vencimiento) : null;
+    const motivo = g.motivoRevision || "Falta confirmar factura actual";
+
+    return (
+      <div
+        onClick={() => onEdit(g, g.mesKey)}
+        style={{
+          background: "linear-gradient(180deg,#171320,#111019)",
+          border: "1px solid #f59e0b44",
+          borderRadius: 18,
+          padding: "12px 13px",
+          marginBottom: 8,
+          cursor: "pointer",
+          boxShadow: "0 10px 30px rgba(0,0,0,.18)",
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "flex-start" }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#f59e0b", flexShrink: 0 }} />
+              <div style={{ fontSize: 14, fontWeight: 900, color: "#f8fafc" }}>
+                {g.servicio && g.servicio.trim() !== "" ? g.servicio : "Gasto a revisar"}
+              </div>
+            </div>
+
+            <div style={{ fontSize: 11, color: "#94a3b8", lineHeight: 1.35, marginBottom: 8 }}>
+              Marcado para revisar
+              {g.mesKey !== mesKey && <span style={{ color: "#a78bfa" }}> · {getNombreMesKey(g.mesKey)}</span>}
+            </div>
+
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                padding: "6px 9px",
+                borderRadius: 999,
+                background: "#2a1a0a",
+                border: "1px solid #f59e0b55",
+                color: "#fbbf24",
+                fontSize: 11,
+                fontWeight: 900,
+                marginBottom: 8,
+              }}
+            >
+              ⚠️ Pendiente de confirmar
+            </div>
+
+            <div
+              style={{
+                background: "#0f172a",
+                border: "1px solid #33415566",
+                borderRadius: 14,
+                padding: "8px 10px",
+                color: "#cbd5e1",
+                fontSize: 11,
+                lineHeight: 1.45,
+              }}
+            >
+              <div style={{ color: "#f8fafc", fontWeight: 800 }}>{motivo}</div>
+              {ultimo ? (
+                <div style={{ color: "#94a3b8", marginTop: 3 }}>
+                  Último registrado: {ultimoMonto > 0 ? fmtARS(ultimoMonto) : "sin monto"}
+                  {ultimoFecha ? ` · ${ultimoFecha}` : ""}
+                </div>
+              ) : (
+                <div style={{ color: "#94a3b8", marginTop: 3 }}>Sin referencia anterior cargada.</div>
+              )}
+            </div>
+          </div>
+
+          <div style={{ textAlign: "right", minWidth: 68 }}>
+            <div style={{ fontSize: 10, color: "#fbbf24", fontWeight: 900 }}>REVISAR</div>
+            <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>Tocá para editar</div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const GrupoRevision = () => {
+    if (!pendientesRevision.length) return null;
+
+    return (
+      <div style={{ marginTop: 6, marginBottom: 16 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+          <div>
+            <div style={{ fontSize: 12, color: "#fbbf24", fontWeight: 900, letterSpacing: 0.6 }}>
+              📝 Pendientes de revisar
+            </div>
+            <div style={{ fontSize: 10, color: "#64748b", marginTop: 1 }}>
+              Facturas o importes todavía no confirmados. No suman al total a pagar.
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: "#64748b" }}>
+            {pendientesRevision.length} item{pendientesRevision.length !== 1 ? "s" : ""}
+          </div>
+        </div>
+
+        {pendientesRevision.map((g) => (
+          <RevisionCard key={`${g.id}_${g.mesKey}_revision`} g={g} />
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
@@ -362,7 +406,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
             Vencimientos
           </div>
           <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 4 }}>
-            {soloMes ? `Mostrando ${mesNombre} ${mesActual.y}` : `Referencia ${mesNombre} ${mesActual.y}`}
+            {soloMes ? `${mesNombre} ${mesActual.y}` : "Todos los vencimientos"}
           </div>
         </div>
         <button
@@ -380,70 +424,6 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
           }}
         >
           {soloMes ? "Este mes" : "Todos"}
-        </button>
-      </div>
-
-      <div
-        style={{
-          marginBottom: 12,
-          padding: "11px 12px",
-          borderRadius: 18,
-          border: "1px solid #2a1a4e",
-          background: "linear-gradient(135deg,#111827,#15111f)",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 10,
-        }}
-      >
-        <button
-          onClick={onPrevMonth}
-          disabled={!onPrevMonth}
-          style={{
-            border: "1px solid #2a1a4e",
-            borderRadius: 12,
-            padding: "8px 12px",
-            minWidth: 38,
-            cursor: onPrevMonth ? "pointer" : "default",
-            background: "#1e1e2e",
-            color: "#c4b5fd",
-            fontFamily: "'DM Sans',sans-serif",
-            fontWeight: 900,
-            fontSize: 16,
-            opacity: onPrevMonth ? 1 : 0.45,
-          }}
-        >
-          ‹
-        </button>
-        <div style={{ textAlign: "center", minWidth: 0 }}>
-          <div style={{ fontSize: 10, color: "#8b5cf6", fontWeight: 900, letterSpacing: 1.4, textTransform: "uppercase" }}>
-            Período de referencia
-          </div>
-          <div style={{ fontSize: 17, fontWeight: 900, color: "#f8fafc", lineHeight: 1.2 }}>
-            {mesNombre} {mesActual.y}
-          </div>
-          <div style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}>
-            {soloMes ? "Filtrado por este mes" : "Mostrando todos los vencimientos"}
-          </div>
-        </div>
-        <button
-          onClick={onNextMonth}
-          disabled={!onNextMonth}
-          style={{
-            border: "1px solid #2a1a4e",
-            borderRadius: 12,
-            padding: "8px 12px",
-            minWidth: 38,
-            cursor: onNextMonth ? "pointer" : "default",
-            background: "#1e1e2e",
-            color: "#c4b5fd",
-            fontFamily: "'DM Sans',sans-serif",
-            fontWeight: 900,
-            fontSize: 16,
-            opacity: onNextMonth ? 1 : 0.45,
-          }}
-        >
-          ›
         </button>
       </div>
 
@@ -545,6 +525,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onPrevMo
       <Grupo titulo="🔴 Vencen hoy" subtitulo="Pagos para resolver durante el día." items={hoy_} colorTitulo="#f87171" />
       <Grupo titulo="🟠 Esta semana" subtitulo="Pagos próximos para anticiparte." items={estaSemana} colorTitulo="#fb923c" />
       <Grupo titulo="🟢 Próximos" subtitulo="Vencimientos más adelante." items={proximos} colorTitulo="#4ade80" />
+      <GrupoRevision />
     </div>
   );
 }
