@@ -222,6 +222,25 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
                       </span>
                     )}
 
+                    {g.requiereRevision && (
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                          padding: "2px 7px",
+                          borderRadius: 20,
+                          fontSize: 10,
+                          fontWeight: 900,
+                          background: "#2a1638",
+                          color: "#d8b4fe",
+                          border: "1px solid #a855f755",
+                        }}
+                      >
+                        🔎 Revisar
+                      </span>
+                    )}
+
                     {s && <VencBadge fecha={g.vencimiento} estado={g.estado} />}
                   </div>
                 </div>
