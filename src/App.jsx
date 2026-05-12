@@ -4147,11 +4147,18 @@ if (!authUser) {
           const pctTotal = pct_(totalActual,totalAnterior);
           const tieneBase = totalAnterior > 0;
           const claveVariacionGasto = (g = {}) => {
-            const conceptoBase = normalizarTexto(g.servicio || g.conceptoManual || g.conceptoNombre || "Sin concepto") || "sin_concepto";
-            const medioBase = g.medioPagoId || g.medio_pago_id || slugKey(g.medioPagoNombre || g.medioPago || "medio_no_definido");
-            const categoriaMeta = categoriaRealDesdeGasto(g);
-            const categoriaBase = g.categoriaGastoId || g.categoria_gasto_id || categoriaMeta.id || "sin_categoria";
-            return [conceptoBase, medioBase, categoriaBase].map((x)=>slugKey(x) || "sin_dato").join("__");
+            const conceptoId = String(g.conceptoId || g.concepto_id || "").trim();
+            if (conceptoId) return `concepto__${slugKey(conceptoId) || conceptoId}`;
+
+            const nombreConcepto =
+              normalizarTexto(
+                g.conceptoNombre ||
+                g.conceptoManual ||
+                g.servicio ||
+                "Sin concepto"
+              ) || "sin_concepto";
+
+            return `nombre__${slugKey(nombreConcepto) || "sin_concepto"}`;
           };
 
           const conceptoMap = ml.reduce((acc,{key})=>{
