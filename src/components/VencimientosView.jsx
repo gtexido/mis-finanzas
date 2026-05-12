@@ -342,27 +342,42 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
                 background: "#0f172a",
                 border: "1px solid #33415566",
                 borderRadius: 14,
-                padding: "8px 10px",
+                padding: "7px 9px",
                 color: "#cbd5e1",
-                fontSize: 11,
-                lineHeight: 1.45,
+                fontSize: 10.5,
+                lineHeight: 1.35,
               }}
             >
-              <div style={{ color: "#f8fafc", fontWeight: 800 }}>{motivo}</div>
+              <div style={{ color: "#f8fafc", fontWeight: 800, marginBottom: ultimo ? 2 : 0 }}>{motivo}</div>
               {ultimo ? (
-                <div style={{ color: "#94a3b8", marginTop: 3 }}>
-                  Último registrado: {ultimoMonto > 0 ? fmtARS(ultimoMonto) : "sin monto"}
+                <div style={{ color: "#94a3b8" }}>
+                  Último: {ultimoMonto > 0 ? fmtARS(ultimoMonto) : "sin monto"}
                   {ultimoFecha ? ` · ${ultimoFecha}` : ""}
                 </div>
               ) : (
-                <div style={{ color: "#94a3b8", marginTop: 3 }}>Sin referencia anterior cargada.</div>
+                <div style={{ color: "#94a3b8", marginTop: 2 }}>Sin referencia anterior cargada.</div>
               )}
             </div>
           </div>
 
-          <div style={{ textAlign: "right", minWidth: 68 }}>
-            <div style={{ fontSize: 10, color: "#fbbf24", fontWeight: 900 }}>REVISAR</div>
-            <div style={{ fontSize: 10, color: "#64748b", marginTop: 4 }}>Tocá para editar</div>
+          <div style={{ textAlign: "right", minWidth: 78 }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 4,
+                padding: "4px 7px",
+                borderRadius: 999,
+                background: "#2a1a0a",
+                border: "1px solid #fbbf2444",
+                color: "#fbbf24",
+                fontSize: 10,
+                fontWeight: 900,
+              }}
+            >
+              ⚠️ Revisar
+            </div>
+            <div style={{ fontSize: 10, color: "#64748b", marginTop: 5 }}>Tocá para editar</div>
           </div>
         </div>
       </div>
