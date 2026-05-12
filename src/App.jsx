@@ -1473,9 +1473,12 @@ try {
 
   const estadoNuevo = String(gastoEditado?.estado || "").toLowerCase();
   const sinVencimiento = !String(gastoEditado?.vencimiento || "").trim();
+  const marcadoParaRevisar = !!gastoEditado?.requiereRevision;
 
-  if (estadoNuevo === "pendiente" && sinVencimiento) {
-    toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente.", "err");
+  // QA-14.1: un pendiente marcado para revisar puede no tener vencimiento confirmado.
+  // La fecha sigue siendo obligatoria para pendientes confirmados.
+  if (estadoNuevo === "pendiente" && sinVencimiento && !marcadoParaRevisar) {
+    toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente, o marcá Revisar después.", "err");
     return;
   }
 

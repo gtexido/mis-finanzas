@@ -223,9 +223,12 @@ export default function EditModal({
   const tieneUSDDetalle = totalDetalleUSD > 0;
   const tieneARSDetalle = totalARSDirecto > 0;
   const tieneMonedaMixta = tieneUSDDetalle && tieneARSDetalle;
+  // QA-14.1: si un gasto queda marcado para revisar, puede no tener vencimiento definitivo.
+  // La validación de vencimiento obligatorio aplica solo a pendientes confirmados.
   const pendienteSinVencimiento =
     String(f.estado || "").toLowerCase() === "pendiente" &&
-    !String(f.vencimiento || "").trim();
+    !String(f.vencimiento || "").trim() &&
+    !f.requiereRevision;
 
   const EL2 = {
     fontSize: 11,
