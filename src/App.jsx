@@ -73,21 +73,6 @@ import VencimientosView from "./components/VencimientosView";
 // ======================================================
 
 
-
-const normalizarEtiquetaVisual = (valor, fallback = "") => {
-  const texto = String(valor || "").trim();
-  const normalizado = texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  if (!texto) return fallback;
-  if (normalizado === "sin definir" || normalizado === "sin instrumento") return fallback || "Manual";
-  if (normalizado === "sin medio") return fallback || "Medio no definido";
-
-  return texto;
-};
-
 const COLORES = ["#4ade80","#f87171","#60a5fa","#a78bfa","#fbbf24","#94a3b8","#fb923c","#f472b6","#34d399","#38bdf8","#e879f9","#facc15"];
 const TIPOS_MEDIO_PAGO = [
   { id:"banco", label:"Banco" },
@@ -725,15 +710,14 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
   const metaGrupoDetalle = (g) => {
     const legacyCat = cfg.categorias.find((cat) => cat.id === g.categoria);
 
-    const nombre = normalizarEtiquetaVisual(
+    const nombre =
       g.medioPagoNombre ||
       g.medioPago ||
       g.categoriaGastoNombre ||
       g.categoriaGasto ||
       g.categoriaNombre ||
-      legacyCat?.label,
-      "Medio no definido"
-    );
+      legacyCat?.label ||
+      "Sin definir";
 
     const tieneMedioNuevo = Boolean(g.medioPagoNombre || g.medioPago);
 const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
@@ -847,7 +831,7 @@ const crearRankingAnalisis = (items, obtenerClave, obtenerMeta = () => ({})) => 
   const mapa = new Map();
 
   items.forEach((g) => {
-    const clave = normalizarEtiquetaVisual(obtenerClave(g), "No clasificado");
+    const clave = obtenerClave(g) || "Sin definir";
     const meta = obtenerMeta(g) || {};
     const actual = mapa.get(clave) || {
       nombre: clave,
@@ -902,7 +886,7 @@ const crearRankingEtiquetas = (items) => {
 
 const analisisPorMedio = crearRankingAnalisis(
   gastosDelMes,
-  (g) => normalizarEtiquetaVisual(g.medioPagoNombre || g.medioPago || g.categoriaNombre, "Medio no definido"),
+  (g) => g.medioPagoNombre || g.medioPago || g.categoriaNombre || "Sin definir",
   (g) => ({ color: g.medioPagoColor })
 );
 
@@ -914,7 +898,7 @@ const analisisPorCategoriaReal = crearRankingAnalisis(
 
 const analisisPorInstrumento = crearRankingAnalisis(
   gastosDelMes,
-  (g) => normalizarEtiquetaVisual(g.instrumentoNombre || g.instrumento || g.formaPago, "Manual")
+  (g) => g.instrumentoNombre || g.instrumento || g.formaPago || "Sin instrumento"
 );
 
 const analisisPorEtiqueta = crearRankingEtiquetas(gastosDelMes);
@@ -1148,7 +1132,7 @@ const guardarGasto = async (extra = {}) => {
   }
 
   if (!medioPagoValido) {
-    toast_("Seleccioná un medio de pago para evitar que quede sin clasificar.", "err");
+    toast_("Seleccioná un medio de pago para evitar que quede como Sin definir.", "err");
     return;
   }
 
@@ -1471,99 +1455,53 @@ try {
   const handleEditSave = async (gastoEditado) => {
   const key = editingMesKey || mesKey;
 
+  const estadoAnterior = String(editingGasto?.estado || "").toLowerCase();
   const estadoNuevo = String(gastoEditado?.estado || "").toLowerCase();
   const sinVencimiento = !String(gastoEditado?.vencimiento || "").trim();
+  const pasaAPendienteSinVencimiento =
+    estadoAnterior === "pagado" &&
+    estadoNuevo === "pendiente" &&
+    sinVencimiento;
 
-  if (estadoNuevo === "pendiente" && sinVencimiento) {
-    toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente.", "err");
-    return;
+  if (pasaAPendienteSinVencimiento) {
+    const guardarIgual = await pedirConfirmacion({
+      title: "Pendiente sin vencimiento",
+      message: "Este gasto pasó de Pagado a Pendiente y no tiene fecha de vencimiento.",
+      note: "Podés guardarlo igual, pero no aparecerá en Vence con una fecha clara. Si querés agregar una fecha, volvés al formulario y completás el vencimiento.",
+      icon: "⚠️",
+      variant: "warn",
+      confirmLabel: "Guardar igual",
+      cancelLabel: "Agregar vencimiento",
+    });
+
+    if (!guardarIgual) {
+      toast_("Agregá una fecha de vencimiento antes de guardar.", "warn");
+      return;
+    }
   }
 
   try {
-    let gastoParaGuardar = { ...gastoEditado };
-
-    if (
-      gastoParaGuardar.guardarComoConceptoFrecuente &&
-      !gastoParaGuardar.conceptoId &&
-      String(gastoParaGuardar.servicio || "").trim()
-    ) {
-      const nombreConcepto = String(gastoParaGuardar.servicio || "").trim();
-
-      const conceptoCreado = await crearConcepto({
-        nombre: nombreConcepto,
-        tipoMovimiento: "GASTO",
-        categoriaGastoId: gastoParaGuardar.categoriaGastoId || "cg_otros",
-        medioPagoId: gastoParaGuardar.medioPagoId || "mp_sin_definir",
-        instrumentoId: gastoParaGuardar.instrumentoId || "ins_manual",
-        monedaDefault: gastoParaGuardar.moneda || "ARS",
-        etiquetasIds: gastoParaGuardar.etiquetasIds || [],
-      });
-
-      const catalogosApi = await getCatalogos();
-      const cfgActualizada = mapCatalogosDesdeApi(catalogosApi, tc);
-      setCfg(cfgActualizada);
-
-      const conceptoCreadoId =
-        conceptoCreado?.concepto_id || conceptoCreado?.conceptoId || conceptoCreado?.id;
-
-      const conceptoActualizado =
-        (cfgActualizada.conceptos || []).find((c) => c.id === conceptoCreadoId) ||
-        (cfgActualizada.conceptos || []).find(
-          (c) => String(c.nombre || "").trim().toLowerCase() === nombreConcepto.toLowerCase()
-        ) ||
-        (conceptoCreadoId
-          ? {
-              id: conceptoCreadoId,
-              conceptoId: conceptoCreadoId,
-              nombre: conceptoCreado?.nombre || nombreConcepto,
-              medioPagoId: conceptoCreado?.medio_pago_id || gastoParaGuardar.medioPagoId || "mp_sin_definir",
-              instrumentoId: conceptoCreado?.instrumento_id || gastoParaGuardar.instrumentoId || "ins_manual",
-              categoriaGastoId: conceptoCreado?.categoria_gasto_id || gastoParaGuardar.categoriaGastoId || "cg_otros",
-              etiquetasIds: gastoParaGuardar.etiquetasIds || [],
-              monedaDefault: conceptoCreado?.moneda_default || gastoParaGuardar.moneda || "ARS",
-            }
-          : null);
-
-      if (conceptoActualizado) {
-        gastoParaGuardar = {
-          ...gastoParaGuardar,
-          conceptoId: conceptoActualizado.id || conceptoActualizado.conceptoId,
-          servicio: conceptoActualizado.nombre || nombreConcepto,
-          medioPagoId: conceptoActualizado.medioPagoId || gastoParaGuardar.medioPagoId || "mp_sin_definir",
-          instrumentoId: conceptoActualizado.instrumentoId || gastoParaGuardar.instrumentoId || "ins_manual",
-          categoriaGastoId: conceptoActualizado.categoriaGastoId || gastoParaGuardar.categoriaGastoId || "cg_otros",
-          etiquetasIds: conceptoActualizado.etiquetasIds?.length
-            ? conceptoActualizado.etiquetasIds
-            : gastoParaGuardar.etiquetasIds || [],
-          moneda: conceptoActualizado.monedaDefault || gastoParaGuardar.moneda || "ARS",
-        };
-      }
-    }
-
-    await actualizarGasto({
-      id: gastoParaGuardar.id,
+	  await actualizarGasto({
+      id: gastoEditado.id,
       periodo: key,
-      dia: gastoParaGuardar.dia,
-      categoria: gastoParaGuardar.categoria,
-      formaPago: gastoParaGuardar.formaPago,
-      conceptoId: Object.prototype.hasOwnProperty.call(gastoParaGuardar, "conceptoId")
-        ? gastoParaGuardar.conceptoId
-        : (gastoParaGuardar.concepto_id || ""),
-      medioPagoId: gastoParaGuardar.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoParaGuardar.categoria),
-      instrumentoId: gastoParaGuardar.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoParaGuardar.formaPago),
-      categoriaGastoId: gastoParaGuardar.categoriaGastoId || categoriaGastoDesdeServicio(gastoParaGuardar.servicio),
-      etiquetasIds: gastoParaGuardar.etiquetasIds || gastoParaGuardar.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoParaGuardar.servicio),
-      servicio: gastoParaGuardar.servicio,
-      monto: Number(gastoParaGuardar.monto || 0),
-      moneda: gastoParaGuardar.moneda || "ARS",
-      estado: gastoParaGuardar.estado || "pendiente",
-      observacion: gastoParaGuardar.observacion || "",
-      vencimiento: gastoParaGuardar.vencimiento || null,
-      esRecurrente: !!gastoParaGuardar.esRecurrente,
-      requiereRevision: !!gastoParaGuardar.requiereRevision,
-      motivoRevision: gastoParaGuardar.requiereRevision ? (gastoParaGuardar.motivoRevision || null) : null,
-      origenMovimiento: gastoParaGuardar.origenMovimiento || null,
-      subconceptos: gastoParaGuardar.subconceptos || [],
+      dia: gastoEditado.dia,
+      categoria: gastoEditado.categoria,
+      formaPago: gastoEditado.formaPago,
+      medioPagoId: gastoEditado.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoEditado.categoria),
+      instrumentoId: gastoEditado.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoEditado.formaPago),
+      categoriaGastoId: gastoEditado.categoriaGastoId || categoriaGastoDesdeServicio(gastoEditado.servicio),
+      etiquetasIds: gastoEditado.etiquetasIds || gastoEditado.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoEditado.servicio),
+      servicio: gastoEditado.servicio,
+      monto: Number(gastoEditado.monto || 0),
+      moneda: gastoEditado.moneda || "ARS",
+      estado: gastoEditado.estado || "pendiente",
+      observacion: gastoEditado.observacion || "",
+      vencimiento: gastoEditado.vencimiento || null,
+      esRecurrente: !!gastoEditado.esRecurrente,
+      requiereRevision: !!gastoEditado.requiereRevision,
+      motivoRevision: gastoEditado.requiereRevision ? (gastoEditado.motivoRevision || null) : null,
+      origenMovimiento: gastoEditado.origenMovimiento || null,
+      subconceptos: gastoEditado.subconceptos || [],
     });
 
     const movimientosApi = await getMovimientos(key);
@@ -1587,10 +1525,10 @@ try {
 
     setEditingGasto(null);
     setEditingMesKey(null);
-    toast_(gastoEditado.guardarComoConceptoFrecuente ? "✅ Concepto guardado y gasto actualizado" : "✅ Cambios guardados en Neon");
+    toast_("✅ Cambios guardados en Neon");
   } catch (e) {
     console.error("ERROR EN handleEditSave", e);
-    toast_(e.message || "No se pudo editar en Neon", "err");
+    toast_("No se pudo editar en Neon", "err");
   }
 };
 
@@ -2347,37 +2285,9 @@ const GastoRow=({item})=>{
   const desgloseAbierto = !!desglosesAbiertos[item.id];
   const totalMostrarARS = montoReal(item, tc);
   const totalUSDDetalle = montoUSDReal(item);
-  const medioPagoDetalle = normalizarEtiquetaVisual(item.medioPagoNombre || item.medioPago, "");
-  const instrumentoDetalle = normalizarEtiquetaVisual(item.instrumentoNombre || item.instrumento || item.formaPago, "Manual");
-  const categoriaDetalle = normalizarEtiquetaVisual(categoriaRealDesdeGasto(item).label, "");
-
-  const detalleModeloNuevo = [
-    medioPagoDetalle,
-    instrumentoDetalle,
-    categoriaDetalle
-  ].filter(Boolean).join(" · ");
-
-  const textoInstrumentoNormalizado = [
-    item.instrumentoId,
-    item.instrumentoNombre,
-    item.instrumento,
-    item.formaPago,
-    item.formaPagoId,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/dã©bito|dãƒÂ©bito|dã©bito/g, "debito")
-    .replace(/automã¡tico|automãƒÂ¡tico|automã¡tico/g, "automatico");
-
-  const esDebitoAutomatico =
-    item.instrumentoId === "ins_debito_automatico" ||
-    item.formaPagoId === "fp_debito_automatico" ||
-    textoInstrumentoNormalizado.includes("ins_debito_automatico") ||
-    textoInstrumentoNormalizado.includes("fp_debito_automatico") ||
-    textoInstrumentoNormalizado.includes("debito automatico");
+  const instrumentoDetalle = item.instrumentoNombre || item.instrumento || item.formaPago || "Sin instrumento";
+  const categoriaDetalle = categoriaRealDesdeGasto(item).label || "";
+  const detalleModeloNuevo = [instrumentoDetalle, categoriaDetalle].filter(Boolean).join(" · ");
   const estadoPagado = item.estado === "pagado";
   const estadoBg = estadoPagado ? "#052e16" : "#2a1608";
   const estadoColor = estadoPagado ? "#4ade80" : "#fb923c";
@@ -2436,8 +2346,8 @@ const GastoRow=({item})=>{
               {estadoPagado?"✓ Pagado":"⏳ Pendiente"}
             </span>
 
-            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:999,fontSize:10,fontWeight:900,background:"linear-gradient(135deg,rgba(124,58,237,.20),rgba(76,29,149,.10))",color:"#ddd6fe",border:"1px solid rgba(167,139,250,.35)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}>🔎 Revisar</span>}
-            {esDebitoAutomatico&&<span title="Este gasto está marcado como débito automático" style={{ display:"inline-flex",alignItems:"center",gap:5,padding:"4px 9px",borderRadius:999,fontSize:10,fontWeight:900,letterSpacing:.2,background:"linear-gradient(135deg,rgba(139,92,246,.18),rgba(30,41,59,.18))",color:"#ddd6fe",border:"1px solid rgba(196,181,253,.42)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}><span style={{ fontSize:11,lineHeight:1 }}>↻</span> Débito auto</span>}
+            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:900,background:"#2a1a4e",color:"#c4b5fd",border:"1px solid #7c3aed55" }}>Revisar</span>}
+            {item.formaPago==="Débito automático"&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:"#0f1f33",color:"#60a5fa",border:"1px solid #60a5fa33" }}>Débito auto.</span>}
             {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}          
             {tieneSubconceptos&&<button
               type="button"
@@ -2479,19 +2389,11 @@ const GastoRow=({item})=>{
                 <div style={{ fontSize:10,color:"#94a3b8" }}>{item.subconceptos.length} ítem{item.subconceptos.length===1?"":"s"}</div>
               </div>
               {item.subconceptos.map((sub,idx)=>(
-                <div key={sub.id || `${item.id}_sub_${idx}`} style={{ padding:"6px 0",borderTop:idx?"1px solid #1e293b":"none" }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}>
-                    <span style={{ fontSize:11,color:"#cbd5e1",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{sub.nombre}</span>
-                    <span style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:800,whiteSpace:"nowrap",flexShrink:0 }}>
-                      {fmtMonto(Number(sub.monto ?? sub.montoUSD ?? 0), sub.moneda || item.moneda || "ARS")}
-                    </span>
-                  </div>
-                  {sub.observacion&&(
-                    <div style={{ marginTop:3,fontSize:10,color:"#94a3b8",lineHeight:1.35,display:"flex",gap:5,alignItems:"flex-start" }}>
-                      <span style={{ flexShrink:0 }}>📝</span>
-                      <span style={{ minWidth:0,overflow:"hidden",textOverflow:"ellipsis" }}>{sub.observacion}</span>
-                    </div>
-                  )}
+                <div key={sub.id || `${item.id}_sub_${idx}`} style={{ display:"flex",justifyContent:"space-between",gap:10,padding:"5px 0",borderTop:idx?"1px solid #1e293b":"none" }}>
+                  <span style={{ fontSize:11,color:"#cbd5e1",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{sub.nombre}</span>
+                  <span style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:800,whiteSpace:"nowrap" }}>
+                    {fmtMonto(Number(sub.monto ?? sub.montoUSD ?? 0), sub.moneda || item.moneda || "ARS")}
+                  </span>
                 </div>
               ))}
             </div>
@@ -2980,7 +2882,7 @@ if (!authUser) {
             <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
             <div style={{ fontSize:18,fontWeight:700 }}>{view==="config"?"Ajustes":view==="analisis"?"Análisis":view==="variacion"?"Evolución":view==="vencimientos"?"Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
           </div>
-          {!["config","variacion","vencimientos","analisis"].includes(view)&&(
+          {!["config","variacion","vencimientos"].includes(view)&&(
             <div style={{ display:"flex",gap:8 }}>
               <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(-1)}>‹</button>
               <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(1)}>›</button>
@@ -3769,8 +3671,16 @@ if (!authUser) {
   style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
   onClick={async () => {
     if (form.estado === "pendiente" && !form.vencimiento) {
-      toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente.", "err");
-      return;
+      const guardarSinVencimiento = await pedirConfirmacion({
+        title: "Pendiente sin vencimiento",
+        message: "Este gasto quedó pendiente sin fecha de vencimiento.",
+        note: "Podés guardarlo igual, pero no aparecerá con una fecha clara de recordatorio.",
+        icon: "⚠️",
+        variant: "warn",
+        confirmLabel: "Guardar igual",
+        cancelLabel: "Volver",
+      });
+      if (!guardarSinVencimiento) return;
     }
     if (form.tipoGasto === "detalle" && form.subconceptos.length === 0) {
       toast_("Primero agregá ítems al desglose y guardá el desglose", "err");
@@ -3919,8 +3829,6 @@ if (!authUser) {
     config={cfg}
     mesActual={mes}
     tc={tc}
-    onPrevMonth={() => cambiarMes(-1)}
-    onNextMonth={() => cambiarMes(1)}
     onEdit={(g,key)=>openEdit(g,key)}
     onMarcarPagado={async (id, itemMesKey) => {
       try {
@@ -3967,39 +3875,6 @@ if (!authUser) {
         {/* ANÁLISIS */}
         {view==="analisis"&&(
           <div>
-            <div
-              className="card"
-              style={{
-                marginBottom:10,
-                padding:"11px 12px",
-                border:"1px solid #2a1a4e",
-                background:"linear-gradient(135deg,#111827,#15111f)",
-                display:"flex",
-                alignItems:"center",
-                justifyContent:"space-between",
-                gap:10,
-                borderRadius:18
-              }}
-            >
-              <button
-                className="pb"
-                onClick={()=>cambiarMes(-1)}
-                style={{ background:"#1e1e2e",color:"#c4b5fd",padding:"8px 12px",minWidth:38,border:"1px solid #2a1a4e" }}
-              >
-                ‹
-              </button>
-              <div style={{ textAlign:"center",minWidth:0 }}>
-                <div style={{ fontSize:10,color:"#8b5cf6",fontWeight:900,letterSpacing:1.4,textTransform:"uppercase" }}>Período analizado</div>
-                <div style={{ fontSize:17,fontWeight:900,color:"#f8fafc",lineHeight:1.2 }}>{MESES[mes.m]} {mes.y}</div>
-              </div>
-              <button
-                className="pb"
-                onClick={()=>cambiarMes(1)}
-                style={{ background:"#1e1e2e",color:"#c4b5fd",padding:"8px 12px",minWidth:38,border:"1px solid #2a1a4e" }}
-              >
-                ›
-              </button>
-            </div>
             <div className="card" style={{ background:"radial-gradient(circle at top right,#7c3aed44 0%,transparent 34%),linear-gradient(135deg,#111827 0%,#181124 55%,#0f172a 100%)",border:"1px solid #2a1a4e",padding:14 }}>
               <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",marginBottom:13 }}>
                 <div style={{ minWidth:0 }}>
@@ -4146,36 +4021,55 @@ if (!authUser) {
           const diffTotal = totalActual - totalAnterior;
           const pctTotal = pct_(totalActual,totalAnterior);
           const tieneBase = totalAnterior > 0;
-          const claveVariacionGasto = (g = {}) => {
-            const conceptoBase = normalizarTexto(g.servicio || g.conceptoManual || g.conceptoNombre || "Sin concepto") || "sin_concepto";
-            const medioBase = g.medioPagoId || g.medio_pago_id || slugKey(g.medioPagoNombre || g.medioPago || "medio_no_definido");
+          const identidadHistoricaGasto = (g = {}) => {
+            const concepto = conceptoDesdeGasto(g);
+            const nombre = normalizarEtiquetaVisual(
+              concepto?.nombre ||
+                g.conceptoNombre ||
+                g.servicio ||
+                g.conceptoManual ||
+                g.concepto_id ||
+                "Sin concepto",
+              "Sin concepto"
+            );
+
+            const clave = `concepto_${slugKey(nombre) || "sin_concepto"}`;
             const categoriaMeta = categoriaRealDesdeGasto(g);
-            const categoriaBase = g.categoriaGastoId || g.categoria_gasto_id || categoriaMeta.id || "sin_categoria";
-            return [conceptoBase, medioBase, categoriaBase].map((x)=>slugKey(x) || "sin_dato").join("__");
+            const medioNombre = normalizarEtiquetaVisual(
+              g.medioPagoNombre || g.medioPago || g.categoriaNombre || "",
+              ""
+            );
+
+            return {
+              clave,
+              nombre,
+              conceptoId: concepto?.id || g.conceptoId || g.concepto_id || "",
+              medioNombre,
+              categoriaNombre: categoriaMeta.label || "Sin categoría",
+            };
           };
 
           const conceptoMap = ml.reduce((acc,{key})=>{
             (data.gastos[key] || []).forEach(g=>{
-              const nombre = (g.servicio || g.conceptoManual || "Sin concepto").trim() || "Sin concepto";
-              const categoriaMeta = categoriaRealDesdeGasto(g);
-              const medioNombre = normalizarEtiquetaVisual(g.medioPagoNombre || g.medioPago, "Medio no definido");
-              const categoriaNombre = normalizarEtiquetaVisual(categoriaMeta.label, "Sin categoría");
-              const clave = claveVariacionGasto(g);
-
-              if (!acc[clave]) {
-                acc[clave] = {
-                  id: clave,
-                  nombre,
-                  medioNombre,
-                  categoriaNombre,
+              const meta = identidadHistoricaGasto(g);
+              if (!acc[meta.clave]) {
+                acc[meta.clave] = {
+                  id: meta.clave,
+                  nombre: meta.nombre,
+                  conceptoId: meta.conceptoId,
+                  medioNombre: meta.medioNombre,
+                  categoriaNombre: meta.categoriaNombre,
                   vals: {},
                 };
               }
 
-              acc[clave].nombre = acc[clave].nombre || nombre;
-              acc[clave].medioNombre = acc[clave].medioNombre || medioNombre;
-              acc[clave].categoriaNombre = acc[clave].categoriaNombre || categoriaNombre;
-              acc[clave].vals[key] = (acc[clave].vals[key] || 0) + toARS__(g,tc);
+              const actual = acc[meta.clave];
+              actual.vals[key] = (actual.vals[key] || 0) + toARS__(g,tc);
+
+              // Metadata visual: prioriza datos del período actual; si no existen, usa el último dato disponible.
+              if (key === actualKey || !actual.medioNombre) actual.medioNombre = meta.medioNombre;
+              if (key === actualKey || !actual.categoriaNombre) actual.categoriaNombre = meta.categoriaNombre;
+              if (key === actualKey || !actual.conceptoId) actual.conceptoId = meta.conceptoId;
             });
             return acc;
           },{});
@@ -4187,6 +4081,7 @@ if (!authUser) {
               return { ...item, vals, actual, anterior, diff: actual - anterior, pct: pct_(actual, anterior) };
             })
             .sort((a,b)=>b.actual-a.actual || Math.abs(b.diff)-Math.abs(a.diff));
+
           const subieron = conceptos.filter(x=>x.actual>0 && x.anterior>0 && x.diff>0).sort((a,b)=>b.diff-a.diff).slice(0,4);
           const bajaron = conceptos.filter(x=>x.actual>0 && x.anterior>0 && x.diff<0).sort((a,b)=>a.diff-b.diff).slice(0,4);
           const nuevos = conceptos.filter(x=>x.actual>0 && x.anterior===0).sort((a,b)=>b.actual-a.actual).slice(0,6);
@@ -4207,50 +4102,6 @@ if (!authUser) {
               <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{subtitulo}</div>
             </div>
           );
-          const badgeVariacionItem = (item) => {
-            const baseStyle = {
-              display:"inline-flex",
-              alignItems:"center",
-              gap:5,
-              padding:"4px 8px",
-              borderRadius:999,
-              fontSize:10,
-              fontWeight:900,
-              border:"1px solid transparent",
-              whiteSpace:"nowrap",
-            };
-
-            if (!anteriorKey) {
-              return <span style={{ ...baseStyle,background:"#1e1e2e",color:"#cbd5e1",borderColor:"#334155" }}>Sin base</span>;
-            }
-
-            if (item.actual > 0 && item.anterior === 0) {
-              return <span style={{ ...baseStyle,background:"#1a1230",color:"#c4b5fd",borderColor:"#7c3aed55" }}>🆕 Nuevo</span>;
-            }
-
-            if (item.actual === 0 && item.anterior > 0) {
-              return <span style={{ ...baseStyle,background:"#111827",color:"#94a3b8",borderColor:"#47556955" }}>♻️ Sin gasto</span>;
-            }
-
-            if (item.diff > 0) {
-              return (
-                <span style={{ ...baseStyle,background:"#2a1212",color:"#fca5a5",borderColor:"#f8717155" }}>
-                  ▲ +{fmtARS(Math.abs(item.diff))}{item.pct!==null?` · ${Math.abs(item.pct)}%`:""}
-                </span>
-              );
-            }
-
-            if (item.diff < 0) {
-              return (
-                <span style={{ ...baseStyle,background:"#052e16",color:"#86efac",borderColor:"#22c55e55" }}>
-                  ▼ -{fmtARS(Math.abs(item.diff))}{item.pct!==null?` · ${Math.abs(item.pct)}%`:""}
-                </span>
-              );
-            }
-
-            return <span style={{ ...baseStyle,background:"#1e1e2e",color:"#facc15",borderColor:"#facc1533" }}>= Sin cambios</span>;
-          };
-
           const listaVariacion = (titulo, icono, items, tipo) => (
             <div className="card" style={{ padding:12 }}>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
@@ -4275,9 +4126,6 @@ if (!authUser) {
               ))}
             </div>
           );
-          const esMobileEvolucion = typeof window !== "undefined" && window.innerWidth <= 640;
-          const gridMesesMobile = ml.length <= 3 ? `repeat(${ml.length}, minmax(0, 1fr))` : "repeat(2, minmax(0, 1fr))";
-          const metaHistorico = (item) => [item.medioNombre, item.categoriaNombre].filter(Boolean).join(" · ");
           return(
             <div>
               <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:12 }}>
@@ -4329,105 +4177,29 @@ if (!authUser) {
               {listaVariacion("Nuevos en el mes", "🆕", nuevos, "new")}
               {listaVariacion("Sin gasto este mes", "♻️", sinGasto, "gone")}
 
-              {esMobileEvolucion ? (
-                <div className="card" style={{ padding:12,overflow:"hidden" }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:12 }}>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:14,fontWeight:900 }}>Detalle histórico</div>
-                      <div style={{ fontSize:11,color:"#64748b",marginTop:2 }}>Vista mobile · {ml.length} meses · sin scroll lateral.</div>
-                    </div>
-                    <div style={{ fontSize:10,color:"#64748b",flexShrink:0 }}>{conceptos.length} concepto{conceptos.length!==1?"s":""}</div>
+              <div className="card" style={{ padding:12,overflow:"hidden" }}>
+                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
+                  <div>
+                    <div style={{ fontSize:14,fontWeight:900 }}>Detalle histórico</div>
+                    <div style={{ fontSize:11,color:"#64748b" }}>Comparación por concepto.</div>
                   </div>
-
-                  <div style={{ display:"flex",flexDirection:"column",gap:10 }}>
-                    {conceptos.map((item)=>(
-                      <div
-                        key={item.id || item.nombre}
-                        style={{
-                          background:"linear-gradient(135deg,#111827 0%,#151521 100%)",
-                          border:"1px solid #25253a",
-                          borderRadius:16,
-                          padding:"12px 12px",
-                          boxShadow:"0 10px 24px rgba(0,0,0,.18)",
-                        }}
-                      >
-                        <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:10,marginBottom:8 }}>
-                          <div style={{ minWidth:0 }}>
-                            <div style={{ fontSize:14,fontWeight:900,lineHeight:1.2,wordBreak:"break-word" }}>{item.nombre}</div>
-                            <div style={{ fontSize:11,color:"#94a3b8",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{metaHistorico(item)}</div>
-                          </div>
-                          <div style={{ flexShrink:0 }}>{badgeVariacionItem(item)}</div>
-                        </div>
-
-                        <div style={{ display:"grid",gridTemplateColumns:gridMesesMobile,gap:7,marginTop:10 }}>
-                          {ml.map(({key,label})=>{
-                            const valor = item.vals[key] || 0;
-                            const esActual = key === actualKey;
-                            return (
-                              <div
-                                key={key}
-                                style={{
-                                  background:esActual?"#1a1230":"#0f172a",
-                                  border:`1px solid ${esActual?"#7c3aed55":"#1e3a5f44"}`,
-                                  borderRadius:12,
-                                  padding:"8px 8px",
-                                  minWidth:0,
-                                }}
-                              >
-                                <div style={{ fontSize:9,color:esActual?"#c4b5fd":"#64748b",fontWeight:900,letterSpacing:.6,textTransform:"uppercase",marginBottom:3 }}>{label}</div>
-                                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:900,color:valor>0?(esActual?"#e2e8f0":"#94a3b8"):"#334155",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
-                                  {valor>0 ? fmtARS(valor) : "—"}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:10 }}>
-                          <div style={{ background:"#0b1220",border:"1px solid #1e293b",borderRadius:12,padding:"8px 9px" }}>
-                            <div style={{ fontSize:9,color:"#64748b",fontWeight:900,textTransform:"uppercase",marginBottom:3 }}>Anterior</div>
-                            <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:item.anterior>0?"#94a3b8":"#334155" }}>{item.anterior>0?fmtARS(item.anterior):"—"}</div>
-                          </div>
-                          <div style={{ background:"#15111f",border:"1px solid #7c3aed33",borderRadius:12,padding:"8px 9px",textAlign:"right" }}>
-                            <div style={{ fontSize:9,color:"#a78bfa",fontWeight:900,textTransform:"uppercase",marginBottom:3 }}>Actual</div>
-                            <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:item.actual>0?"#e2e8f0":"#334155" }}>{item.actual>0?fmtARS(item.actual):"—"}</div>
-                          </div>
-                        </div>
+                  <div style={{ fontSize:10,color:"#64748b" }}>{conceptos.length} concepto{conceptos.length!==1?"s":""}</div>
+                </div>
+                <div style={{ overflowX:"auto",paddingBottom:4 }}>
+                  <div style={{ minWidth: 120 + (ml.length*82) }}>
+                    <div style={{ display:"grid",gridTemplateColumns:`minmax(120px,1fr) repeat(${ml.length},82px)`,borderBottom:"1px solid #1e1e2e" }}>
+                      <div style={{ padding:"9px 6px",fontSize:10,color:"#64748b",fontWeight:900 }}>CONCEPTO</div>
+                      {ml.map(({key,label})=><div key={key} style={{ padding:"9px 6px",fontSize:10,color:key===actualKey?"#a78bfa":"#64748b",fontWeight:900,textAlign:"right" }}>{label}</div>)}
+                    </div>
+                    {conceptos.map((item,idx)=>(
+                      <div key={item.nombre} style={{ display:"grid",gridTemplateColumns:`minmax(120px,1fr) repeat(${ml.length},82px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none" }}>
+                        <div style={{ padding:"10px 6px",fontSize:11,fontWeight:800,lineHeight:1.25,wordBreak:"break-word" }}>{item.nombre}</div>
+                        {ml.map(({key})=><div key={key} style={{ padding:"10px 6px",textAlign:"right",fontFamily:"'Space Mono',monospace",fontSize:10,color:key===actualKey?"#e2e8f0":"#64748b" }}>{item.vals[key]?fmtARS(item.vals[key]):<span style={{ color:"#2a2a3e" }}>—</span>}</div>)}
                       </div>
                     ))}
                   </div>
                 </div>
-              ) : (
-                <div className="card" style={{ padding:12,overflow:"hidden" }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-                    <div>
-                      <div style={{ fontSize:14,fontWeight:900 }}>Detalle histórico</div>
-                      <div style={{ fontSize:11,color:"#64748b" }}>Comparación por concepto, medio y categoría.</div>
-                    </div>
-                    <div style={{ fontSize:10,color:"#64748b" }}>{conceptos.length} concepto{conceptos.length!==1?"s":""}</div>
-                  </div>
-                  <div style={{ overflowX:"auto",paddingBottom:4 }}>
-                    <div style={{ minWidth: 145 + (ml.length*82) }}>
-                      <div style={{ display:"grid",gridTemplateColumns:`minmax(145px,1fr) repeat(${ml.length},82px)`,borderBottom:"1px solid #1e1e2e" }}>
-                        <div style={{ padding:"9px 6px",fontSize:10,color:"#64748b",fontWeight:900 }}>CONCEPTO</div>
-                        {ml.map(({key,label})=><div key={key} style={{ padding:"9px 6px",fontSize:10,color:key===actualKey?"#a78bfa":"#64748b",fontWeight:900,textAlign:"right" }}>{label}</div>)}
-                      </div>
-                      {conceptos.map((item,idx)=>(
-                        <div key={item.id || item.nombre} style={{ display:"grid",gridTemplateColumns:`minmax(145px,1fr) repeat(${ml.length},82px)`,borderBottom:idx<conceptos.length-1?"1px solid #1a1a24":"none" }}>
-                          <div style={{ padding:"10px 6px",minWidth:0 }}>
-                            <div style={{ fontSize:11,fontWeight:900,lineHeight:1.25,wordBreak:"break-word" }}>{item.nombre}</div>
-                            <div style={{ fontSize:9,color:"#64748b",marginTop:3,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
-                              {item.medioNombre} · {item.categoriaNombre}
-                            </div>
-                            <div style={{ marginTop:6 }}>{badgeVariacionItem(item)}</div>
-                          </div>
-                          {ml.map(({key})=><div key={key} style={{ padding:"10px 6px",textAlign:"right",fontFamily:"'Space Mono',monospace",fontSize:10,color:key===actualKey?"#e2e8f0":"#64748b" }}>{item.vals[key]?fmtARS(item.vals[key]):<span style={{ color:"#2a2a3e" }}>—</span>}</div>)}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           );
         })()}
@@ -4616,7 +4388,7 @@ if (!authUser) {
 
               <div className="card"><span style={lbl}>CONCEPTOS ACTIVOS</span>
                 {conceptosConfigFiltrados.slice(0,80).map(con=>{ const cg=(cfg.categoriasGasto||[]).find(x=>x.id===con.categoriaGastoId); const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); const tags=(con.etiquetasIds||[]).map(id=>(cfg.etiquetas||[]).find(t=>t.id===id)?.nombre).filter(Boolean); return(
-                  <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{normalizarEtiquetaVisual(cg?.nombre, "Sin categoría")} · {normalizarEtiquetaVisual(mp?.nombre, "Medio no definido")} · {normalizarEtiquetaVisual(ins?.nombre, "Manual")} · {con.monedaDefault||"ARS"}</div>{tags.length>0&&<div style={{ display:"flex",gap:5,flexWrap:"wrap",marginTop:7 }}>{tags.map(t=><span key={t} style={{ fontSize:10,background:"#1e1e2e",color:"#94a3b8",borderRadius:999,padding:"3px 7px" }}>{t}</span>)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarConcepto(con)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarConceptoCfg(con)}>✕</button></div></div></div>
+                  <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{cg?.nombre||"Sin categoría"} · {mp?.nombre||"Sin medio"} · {ins?.nombre||"Sin instrumento"} · {con.monedaDefault||"ARS"}</div>{tags.length>0&&<div style={{ display:"flex",gap:5,flexWrap:"wrap",marginTop:7 }}>{tags.map(t=><span key={t} style={{ fontSize:10,background:"#1e1e2e",color:"#94a3b8",borderRadius:999,padding:"3px 7px" }}>{t}</span>)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarConcepto(con)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarConceptoCfg(con)}>✕</button></div></div></div>
                 );})}
                 {conceptosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay conceptos con ese filtro.</div>}
               </div>
