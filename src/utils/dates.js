@@ -34,3 +34,15 @@ export const semaforo = (dias) => {
   if (dias <= 7) return { color:"#fb923c", bg:"#2a0e00", label:`${dias}d`, icon:"🟠" };
   return { color:"#4ade80", bg:"#0a2010", label:`${dias}d`, icon:"🟢" };
 };
+
+export const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+
+export const getMesKey = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
+
+export const getMesActual = () => {
+  const hoy = new Date();
+  return {
+    y: hoy.getFullYear(),
+    m: hoy.getMonth(),
+  };
+};

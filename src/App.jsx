@@ -34,27 +34,24 @@ import {
 } from "./services/api";
 
 // Utils
-import { fmtARS, fmtUSD, fmtFecha } from "./utils/formatters";
-const fmtARSCompact = (valor) => {
-  const n = Number(valor || 0);
-  const signo = n < 0 ? "-" : "";
-  const abs = Math.abs(n);
+import {
+  fmtARS, fmtUSD, fmtFecha,
+  fmtARSCompact, normalizarEtiquetaVisual, normalizarFuenteIngreso,
+  slug, slugKey, fmtMonto
+} from './utils/formatters';
 
-  if (abs >= 1000000) {
-    return `${signo}$ ${(abs / 1000000).toLocaleString("es-AR", {
-      maximumFractionDigits: 1,
-    })} M`;
-  }
-
-  if (abs >= 1000) {
-    return `${signo}$ ${Math.round(abs / 1000).toLocaleString("es-AR")} mil`;
-  }
-
-  return fmtARS(n);
-};
-
-import { diasRestantes, getGrupoVencimiento, semaforo } from "./utils/dates";
-import { montoReal, montoUSDReal } from "./utils/money";
+import { diasRestantes, getGrupoVencimiento, semaforo, MESES, getMesKey, getMesActual } from './utils/dates';
+import { montoReal, montoUSDReal, pct, montoDetalle } from './utils/money';
+import {
+  COLORES, TIPOS_MEDIO_PAGO, DEFAULT_CONFIG, SUBCONCEPTOS_USD_SUGERIDOS,
+  FUENTES_INGRESO_GENERICAS, MAPA_FUENTES_INGRESO_LEGACY
+} from './utils/constants';
+import {
+  ABRIL_GASTOS, SHEETS_URL, syncSheets, syncFullBackup,
+  medioPagoDesdeCategoriaLegacy, instrumentoDesdeFormaPagoLegacy,
+  categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
+  categoriaGastoDesdeServicio, etiquetasDesdeServicio
+} from './utils/legacy';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
@@ -68,228 +65,6 @@ import EditModal from "./components/EditModal";
 import DetalleView from "./components/DetalleView";
 import VencimientosView from "./components/VencimientosView";
 
-// ======================================================
-// ⚙️ CONFIGURACIÓN / CONSTANTES
-// ======================================================
-
-
-
-const normalizarEtiquetaVisual = (valor, fallback = "") => {
-  const texto = String(valor || "").trim();
-  const normalizado = texto
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-  if (!texto) return fallback;
-  if (normalizado === "sin definir" || normalizado === "sin instrumento") return fallback || "Manual";
-  if (normalizado === "sin medio") return fallback || "Medio no definido";
-
-  return texto;
-};
-
-const COLORES = ["#4ade80","#f87171","#60a5fa","#a78bfa","#fbbf24","#94a3b8","#fb923c","#f472b6","#34d399","#38bdf8","#e879f9","#facc15"];
-const TIPOS_MEDIO_PAGO = [
-  { id:"banco", label:"Banco" },
-  { id:"billetera", label:"Billetera" },
-  { id:"efectivo", label:"Efectivo" },
-  { id:"tarjeta", label:"Tarjeta" },
-  { id:"cuenta", label:"Cuenta" },
-  { id:"otro", label:"Otro" },
-];
-
-// Config fallback temporal. La configuración principal ya viene desde Neon.
-const DEFAULT_CONFIG = {
-  categorias: [
-    { id:"bancon", label:"Bancon", color:"#4ade80" },
-    { id:"santander", label:"Santander", color:"#f87171" },
-    { id:"personal_pay", label:"Personal Pay", color:"#60a5fa" },
-    { id:"mercado_pago", label:"Mercado Pago", color:"#a78bfa" },
-    { id:"gastos_fijos", label:"Gastos Fijos", color:"#fbbf24" },
-    { id:"otros", label:"Otros", color:"#94a3b8" },
-  ],
-  formasPago: ["Manual","Tarjeta","Débito automático","Tarjeta Cordobesa"],
-  mediosPago: [
-    { id:"mp_bancon", nombre:"Bancon", color:"#4ade80" },
-    { id:"mp_santander", nombre:"Santander", color:"#f87171" },
-    { id:"mp_personal_pay", nombre:"Personal Pay", color:"#60a5fa" },
-    { id:"mp_mercado_pago", nombre:"Mercado Pago", color:"#a78bfa" },
-    { id:"mp_efectivo", nombre:"Efectivo", color:"#94a3b8" },
-    { id:"mp_sin_definir", nombre:"Sin definir", color:"#64748b" },
-  ],
-  instrumentosPago: [
-    { id:"ins_manual", nombre:"Manual" },
-    { id:"ins_tarjeta_credito", nombre:"Tarjeta crédito" },
-    { id:"ins_debito", nombre:"Débito" },
-    { id:"ins_debito_automatico", nombre:"Débito automático" },
-    { id:"ins_transferencia", nombre:"Transferencia" },
-    { id:"ins_efectivo", nombre:"Efectivo" },
-    { id:"ins_sin_definir", nombre:"Sin definir" },
-  ],
-  categoriasGasto: [
-    { id:"cg_supermercado", nombre:"Supermercado", color:"#22c55e" },
-    { id:"cg_nafta", nombre:"Nafta", color:"#f97316" },
-    { id:"cg_educacion", nombre:"Educación", color:"#38bdf8" },
-    { id:"cg_servicios", nombre:"Servicios", color:"#facc15" },
-    { id:"cg_suscripciones", nombre:"Suscripciones", color:"#a78bfa" },
-    { id:"cg_salud", nombre:"Salud", color:"#fb7185" },
-    { id:"cg_comida", nombre:"Comida", color:"#fb923c" },
-    { id:"cg_hogar", nombre:"Hogar", color:"#60a5fa" },
-    { id:"cg_impuestos", nombre:"Impuestos", color:"#f87171" },
-    { id:"cg_tarjetas", nombre:"Tarjetas", color:"#ef4444" },
-    { id:"cg_otros", nombre:"Otros", color:"#94a3b8" },
-  ],
-  etiquetas: [
-    { id:"tag_fijo", nombre:"Fijo", color:"#38bdf8" },
-    { id:"tag_variable", nombre:"Variable", color:"#f97316" },
-    { id:"tag_recurrente", nombre:"Recurrente", color:"#22c55e" },
-    { id:"tag_suscripcion", nombre:"Suscripción", color:"#a78bfa" },
-  ],
-  servicios: {
-    bancon: ["Muni Auto","Renta Auto/Casa","Tarjeta Cordobesa"],
-    santander: ["Caruso","IPV","Prevencion","Tarjeta Santander","Tarjeta Santander Dólares","Microsoft 365","Agua Casa","Netflix","Nivel 6 MP","Monotributo","Capcut"],
-    personal_pay: ["Expensas","Seguro Auto","Luz Casa","Gas","Cable Casa y Teléfonos","Cable Local"],
-    mercado_pago: ["Colegio CESD","Colegio CESD Material Didáctico","Colegio CESD Extendido","Colegio CESD Bono Vianda"],
-    gastos_fijos: ["Super","Nafta","Carne/Pollo/Verdulería/kiosco","Agua Bidones","Lucho Gym","Basquet","Quini","Comida Banco"],
-    otros: ["Peluquería","Cumple","Helado","Regalos","Otros"],
-  },
-  // Conceptos que son "tarjeta dólares" — se manejan como subconceptos
-  conceptosDolar: ["Tarjeta Santander Dólares"],
-  fuentesIngreso: ["Hogar","Ventas","Trabajo Diario","Otros"],
-  tipoCambio: 1415,
-};
-
-// Subconceptos sugeridos para tarjeta dólares
-const SUBCONCEPTOS_USD_SUGERIDOS = ["Google One","YouTube","ChatGPT","Netflix","Spotify","Microsoft 365","Apple","Amazon","iCloud","Disney+","HBO","Canva","Notion","Dropbox","Otro"];
-
-const FUENTES_INGRESO_GENERICAS = ["Hogar", "Ventas", "Trabajo Diario", "Otros"];
-const MAPA_FUENTES_INGRESO_LEGACY = {
-  Vane: "Hogar",
-  Anses: "Trabajo Diario",
-  "Descartables V&G": "Ventas",
-};
-const normalizarFuenteIngreso = (fuente = "") => {
-  const nombre = String(fuente || "").trim();
-  if (!nombre) return "Otros";
-  return MAPA_FUENTES_INGRESO_LEGACY[nombre] || (FUENTES_INGRESO_GENERICAS.includes(nombre) ? nombre : "Otros");
-};
-
-
-const ABRIL_GASTOS = []; // Sin datos precargados — se cargan desde Google Sheets
-
-// ── Google Sheets Sync (LEGACY - DESACTIVADO) ─────────────────────────────────────────────────────────
-// INSTRUCCIONES: Reemplazá TU_URL_AQUI con la URL de tu Google Apps Script
-// La URL empieza con: https://script.google.com/macros/s/...../exec
-// ── Google Sheets Sync (LEGACY - DESACTIVADO) ────────────────────────────────
-const SHEETS_URL = null;
-
-const syncSheets = () => {};
-const syncFullBackup = () => {};
-// ──────────────────────────────────────────────────────────────────────────────
-
-const MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const getMesKey = (y,m) => `${y}-${String(m+1).padStart(2,"0")}`;
-const getMesActual = () => {
-  const hoy = new Date();
-  return {
-    y: hoy.getFullYear(),
-    m: hoy.getMonth(),
-  };
-};
-const slug = (s) => s.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"")+"_"+Date.now();
-const slugKey = (s = "") =>
-  String(s || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/\s+/g, "_")
-    .replace(/[^a-z0-9_]/g, "");
-const pct = (a,b) => b===0?null:Math.round(((a-b)/b)*100);
-const fmtMonto = (monto, moneda = "ARS") => {
-  const n = Number(monto || 0);
-
-  if (moneda === "USD") {
-    return `USD ${n.toFixed(2)}`;
-  }
-
-  return `$ ${n.toLocaleString("es-AR")}`;
-};
-
-const montoDetalle = (item) =>
-  Number(item.monto ?? item.montoUSD ?? 0);
-
-const medioPagoDesdeCategoriaLegacy = (categoria) => {
-  const map = {
-    bancon: "mp_bancon",
-    santander: "mp_santander",
-    personal_pay: "mp_personal_pay",
-    mercado_pago: "mp_mercado_pago",
-  };
-  return map[categoria] || "mp_sin_definir";
-};
-
-const instrumentoDesdeFormaPagoLegacy = (formaPago) => {
-  const map = {
-    Manual: "ins_manual",
-    Tarjeta: "ins_tarjeta_credito",
-    "Débito automático": "ins_debito_automatico",
-    "Tarjeta Cordobesa": "ins_tarjeta_credito",
-  };
-  return map[formaPago] || "ins_sin_definir";
-};
-
-const categoriaLegacyDesdeMedioPagoId = (medioPagoId) => {
-  const map = {
-    mp_bancon: "bancon",
-    mp_santander: "santander",
-    mp_personal_pay: "personal_pay",
-    mp_mercado_pago: "mercado_pago",
-  };
-  return map[medioPagoId] || "otros";
-};
-
-const formaPagoLegacyDesdeInstrumentoId = (instrumentoId) => {
-  const map = {
-    ins_manual: "Manual",
-    ins_tarjeta_credito: "Tarjeta",
-    ins_debito: "Manual",
-    ins_debito_automatico: "Débito automático",
-    ins_transferencia: "Manual",
-    ins_efectivo: "Manual",
-  };
-  return map[instrumentoId] || "Manual";
-};
-
-const categoriaGastoDesdeServicio = (servicio = "") => {
-  const s = String(servicio).trim();
-  const reglas = [
-    { id:"cg_supermercado", vals:["Super","Carne/Pollo/Verdulería/kiosco"] },
-    { id:"cg_nafta", vals:["Nafta"] },
-    { id:"cg_educacion", vals:["Colegio CESD","Colegio CESD Material Didáctico","Colegio CESD Extendido","Colegio CESD Bono Vianda","Basquet"] },
-    { id:"cg_servicios", vals:["Luz Casa","Gas","Agua Casa","Cable Casa y Teléfonos","Cable Local","Agua Bidones"] },
-    { id:"cg_suscripciones", vals:["Tarjeta Santander Dólares","Microsoft 365","Netflix","Capcut","Nivel 6 MP"] },
-    { id:"cg_salud", vals:["Farmacia","Prevencion","Caruso"] },
-    { id:"cg_comida", vals:["Comida Banco","Lomito","Helado"] },
-    { id:"cg_hogar", vals:["Expensas","Seguro Auto"] },
-    { id:"cg_impuestos", vals:["Monotributo","Muni Auto","Renta Auto/Casa","IPV"] },
-    { id:"cg_tarjetas", vals:["Tarjeta Santander","Tarjeta Cordobesa"] },
-    { id:"cg_deporte", vals:["Lucho Gym"] },
-  ];
-  return reglas.find((r) => r.vals.includes(s))?.id || "cg_otros";
-};
-
-const etiquetasDesdeServicio = (servicio = "") => {
-  const s = String(servicio).trim();
-  const fijos = ["Luz Casa","Gas","Agua Casa","Cable Casa y Teléfonos","Cable Local","Expensas","Seguro Auto","Monotributo","Muni Auto","Renta Auto/Casa","IPV","Tarjeta Santander","Tarjeta Santander Dólares","Tarjeta Cordobesa","Colegio CESD","Prevencion","Caruso"];
-  const suscripciones = ["Tarjeta Santander Dólares","Microsoft 365","Netflix","Capcut","Nivel 6 MP"];
-  const tags = [];
-  if (fijos.includes(s)) tags.push("tag_fijo");
-  else tags.push("tag_variable");
-  if (suscripciones.includes(s)) tags.push("tag_suscripcion");
-  return tags;
-};
-  
 // LEGACY parcial: localStorage queda temporalmente como respaldo de UI.
 const load = () => {
   try {

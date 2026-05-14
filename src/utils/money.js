@@ -240,3 +240,8 @@ export const descripcionMonedas = (movimiento) => {
 
   return monedas.join(" + ");
 };
+
+export const pct = (a,b) => b===0?null:Math.round(((a-b)/b)*100);
+
+export const montoDetalle = (item) =>
+  Number(item.monto ?? item.montoUSD ?? 0);
