@@ -43,11 +43,11 @@ import {
 import { diasRestantes, getGrupoVencimiento, semaforo, MESES, getMesKey, getMesActual } from './utils/dates';
 import { montoReal, montoUSDReal, pct, montoDetalle } from './utils/money';
 import {
-  COLORES, TIPOS_MEDIO_PAGO, DEFAULT_CONFIG, SUBCONCEPTOS_USD_SUGERIDOS,
-  FUENTES_INGRESO_GENERICAS, MAPA_FUENTES_INGRESO_LEGACY
+  COLORES, TIPOS_MEDIO_PAGO, DEFAULT_CONFIG,
+  FUENTES_INGRESO_GENERICAS
 } from './utils/constants';
 import {
-  ABRIL_GASTOS, SHEETS_URL, syncSheets, syncFullBackup,
+  SHEETS_URL, syncSheets, syncFullBackup,
   medioPagoDesdeCategoriaLegacy, instrumentoDesdeFormaPagoLegacy,
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
@@ -171,7 +171,6 @@ export default function App() {
   const [excluirReplicar,setExcluirReplicar]=useState(new Set());
   const [filtCatReplicar,setFiltCatReplicar]=useState("todos");
   const [mesesAtrasVar,setMesesAtrasVar]=useState(3);
-  const [newCatLabel,setNewCatLabel]=useState(""); const [newCatColor,setNewCatColor]=useState("#60a5fa"); const [editCat,setEditCat]=useState(null);
   const [newForma,setNewForma]=useState(""); const [editForma,setEditForma]=useState(null);
   const [selCatServ,setSelCatServ]=useState(""); const [newServ,setNewServ]=useState("");
   const [newFuente,setNewFuente]=useState(""); const [editFuente,setEditFuente]=useState(null);
@@ -1579,9 +1578,6 @@ const eliminar = async (tipo, id) => {
   const cambiarMes=(dir)=>setMes(prev=>{ let m=prev.m+dir,y=prev.y; if(m>11){m=0;y++;} if(m<0){m=11;y--;} return{y,m}; });
   const exportCSV=()=>{ const rows=[["Dia","Categoria","Medio Pago","Concepto","Monto","Moneda","USD Total","Estado","Vencimiento","Obs"]]; gastosDelMes.forEach(g=>{ const usd=montoUSDReal(g); const cat=categoriaRealDesdeGasto(g); rows.push([g.dia,cat.label,g.medioPagoNombre||g.medioPago||"",g.servicio,g.monto,g.moneda,usd||"",g.estado,g.vencimiento||"",g.observacion]); }); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"})); a.download=`gastos_${mesKey}.csv`; a.click(); toast_("CSV exportado"); };
 
-  const addCat=()=>{if(!newCatLabel.trim()){toast_("Ingresá nombre","err");return;}setCfg(p=>({...p,categorias:[...p.categorias,{id:slug(newCatLabel),label:newCatLabel.trim(),color:newCatColor}]}));setNewCatLabel("");setNewCatColor("#60a5fa");toast_("Agregado");};
-  const saveCat=()=>{if(!editCat?.label.trim())return;setCfg(p=>({...p,categorias:p.categorias.map(c=>c.id===editCat.id?{...c,label:editCat.label,color:editCat.color}:c)}));setEditCat(null);toast_("Actualizado");};
-  const delCat=(id)=>{setCfg(p=>({...p,categorias:p.categorias.filter(c=>c.id!==id)}));toast_("Eliminado","err");};
   const addForma=()=>{if(!newForma.trim()||cfg.formasPago.includes(newForma.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,formasPago:[...p.formasPago,newForma.trim()]}));setNewForma("");toast_("Agregado");};
   const saveForma=()=>{if(!editForma?.val.trim())return;setCfg(p=>{const fp=[...p.formasPago];fp[editForma.idx]=editForma.val.trim();return{...p,formasPago:fp};});setEditForma(null);toast_("Actualizado");};
   const delForma=(idx)=>{setCfg(p=>({...p,formasPago:p.formasPago.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
