@@ -66,6 +66,7 @@ import DetalleView from "./components/DetalleView";
 import VencimientosView from "./components/VencimientosView";
 import VariacionView from "./views/VariacionView";
 import AnalisisView from "./views/AnalisisView";
+import IngresosView from "./views/IngresosView";
 
 // LEGACY parcial: localStorage queda temporalmente como respaldo de UI.
 const load = () => {
@@ -3830,18 +3831,8 @@ if (!authUser) {
         )}
 
         {/* INGRESOS */}
-        {view==="ingresos"&&(<>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
-            <div>
-              <div style={{ fontSize:11,color:"#7c3aed",fontWeight:900,letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-              <div style={{ fontWeight:900,fontSize:22,lineHeight:1.1 }}>Ingresos</div>
-              <div style={{ fontSize:13,color:"#94a3b8",marginTop:4 }}>{MESES[mes.m]} {mes.y}</div>
-            </div>
-            <div style={{ display:"flex",gap:8 }}>
-              <button className="pb" onClick={()=>cambiarMes(-1)} style={{ background:"#1e1e2e",color:"#c4b5fd",borderRadius:14,padding:"9px 12px" }}>‹</button>
-              <button className="pb" onClick={()=>cambiarMes(1)} style={{ background:"#1e1e2e",color:"#c4b5fd",borderRadius:14,padding:"9px 12px" }}>›</button>
-            </div>
-          </div>
+        {view==="ingresos"&&(
+          <IngresosView mes={mes} cambiarMes={cambiarMes}>
 
           <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#22c55e44 0%,transparent 36%),linear-gradient(135deg,#102018 0%,#111827 58%,#1a1230 100%)",border:"1px solid #22c55e55",padding:14,borderRadius:18 }}>
             <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",position:"relative" }}>
@@ -3945,7 +3936,8 @@ if (!authUser) {
               <div style={{ borderTop:"1px solid #1e1e2e",paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between" }}><span style={{ fontSize:13,color:"#64748b" }}>Total ingresos</span><span style={{ fontFamily:"'Space Mono',monospace",fontSize:14,color:"#4ade80",fontWeight:900 }}>{fmtARS(totalIngresos)}</span></div>
             </div>
           )}
-        </>)}
+          </IngresosView>
+        )}
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
