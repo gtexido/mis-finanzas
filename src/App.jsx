@@ -2,7 +2,7 @@
 // 📦 IMPORTS
 // ======================================================
 // React
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // Services (API)
 import {
@@ -37,11 +37,11 @@ import {
 import {
   fmtARS, fmtUSD, fmtFecha,
   fmtARSCompact, normalizarEtiquetaVisual, normalizarFuenteIngreso,
-  slug, slugKey, fmtMonto
+  slugKey, fmtMonto
 } from './utils/formatters';
 
-import { diasRestantes, getGrupoVencimiento, semaforo, MESES, getMesKey, getMesActual } from './utils/dates';
-import { montoReal, montoUSDReal, pct, montoDetalle } from './utils/money';
+import { diasRestantes, semaforo, MESES, getMesKey, getMesActual } from './utils/dates';
+import { montoReal, montoUSDReal } from './utils/money';
 import {
   COLORES, TIPOS_MEDIO_PAGO, DEFAULT_CONFIG,
   FUENTES_INGRESO_GENERICAS
