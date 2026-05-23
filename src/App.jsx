@@ -62,7 +62,6 @@ import VencBadge from "./components/VencBadge";
 import CotizadorWidget from "./components/CotizadorWidget";
 import SubconceptosModal from "./components/SubconceptosModal";
 import EditModal from "./components/EditModal";
-import DetalleView from "./components/DetalleView";
 import VencimientosView from "./components/VencimientosView";
 import VariacionView from "./views/VariacionView";
 import AnalisisView from "./views/AnalisisView";
@@ -637,125 +636,6 @@ const accionesHome = [
   saldo > 0 && totalPendiente === 0 && { icon:"🏦", titulo:"Reservar ahorro", detalle:`Reservá una parte de ${fmtARS(saldo)} antes del próximo mes.` },
 ].filter(Boolean).slice(0, 2);
 const topCategoriasHome = categoriasConGasto.slice(0, 3);
-
-
-const crearRankingAnalisis = (items, obtenerClave, obtenerMeta = () => ({})) => {
-  const mapa = new Map();
-
-  items.forEach((g) => {
-    const clave = normalizarEtiquetaVisual(obtenerClave(g), "No clasificado");
-    const meta = obtenerMeta(g) || {};
-    const actual = mapa.get(clave) || {
-      nombre: clave,
-      total: 0,
-      totalUSD: 0,
-      cantidad: 0,
-      color: meta.color || "#64748b",
-      items: [],
-    };
-
-    actual.total += toARS_(g);
-    actual.totalUSD += montoUSDReal(g);
-    actual.cantidad += 1;
-    actual.items.push(g);
-
-    if (!actual.color && meta.color) actual.color = meta.color;
-    mapa.set(clave, actual);
-  });
-
-  return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
-};
-
-const crearRankingEtiquetas = (items) => {
-  const mapa = new Map();
-
-  items.forEach((g) => {
-    const etiquetas = Array.isArray(g.etiquetas) && g.etiquetas.length
-      ? g.etiquetas
-      : [{ nombre: "Sin etiqueta", color: "#64748b" }];
-
-    etiquetas.forEach((tag) => {
-      const nombre = tag.nombre || "Sin etiqueta";
-      const actual = mapa.get(nombre) || {
-        nombre,
-        total: 0,
-        totalUSD: 0,
-        cantidad: 0,
-        color: tag.color || "#64748b",
-        items: [],
-      };
-
-      actual.total += toARS_(g);
-      actual.totalUSD += montoUSDReal(g);
-      actual.cantidad += 1;
-      actual.items.push(g);
-      mapa.set(nombre, actual);
-    });
-  });
-
-  return Array.from(mapa.values()).sort((a, b) => b.total - a.total);
-};
-
-const analisisPorMedio = crearRankingAnalisis(
-  gastosDelMes,
-  (g) => normalizarEtiquetaVisual(g.medioPagoNombre || g.medioPago || g.categoriaNombre, "Medio no definido"),
-  (g) => ({ color: g.medioPagoColor })
-);
-
-const analisisPorCategoriaReal = crearRankingAnalisis(
-  gastosDelMes,
-  (g) => categoriaRealDesdeGasto(g).label || "Sin categoría",
-  (g) => ({ color: categoriaRealDesdeGasto(g).color })
-);
-
-const analisisPorInstrumento = crearRankingAnalisis(
-  gastosDelMes,
-  (g) => normalizarEtiquetaVisual(g.instrumentoNombre || g.instrumento || g.formaPago, "Manual")
-);
-
-const analisisPorEtiqueta = crearRankingEtiquetas(gastosDelMes);
-
-const opcionesAnalisis = [
-  { id: "medio", label: "Medio", icon: "🏦", items: analisisPorMedio, descripcion: "Dónde se concentra el gasto." },
-  { id: "categoria", label: "Categoría", icon: "🧩", items: analisisPorCategoriaReal, descripcion: "En qué se está gastando." },
-  { id: "instrumento", label: "Instrumento", icon: "💳", items: analisisPorInstrumento, descripcion: "Cómo se está pagando." },
-  { id: "etiqueta", label: "Etiqueta", icon: "🏷️", items: analisisPorEtiqueta, descripcion: "Qué tipo de gasto domina." },
-];
-
-const analisisActual = opcionesAnalisis.find((o) => o.id === analisisTab) || opcionesAnalisis[0];
-const esAnalisisEtiqueta = analisisTab === "etiqueta";
-const mayorAnalisis = analisisActual.items[0] || null;
-const maxAnalisis = Math.max(...analisisActual.items.map((x) => x.total), 1);
-const top3Analisis = analisisActual.items.slice(0, 3);
-const totalTop3Analisis = top3Analisis.reduce((acc, item) => acc + Number(item.total || 0), 0);
-const pctTop3Analisis = totalGastos > 0 ? Math.round((totalTop3Analisis / totalGastos) * 100) : 0;
-const pctMayorAnalisis = mayorAnalisis && totalGastos > 0 ? Math.round((mayorAnalisis.total / totalGastos) * 100) : 0;
-const ticketPromedioAnalisis = gastosDelMes.length > 0 ? totalGastos / gastosDelMes.length : 0;
-const insightAnalisis = (() => {
-  if (!gastosDelMes.length) return "Cargá gastos para obtener una lectura del mes.";
-  if (!mayorAnalisis) return "No hay grupos suficientes para analizar este período.";
-
-  const nombre = mayorAnalisis.nombre || "el principal grupo";
-  const pct = pctMayorAnalisis;
-
-  if (analisisTab === "medio") {
-    return `${nombre} concentra ${pct}% del gasto. Revisá si ese medio de pago está absorbiendo demasiados pagos.`;
-  }
-
-  if (analisisTab === "categoria") {
-    return `${nombre} es el principal foco del mes con ${pct}% del gasto. Miralo primero si necesitás ajustar.`;
-  }
-
-  if (analisisTab === "instrumento") {
-    return `${nombre} explica ${pct}% del gasto según la forma de pago. Sirve para entender cómo se está pagando.`;
-  }
-
-  if (analisisTab === "etiqueta") {
-    return `${nombre} tiene el mayor acumulado por etiqueta. Esta vista no es excluyente: un mismo gasto puede aportar a más de una etiqueta.`;
-  }
-
-  return `${nombre} concentra ${pct}% del gasto del mes.`;
-})();
 
 const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
