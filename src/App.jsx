@@ -132,6 +132,7 @@ export default function App() {
 });
   const [sueldoInput,setSueldoInput]=useState("");
   const [ingForm,setIngForm]=useState({fuente:"",monto:"",dia:String(now.getDate())});
+  const [guardarIngresoLoading, setGuardarIngresoLoading] = useState(false);
   const [toast,setToast]=useState(null);
   const toastTimerRef = useRef(null);
   const [authUser,setAuthUser]=useState(getSessionUser());
@@ -1539,6 +1540,8 @@ const handleSubconceptosSave = (items) => {
   }
 };
  const guardarIngreso = async () => {
+  if (guardarIngresoLoading) return;
+
   if (!ingForm.fuente) {
     toast_("Seleccioná una fuente", "err");
     return;
@@ -1553,6 +1556,8 @@ const handleSubconceptosSave = (items) => {
     toast_("Ingresá un día válido", "err");
     return;
   }
+
+  setGuardarIngresoLoading(true);
 
   try {
     await crearIngreso({
@@ -1592,6 +1597,8 @@ const handleSubconceptosSave = (items) => {
   } catch (e) {
     console.error(e);
     toast_("No se pudo guardar ingreso en Neon", "err");
+  } finally {
+    setGuardarIngresoLoading(false);
   }
 };
 
@@ -3905,9 +3912,46 @@ if (!authUser) {
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
               <div><span style={lbl}>INGRESO VARIABLE</span><div style={{ fontSize:11,color:"#94a3b8" }}>Cargá ventas, extras, cobros o trabajos del día.</div></div><div style={{ fontSize:18 }}>⚡</div>
             </div>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:10 }}>{[...new Set([...(cfg.fuentesIngreso || []), ...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))].map(f=>(<button key={f} className="pb" onClick={()=>setIngForm(i=>({...i,fuente:f}))} style={{ background:ingForm.fuente===f?"#14532d":"#1e1e2e",color:ingForm.fuente===f?"#4ade80":"#94a3b8",fontSize:12,padding:"7px 10px",border:ingForm.fuente===f?"1px solid #22c55e66":"1px solid #2a2a3e" }}>{f}</button>))}</div>
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 86px",gap:8,marginBottom:10 }}><input className="inf" type="number" placeholder="Monto" value={ingForm.monto} onChange={e=>setIngForm(i=>({...i,monto:e.target.value}))} inputMode="numeric" /><input className="inf" type="number" placeholder="Día" value={ingForm.dia} onChange={e=>setIngForm(i=>({...i,dia:e.target.value}))} inputMode="numeric" /></div>
-            <button className="pb" style={{ width:"100%",background:"linear-gradient(90deg,#15803d,#16a34a)",color:"#dcfce7",fontWeight:900,padding:"11px 12px" }} onClick={guardarIngreso}>+ Registrar ingreso variable</button>
+            <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:10 }}>{[...new Set([...(cfg.fuentesIngreso || []), ...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))].map(f=>(<button key={f} className="pb" disabled={guardarIngresoLoading} onClick={()=>setIngForm(i=>({...i,fuente:f}))} style={{ background:ingForm.fuente===f?"#14532d":"#1e1e2e",color:ingForm.fuente===f?"#4ade80":"#94a3b8",fontSize:12,padding:"7px 10px",border:ingForm.fuente===f?"1px solid #22c55e66":"1px solid #2a2a3e",opacity:guardarIngresoLoading?0.6:1 }}>{f}</button>))}</div>
+            <div style={{ display:"grid",gridTemplateColumns:"1fr 86px",gap:8,marginBottom:10 }}>
+              <input
+                className="inf"
+                type="number"
+                placeholder="Monto"
+                value={ingForm.monto}
+                onChange={e=>setIngForm(i=>({...i,monto:e.target.value}))}
+                inputMode="numeric"
+                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                disabled={guardarIngresoLoading}
+              />
+              <input
+                className="inf"
+                type="number"
+                placeholder="Día"
+                value={ingForm.dia}
+                onChange={e=>setIngForm(i=>({...i,dia:e.target.value}))}
+                inputMode="numeric"
+                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
+                disabled={guardarIngresoLoading}
+              />
+            </div>
+            <button
+              type="button"
+              className="pb"
+              disabled={guardarIngresoLoading}
+              style={{
+                width: "100%",
+                background: "linear-gradient(90deg,#15803d,#16a34a)",
+                color: "#dcfce7",
+                fontWeight: 900,
+                padding: "11px 12px",
+                opacity: guardarIngresoLoading ? 0.6 : 1,
+                cursor: guardarIngresoLoading ? "not-allowed" : "pointer"
+              }}
+              onClick={guardarIngreso}
+            >
+              {guardarIngresoLoading ? "Guardando..." : "+ Registrar ingreso variable"}
+            </button>
           </div>
 
           {ingresosPorFuente.filter(f=>f.total>0).length>0&&(
