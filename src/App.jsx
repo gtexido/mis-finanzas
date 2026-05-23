@@ -37,7 +37,7 @@ import {
 import {
   fmtARS, fmtUSD, fmtFecha,
   fmtARSCompact, normalizarEtiquetaVisual, normalizarFuenteIngreso,
-  slugKey, fmtMonto
+  slugKey, fmtMonto, normalizarTexto
 } from './utils/formatters';
 
 import { diasRestantes, semaforo, MESES, getMesKey, getMesActual } from './utils/dates';
@@ -638,14 +638,6 @@ const topCategoriasHome = categoriasConGasto.slice(0, 3);
 
 const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
-const normalizarTexto = (txt = "") =>
-  String(txt || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 
 const gastosDelMesActual = data.gastos[mesKey] || [];
 

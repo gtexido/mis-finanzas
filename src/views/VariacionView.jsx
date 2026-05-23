@@ -1,17 +1,7 @@
 import React from 'react';
-import { fmtARS, slugKey, normalizarEtiquetaVisual } from '../utils/formatters';
+import { fmtARS, slugKey, normalizarEtiquetaVisual, normalizarTexto } from '../utils/formatters';
 import { getMesKey, MESES } from '../utils/dates';
 import { montoReal } from '../utils/money';
-
-// Pure string utility copied from App.jsx to keep this view self-contained
-const normalizarTexto = (txt = "") =>
-  String(txt || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 
 export default function VariacionView({
   mesesAtrasVar,

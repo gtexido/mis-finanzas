@@ -77,3 +77,12 @@ export const fmtMonto = (monto, moneda = "ARS") => {
 
   return `$ ${n.toLocaleString("es-AR")}`;
 };
+
+export const normalizarTexto = (txt = "") =>
+  String(txt || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
