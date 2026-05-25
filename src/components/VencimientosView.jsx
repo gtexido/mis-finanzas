@@ -3,6 +3,7 @@ import VencBadge from "./VencBadge";
 import { diasRestantes, getGrupoVencimiento, semaforo } from "../utils/dates";
 import { fmtARS, fmtFecha } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
+import { claveRevisionGasto } from "../utils/gastos";
 
 export default function VencimientosView({ data, config, mesActual, tc, onEdit, onMarcarPagado }) {
   const [soloMes, setSoloMes] = React.useState(false);
@@ -23,12 +24,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
   const todos = todosLosGastos
     .filter((g) => g.estado === "pendiente" && g.vencimiento);
 
-  const claveRevision = (g = {}) =>
-    String(g.conceptoId || g.conceptoNombre || g.conceptoManual || g.servicio || "")
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
+  const claveRevision = (g) => claveRevisionGasto(g);
 
   const pendientesRevisionBase = todosLosGastos
     .filter((g) => !!g.requiereRevision)

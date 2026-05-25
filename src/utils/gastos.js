@@ -120,5 +120,18 @@ export const metaGrupoDetalle = (g = {}, categoriasLegacy = []) => {
   };
 };
 
+/**
+ * Resuelve una clave de normalización Unicode en base a cualquier identificador del concepto de gasto.
+ * @param {object} g
+ * @returns {string}
+ */
+export const claveRevisionGasto = (g = {}) =>
+  String(g.conceptoId || g.conceptoNombre || g.conceptoManual || g.servicio || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+
 
 
