@@ -52,7 +52,7 @@ import {
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
-import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable, conceptoDesdeGasto } from './utils/gastos';
+import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable, categoriaRealDesdeGasto as categoriaRealDesdeGastoPure } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
@@ -436,36 +436,8 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
   const fuenteMayorIngreso = ingresosPorFuente.filter(f=>f.total>0).sort((a,b)=>b.total-a.total)[0] || null;
   const saldo=totalIngresos-totalGastos;
   const saldoColor=saldo>=0?"#4ade80":"#f87171";
-  const categoriaRealDesdeGasto = (g = {}) => {
-    const concepto = conceptoDesdeGasto(g, cfg.conceptos);
-    const categoriaId = concepto?.categoriaGastoId || g.categoriaGastoId || "";
-    const categoriaCfg = (cfg.categoriasGasto || []).find((c) => c.id === categoriaId);
-    const nombreReal =
-      categoriaCfg?.nombre ||
-      categoriaCfg?.label ||
-      concepto?.categoriaGastoNombre ||
-      concepto?.categoriaGasto ||
-      g.categoriaGastoNombre ||
-      g.categoriaGasto ||
-      "";
-
-    if (categoriaId || nombreReal) {
-      return {
-        id: categoriaId || `cat_real_${slugKey(nombreReal) || "sin_categoria"}`,
-        label: nombreReal || "Sin categoría",
-        color: g.categoriaGastoColor || categoriaCfg?.color || "#64748b",
-        origen: "real",
-      };
-    }
-
-    const legacyCat = cfg.categorias.find((cat) => cat.id === g.categoria);
-    return {
-      id: g.categoria || g.categoriaId || "sin_categoria",
-      label: legacyCat?.label || g.categoriaNombre || "Sin categoría",
-      color: legacyCat?.color || "#64748b",
-      origen: "legacy",
-    };
-  };
+  const categoriaRealDesdeGasto = (g = {}) =>
+    categoriaRealDesdeGastoPure(g, cfg.conceptos, cfg.categoriasGasto, cfg.categorias);
 
   const agruparPorCategoriaReal = (items = []) =>
     Array.from(items.reduce((mapa, g) => {
