@@ -1,5 +1,5 @@
 import { medioPagoDesdeCategoriaLegacy } from './legacy';
-import { slugKey } from './formatters';
+import { slugKey, normalizarEtiquetaVisual } from './formatters';
 
 /**
  * Indica si un gasto tiene subconceptos de detalle válidos.
@@ -82,6 +82,41 @@ export const categoriaRealDesdeGasto = (g = {}, conceptos = [], categoriasGasto 
     label: legacyCat?.label || g.categoriaNombre || "Sin categoría",
     color: legacyCat?.color || "#64748b",
     origen: "legacy",
+  };
+};
+
+/**
+ * Resuelve la etiqueta visible, identificador y color de un grupo en la vista de desglose por categorías (DetalleView).
+ * @param {object} g
+ * @param {array} categoriasLegacy
+ * @returns {object}
+ */
+export const metaGrupoDetalle = (g = {}, categoriasLegacy = []) => {
+  const legacyCat = (categoriasLegacy || []).find((cat) => cat.id === g.categoria);
+
+  const nombre = normalizarEtiquetaVisual(
+    g.medioPagoNombre ||
+    g.medioPago ||
+    g.categoriaGastoNombre ||
+    g.categoriaGasto ||
+    g.categoriaNombre ||
+    legacyCat?.label,
+    "Medio no definido"
+  );
+
+  const tieneMedioNuevo = Boolean(g.medioPagoNombre || g.medioPago);
+  const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
+
+  return {
+    // Agrupa por nombre visible, no por origen técnico.
+    // Así "Mercado Pago" no se separa entre modelo nuevo y legacy.
+    id: `grupo_${slugKey(nombre) || "sin_definir"}`,
+    label: nombre,
+    color:
+      g.medioPagoColor ||
+      g.categoriaGastoColor ||
+      legacyCat?.color ||
+      "#94a3b8",
   };
 };
 

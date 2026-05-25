@@ -52,7 +52,7 @@ import {
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
-import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable, categoriaRealDesdeGasto as categoriaRealDesdeGastoPure } from './utils/gastos';
+import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable, categoriaRealDesdeGasto as categoriaRealDesdeGastoPure, metaGrupoDetalle as metaGrupoDetallePure } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
@@ -468,34 +468,8 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
   const [mostrarTodosConceptos,setMostrarTodosConceptos]=useState(false);
   const textoBusquedaDetalle = busqueda.trim().toLowerCase();
 
-  const metaGrupoDetalle = (g) => {
-    const legacyCat = cfg.categorias.find((cat) => cat.id === g.categoria);
-
-    const nombre = normalizarEtiquetaVisual(
-      g.medioPagoNombre ||
-      g.medioPago ||
-      g.categoriaGastoNombre ||
-      g.categoriaGasto ||
-      g.categoriaNombre ||
-      legacyCat?.label,
-      "Medio no definido"
-    );
-
-    const tieneMedioNuevo = Boolean(g.medioPagoNombre || g.medioPago);
-const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
-
-return {
-  // Agrupa por nombre visible, no por origen técnico.
-  // Así "Mercado Pago" no se separa entre modelo nuevo y legacy.
-  id: `grupo_${slugKey(nombre) || "sin_definir"}`,
-  label: nombre,
-  color:
-    g.medioPagoColor ||
-    g.categoriaGastoColor ||
-    legacyCat?.color ||
-    "#94a3b8",
-};
-  };
+  const metaGrupoDetalle = (g) =>
+    metaGrupoDetallePure(g, cfg.categorias);
 
   const gastosDetalleFiltrados = gastosFiltrados.filter((g) => {
     const coincideBusqueda =
