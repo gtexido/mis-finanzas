@@ -52,7 +52,7 @@ import {
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
-import { gastoTieneDesglose } from './utils/gastos';
+import { gastoTieneDesglose, tieneSubconceptosValidos } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
@@ -751,7 +751,6 @@ const calcularTotalARSDetalle = (items = []) => {
   }, 0);
 };
 
-const tieneSubconceptosValidos = (items = []) => Array.isArray(items) && items.length > 0;
 
 const calcularMontoARSParaDuplicado = (mov = {}) => {
   if (tieneSubconceptosValidos(mov.subconceptos)) {

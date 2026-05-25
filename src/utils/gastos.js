@@ -7,3 +7,11 @@
  */
 export const gastoTieneDesglose = (g) =>
   !!g && Array.isArray(g.subconceptos) && g.subconceptos.length > 0;
+
+/**
+ * Indica si un array de subconceptos/items es válido y no está vacío.
+ * @param {any} items
+ * @returns {boolean}
+ */
+export const tieneSubconceptosValidos = (items = []) =>
+  Array.isArray(items) && items.length > 0;
