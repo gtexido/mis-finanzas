@@ -46,3 +46,16 @@ export const getMesActual = () => {
     m: hoy.getMonth(),
   };
 };
+
+/**
+ * Retorna el nombre del mes a partir de una mesKey de formato 'YYYY-MM'.
+ * @param {string} key
+ * @returns {string}
+ */
+export const getNombreMesKey = (key) => {
+  if (!key) return "";
+  const parts = String(key).split("-");
+  if (parts.length < 2) return key;
+  const idx = parseInt(parts[1], 10) - 1;
+  return MESES[idx] || key;
+};

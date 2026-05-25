@@ -1,6 +1,6 @@
 import React from "react";
 import VencBadge from "./VencBadge";
-import { diasRestantes, getGrupoVencimiento, semaforo } from "../utils/dates";
+import { diasRestantes, getGrupoVencimiento, semaforo, getNombreMesKey } from "../utils/dates";
 import { fmtARS, fmtFecha } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
 import { claveRevisionGasto } from "../utils/gastos";
@@ -65,12 +65,6 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
   const totalUsd = ordenados.reduce((acc, g) => acc + montoUSDReal(g), 0);
   const masCercano = ordenados[0] || null;
   const diasMasCercano = masCercano ? diasRestantes(masCercano.vencimiento) : null;
-
-  const getNombreMesKey = (key) => {
-    const idx = parseInt(String(key).split("-")[1], 10) - 1;
-    return MESES[idx] || key;
-  };
-
   const StatCard = ({ label, value, tone = "neutral", hint }) => {
     const tones = {
       danger: { bg: "#2a1a1a", border: "#f8717144", color: "#f87171" },

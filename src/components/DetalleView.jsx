@@ -1,6 +1,6 @@
 import React from "react";
 import VencBadge from "./VencBadge";
-import { diasRestantes, getGrupoVencimiento, semaforo } from "../utils/dates";
+import { diasRestantes, getGrupoVencimiento, semaforo, getNombreMesKey } from "../utils/dates";
 import { fmtARS, fmtFecha } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
 
@@ -86,11 +86,6 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit }
   const [soloMes, setSoloMes] = React.useState(false);
 
   const getMesKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
-  const MESES = [
-    "Enero","Febrero","Marzo","Abril","Mayo","Junio",
-    "Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"
-  ];
-
   const mesKey = getMesKey(mesActual.y, mesActual.m);
 
   const todos = Object.entries(data.gastos).flatMap(([key, gastos]) =>
@@ -168,7 +163,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit }
                     {cat?.label}
                     {g.mesKey !== mesKey && (
                       <span style={{ color: "#7c3aed" }}>
-                        {" "}· {MESES[parseInt(g.mesKey.split("-")[1]) - 1]}
+                        {" "}· {getNombreMesKey(g.mesKey)}
                       </span>
                     )}
                     {" "}· Vence {fmtFecha(g.vencimiento)}
