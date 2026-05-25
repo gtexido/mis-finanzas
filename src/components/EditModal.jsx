@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { diasRestantes, semaforo } from "../utils/dates";
 import { fmtARS, fmtUSD } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
+import { conceptoDesdeGasto } from "../utils/gastos";
 
 export default function EditModal({
   gasto,
@@ -23,14 +24,8 @@ export default function EditModal({
     return [];
   };
 
-  const conceptoDesdeGasto = (g = {}) =>
-    (config.conceptos || []).find((c) =>
-      c.id === (g?.conceptoId || g?.concepto_id) ||
-      c.conceptoId === (g?.conceptoId || g?.concepto_id)
-    ) || null;
-
   const categoriaGastoIdInicial = (g = {}) =>
-    conceptoDesdeGasto(g)?.categoriaGastoId ||
+    conceptoDesdeGasto(g, config.conceptos)?.categoriaGastoId ||
     g?.categoriaGastoId ||
     g?.categoria_gasto_id ||
     "";

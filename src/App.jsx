@@ -52,7 +52,7 @@ import {
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
-import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable } from './utils/gastos';
+import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable, conceptoDesdeGasto } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
@@ -436,15 +436,8 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
   const fuenteMayorIngreso = ingresosPorFuente.filter(f=>f.total>0).sort((a,b)=>b.total-a.total)[0] || null;
   const saldo=totalIngresos-totalGastos;
   const saldoColor=saldo>=0?"#4ade80":"#f87171";
-  const conceptoDesdeGasto = (g = {}) =>
-    (cfg.conceptos || []).find((c) =>
-      c.id === g.conceptoId ||
-      c.conceptoId === g.conceptoId ||
-      c.id === g.concepto_id
-    ) || null;
-
   const categoriaRealDesdeGasto = (g = {}) => {
-    const concepto = conceptoDesdeGasto(g);
+    const concepto = conceptoDesdeGasto(g, cfg.conceptos);
     const categoriaId = concepto?.categoriaGastoId || g.categoriaGastoId || "";
     const categoriaCfg = (cfg.categoriasGasto || []).find((c) => c.id === categoriaId);
     const nombreReal =

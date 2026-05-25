@@ -27,3 +27,22 @@ export const obtenerMedioPagoComparable = (gasto = {}) =>
   gasto.medioPago ||
   medioPagoDesdeCategoriaLegacy(gasto.categoria || "");
 
+/**
+ * Busca y retorna el concepto de catálogo completo asociado a un gasto.
+ * @param {object} gasto
+ * @param {array} conceptos
+ * @returns {object|null}
+ */
+export const conceptoDesdeGasto = (gasto = {}, conceptos = []) => {
+  if (!gasto) return null;
+  return (
+    (conceptos || []).find((c) =>
+      c.id === gasto.conceptoId ||
+      c.id === gasto.concepto_id ||
+      c.conceptoId === gasto.conceptoId ||
+      c.conceptoId === gasto.concepto_id
+    ) || null
+  );
+};
+
+
