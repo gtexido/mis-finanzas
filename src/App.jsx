@@ -52,6 +52,7 @@ import {
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
+import { gastoTieneDesglose } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
@@ -679,10 +680,6 @@ const buscarGastoDuplicadoExacto = (formActual = {}, montoARS = 0) => {
     return mismoConcepto && mismoMedio && mismoMonto;
   }) || null;
 };
-
-
-const gastoTieneDesglose = (g) =>
-  !!g && Array.isArray(g.subconceptos) && g.subconceptos.length > 0;
 
 const esServicioCompuesto = (nombre) => {
   if (!nombre) return false;
