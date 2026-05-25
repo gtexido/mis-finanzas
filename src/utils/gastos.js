@@ -1,4 +1,4 @@
-// src/utils/gastos.js
+import { medioPagoDesdeCategoriaLegacy } from './legacy';
 
 /**
  * Indica si un gasto tiene subconceptos de detalle válidos.
@@ -15,3 +15,15 @@ export const gastoTieneDesglose = (g) =>
  */
 export const tieneSubconceptosValidos = (items = []) =>
   Array.isArray(items) && items.length > 0;
+
+/**
+ * Obtiene el medio de pago del gasto de forma compatible e integrada.
+ * @param {object} gasto
+ * @returns {string}
+ */
+export const obtenerMedioPagoComparable = (gasto = {}) =>
+  gasto.medioPagoId ||
+  gasto.medio_pago_id ||
+  gasto.medioPago ||
+  medioPagoDesdeCategoriaLegacy(gasto.categoria || "");
+

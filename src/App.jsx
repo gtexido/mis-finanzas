@@ -52,7 +52,7 @@ import {
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
-import { gastoTieneDesglose, tieneSubconceptosValidos } from './utils/gastos';
+import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
@@ -658,12 +658,6 @@ const contarRepeticionesServicio = (servicio) => {
 };
 
 const gastoCompuestoExistente = buscarGastoSimilar(form);
-
-const obtenerMedioPagoComparable = (gasto = {}) =>
-  gasto.medioPagoId ||
-  gasto.medio_pago_id ||
-  gasto.medioPago ||
-  medioPagoDesdeCategoriaLegacy(gasto.categoria || "");
 
 const buscarGastoDuplicadoExacto = (formActual = {}, montoARS = 0) => {
   const conceptoNormalizado = normalizarTexto(formActual.servicio);
