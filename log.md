@@ -3,7 +3,7 @@
 * **Stack**: React + Vite + Vercel Serverless + Neon PostgreSQL
 * **Branch actual**: `refactor-appjsx-fase1`
 * **Estado actual**: Refactor seguro de `App.jsx` por microfases
-* **Último tag seguro**: `estable-refactor-fase13`
+* **Último tag seguro**: `estable-refactor-fase14`
 
 ## Registro de Avances
 
@@ -29,5 +29,21 @@
   * `npm run build` OK.
   * QA visual local OK con Gustavo y Vane.
   * Consola de navegador sin errores rojos.
-* **Pendiente**:
-  * Continuar con Microfase 14 en modo *Analyze only*.
+
+### 2026-05-28
+* **Microfase 14**: Refactor helper getObservacionVisual
+* **Objetivo**: mover el helper visual `getObservacionVisual` desde `src/components/DetalleView.jsx` hacia `src/utils/formatters.js`.
+* **Archivos modificados**:
+  * `src/components/DetalleView.jsx`
+  * `src/utils/formatters.js`
+* **Validaciones**:
+  * git status limpio
+  * `npm run build` OK
+  * Detalle validado visualmente
+  * Observaciones con ícono/color/texto/fondo/borde OK
+  * Búsqueda/filtros OK
+  * Gustavo y Vane OK
+* **Estado final**:
+  * Tag `estable-refactor-fase14` creado
+  * Listo para continuar con Microfase 15 en modo *Analyze only*
+
