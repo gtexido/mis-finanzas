@@ -35,6 +35,22 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
     : pendientesRevisionBase
   ).sort((a, b) => String(a.servicio || "").localeCompare(String(b.servicio || ""), "es"));
 
+  const todosLosPendientesRevision = todosLosGastos
+    .filter((g) => !!g.requiereRevision)
+    .filter((g) => String(g.estado || "").toLowerCase() !== "pagado");
+
+  const pendientesRevisionFiltro = soloMes
+    ? todosLosPendientesRevision.filter((g) => g.mesKey === mesKey)
+    : todosLosPendientesRevision;
+
+  const totalRevisar = pendientesRevisionFiltro.length;
+
+  const desgloseMotivos = pendientesRevisionFiltro.reduce((acc, g) => {
+    const humano = getMotivoRevisionHumano(g.motivoRevision);
+    acc[humano] = (acc[humano] || 0) + 1;
+    return acc;
+  }, {});
+
   const getUltimoRegistroRevision = (g) => {
     const clave = claveRevision(g);
     if (!clave) return null;
@@ -544,36 +560,69 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
         <StatCard label="PRÓXIMOS" value={proximos.length} tone={proximos.length ? "ok" : "neutral"} hint="más adelante" />
       </div>
 
-      <div
-        style={{
-          background: "#0b172c",
-          border: "1px solid #38bdf844",
-          borderRadius: 16,
-          padding: "10px 12px",
-          marginBottom: 14,
-          display: "flex",
-          gap: 10,
-          alignItems: "flex-start",
-        }}
-      >
-        <div style={{ fontSize: 18 }}>💡</div>
-        <div>
-          <div style={{ fontSize: 11, color: "#38bdf8", fontWeight: 900, letterSpacing: 1 }}>
-            RESUMEN
-          </div>
-          <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 800, lineHeight: 1.35 }}>
-            {ordenados.length === 0
-              ? "No tenés pagos pendientes con fecha. Cuando cargues vencimientos, acá vas a ver alertas y próximos pagos."
-              : vencidos.length > 0
-                ? `Tenés ${vencidos.length} vencimiento${vencidos.length !== 1 ? "s" : ""} vencido${vencidos.length !== 1 ? "s" : ""}. Conviene resolverlo primero.`
-                : hoy_.length > 0
-                  ? `Tenés ${hoy_.length} vencimiento${hoy_.length !== 1 ? "s" : ""} para hoy.`
-                  : estaSemana.length > 0
-                    ? `Tenés ${estaSemana.length} pago${estaSemana.length !== 1 ? "s" : ""} cerca esta semana.`
-                    : "Todo tranquilo por ahora. Tus próximos vencimientos están más adelante."}
+      {totalRevisar > 0 ? (
+        <div
+          style={{
+            background: "linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(21, 21, 32, 0.98))",
+            border: "1px solid rgba(245, 158, 11, 0.35)",
+            borderRadius: 16,
+            padding: "10px 12px",
+            marginBottom: 14,
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+          }}
+        >
+          <div style={{ fontSize: 18 }}>⚠️</div>
+          <div>
+            <div style={{ fontSize: 11, color: "#fb923c", fontWeight: 900, letterSpacing: 1 }}>
+              ⚠ REQUIEREN REVISIÓN
+            </div>
+            <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 800, lineHeight: 1.35 }}>
+              <div>{totalRevisar} gasto{totalRevisar !== 1 ? "s" : ""} requieren revisión</div>
+              <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 3 }}>
+                {Object.entries(desgloseMotivos).map(([motivo, cant]) => (
+                  <div key={motivo} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: "#fef08a" }}>
+                    <span>🔸</span>
+                    <span>{motivo} · {cant}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div
+          style={{
+            background: "#0b172c",
+            border: "1px solid #38bdf844",
+            borderRadius: 16,
+            padding: "10px 12px",
+            marginBottom: 14,
+            display: "flex",
+            gap: 10,
+            alignItems: "flex-start",
+          }}
+        >
+          <div style={{ fontSize: 18 }}>💡</div>
+          <div>
+            <div style={{ fontSize: 11, color: "#38bdf8", fontWeight: 900, letterSpacing: 1 }}>
+              RESUMEN
+            </div>
+            <div style={{ fontSize: 12, color: "#f8fafc", fontWeight: 800, lineHeight: 1.35 }}>
+              {ordenados.length === 0
+                ? "No tenés pagos pendientes con fecha. Cuando cargues vencimientos, acá vas a ver alertas y próximos pagos."
+                : vencidos.length > 0
+                  ? `Tenés ${vencidos.length} vencimiento${vencidos.length !== 1 ? "s" : ""} vencido${vencidos.length !== 1 ? "s" : ""}. Conviene resolverlo primero.`
+                  : hoy_.length > 0
+                    ? `Tenés ${hoy_.length} vencimiento${hoy_.length !== 1 ? "s" : ""} para hoy.`
+                    : estaSemana.length > 0
+                      ? `Tenés ${estaSemana.length} pago${estaSemana.length !== 1 ? "s" : ""} cerca esta semana.`
+                      : "Todo tranquilo por ahora. Tus próximos vencimientos están más adelante."}
+            </div>
+          </div>
+        </div>
+      )}
 
       {ordenados.length === 0 && (
         <div
