@@ -131,19 +131,27 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
           const s = semaforo(dias);
           const monto = montoReal(g, tc);
           const usd = montoUSDReal(g);
+          const requiereRev = !!g.requiereRevision;
 
           return (
             <div
               key={g.id + "_" + g.mesKey}
               onClick={() => onEdit(g, g.mesKey)}
               style={{
-                background: "linear-gradient(180deg,#151520,#101018)",
-                border: `1px solid ${s?.color || "#334155"}33`,
+                background: requiereRev
+                  ? "linear-gradient(135deg, rgba(245, 158, 11, 0.08), rgba(21, 21, 32, 0.98))"
+                  : "linear-gradient(180deg,#151520,#101018)",
+                border: requiereRev
+                  ? "1px solid rgba(245, 158, 11, 0.35)"
+                  : `1px solid ${s?.color || "#334155"}33`,
+                borderLeft: requiereRev ? "4px solid #f59e0b" : undefined,
                 borderRadius: 18,
                 padding: "12px 13px",
                 marginBottom: 8,
                 cursor: "pointer",
-                boxShadow: "0 10px 30px rgba(0,0,0,.18)",
+                boxShadow: requiereRev
+                  ? "0 10px 30px rgba(245, 158, 11, 0.04)"
+                  : "0 10px 30px rgba(0,0,0,.18)",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10 }}>
@@ -163,6 +171,28 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
                     <div style={{ fontSize: 14, fontWeight: 800, color: "#f8fafc" }}>
                       {g.servicio && g.servicio.trim() !== "" ? g.servicio : "Sin concepto"}
                     </div>
+                    {requiereRev && (
+                      <span
+                        title={g.motivoRevision || "Gasto pendiente de confirmación"}
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 3,
+                          padding: "2px 6px",
+                          borderRadius: 6,
+                          fontSize: 10,
+                          fontWeight: 900,
+                          background: "rgba(245, 158, 11, 0.16)",
+                          border: "1px solid rgba(245, 158, 11, 0.35)",
+                          color: "#fbbf24",
+                          marginLeft: 6,
+                          textTransform: "uppercase",
+                          flexShrink: 0,
+                        }}
+                      >
+                        ⚠️ Revisar
+                      </span>
+                    )}
                   </div>
 
                   <div style={{ fontSize: 11, color: "#64748b", marginBottom: 7, lineHeight: 1.35 }}>
@@ -173,6 +203,26 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
                     {" "}· Vence {fmtFecha(g.vencimiento)}
                     {g.observacion ? ` · ${g.observacion}` : ""}
                   </div>
+
+                  {requiereRev && g.motivoRevision && (
+                    <div
+                      title={g.motivoRevision}
+                      style={{
+                        fontSize: 10.5,
+                        color: "#fef08a",
+                        marginTop: 4,
+                        marginBottom: 6,
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 4,
+                      }}
+                    >
+                      <span>💡</span>
+                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {g.motivoRevision}
+                      </span>
+                    </div>
+                  )}
 
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
                     <span
