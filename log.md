@@ -108,4 +108,24 @@
   * Commit estable: `67f7c5b`
   * Tag seguro creado: `estable-ux-vencimientos-revisar-p1`
 
+### 2026-05-29
+* **Sprint UX Vencimientos Inteligentes - Entregable P2**
+* **Objetivo**: Traducción humana de motivos técnicos de revisión en la interfaz de Vencimientos.
+* **Archivos modificados**:
+  * `src/utils/formatters.js`
+  * `src/components/VencimientosView.jsx`
+* **Cambios realizados**:
+  * Implementación del helper puro `getMotivoRevisionHumano` en `src/utils/formatters.js` para traducir claves crudas como `REVISAR_MONTO` y `COPIAR_ANTERIOR`.
+  * Integración del helper en el calendario principal (`Grupo`) y en la lista de revisión inferior (`RevisionCard`), reemplazando la visualización técnica.
+  * Añadida protección de fallback robusta que retorna siempre *"Revisar información"* ante valores nulos, vacíos o desconocidos.
+  * Cero modificaciones en base de datos, APIs, lógica monetaria, cotizaciones o `guardarGasto`.
+* **Validaciones**:
+  * `git status` limpio (después de commit).
+  * `npm run build` OK (bundle 100% exitoso).
+  * QA visual OK verificado en entorno local con Gustavo.
+* **Estado final**:
+  * Rama actual: `feature-ux-vencimientos-motivos-humanos`
+  * Commit estable: `8af8fa7 UX traducir motivos de revision en vencimientos`
+  * Tag seguro creado: `estable-ux-vencimientos-motivos-p2`
+
 

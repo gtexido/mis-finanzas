@@ -26,11 +26,12 @@ Reducir la complejidad y tamaño de `App.jsx` de forma progresiva hasta converti
 *   **Objetivo**: Diseñar y añadir alertas visuales de alta visibilidad para que Gustavo y Vane identifiquen consumos recurrentes o estimados que requieren confirmación de factura física (ej. Gas, Luz).
 *   **Entregables Completados**:
     *   [x] **P1: UX badge revisar en vencimientos**: Inyección dinámica del borde izquierdo ámbar en la tarjeta (`borderLeft: "4px solid #f59e0b"`), fondo ámbar translúcido, glow sutil de alerta, badge `⚠️ Revisar` de alta visibilidad (con `fontSize: 10` y tooltip explicativo) y renderizado de `g.motivoRevision` de forma responsiva en la cabecera. Etiquetado con `estable-ux-vencimientos-revisar-p1`.
+    *   [x] **P2: Traducción humana de motivos técnicos de revisión**: Implementación del helper centralizado `getMotivoRevisionHumano` en `src/utils/formatters.js` y mapeo de las claves `REVISAR_MONTO`, `REVISAR_FACTURA`, etc. Reemplazo en calendarios (`Grupo`) y en la sección inferior (`RevisionCard`) con fallback automático a *"Revisar información"*. Etiquetado con `estable-ux-vencimientos-motivos-p2`.
 
 ## Pendientes y Próximos Pasos (Sprint UX & Futuros)
 *   **Próximos Pasos en Sprint UX**:
-    *   [ ] **Traducción Humana de Motivos**: Mapear claves técnicas del sistema (ej. `REVISAR_MONTO`, `FALTA_FACTURA`) a descripciones de lenguaje natural legibles (ej. `"Confirmar importe"`, `"Falta factura del mes"`).
-    *   [ ] **Resumen Ejecutivo Superior**: Diseñar y renderizar en la cabecera un widget sintetizado que alerte la cantidad total de vencimientos que requieren acción antes de procesar el pago.
+    *   [ ] **P3: Resumen Ejecutivo Superior**: Diseñar y renderizar en la cabecera un widget sintetizado que alerte la cantidad total de vencimientos que requieren acción antes de procesar el pago (ej. *"X gastos requieren revisión"*).
+    *   [ ] **Filtro rápido "Solo revisar"**: Permitir a Gustavo y Vane filtrar ágilmente la vista de vencimientos para auditar únicamente consumos con importes o fechas provisorias.
 *   **Pendientes a largo plazo (Futuros Sprints)**:
     *   [ ] **Cargar Premium Asistido**: Facilitar la carga inteligente y guiada.
     *   [ ] **Seguridad y Backups**: Estrategias automatizadas de resguardo de datos locales y Neon.

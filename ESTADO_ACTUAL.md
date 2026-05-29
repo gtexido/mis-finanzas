@@ -1,27 +1,35 @@
 # Estado Actual - Mis Finanzas
 
 * **Carpeta correcta**: `C:\mis-finanzas\mis-finanzas-backup-antes-ajuste`
-* **Branch**: `feature-ux-vencimientos-inteligentes`
-* **Último commit estable**: `67f7c5b UX badge revisar en vencimientos`
-* **Último tag seguro**: `estable-ux-vencimientos-revisar-p1`
+* **Branch**: `feature-ux-vencimientos-motivos-humanos`
+* **Último commit estable**: `8af8fa7 UX traducir motivos de revision en vencimientos`
+* **Último tag seguro**: `estable-ux-vencimientos-motivos-p2`
 
 ## Estado de la Aplicación
 * **Git**: Limpio (`git status` sin cambios pendientes).
 * **Compilación**: Vite Build exitoso (`npm run build` OK).
 * **QA Visual**: Verificado localmente con Gustavo y Vane (OK).
 * **Consola navegador**: Sin errores rojos ni warnings bloqueantes.
-* **Producción**: Intacta y sin riesgos.
+* **Producción**: P1 en producción. P2 validado en entorno local.
 
 ## Historial de Sprints
-* **Sprint Refactor 1**: Completado con éxito y cerrado bajo el tag `cierre-sprint-refactor-1` (Fases 8-15).
-* **Sprint UX Vencimientos Inteligentes**: **Iniciado**. Entregable **P1: UX badge revisar en vencimientos** completado y validado en producción local con éxito.
+* **Sprint Refactor 1**: Completado con éxito y cerrado bajo el tag `cierre-sprint-refactor-1`.
+* **Sprint UX Vencimientos Inteligentes**: **Iniciado**. 
+  * Entregable **P1: UX badge revisar en vencimientos** en producción (`prod-candidato-ux-vencimientos-revisar-p1`).
+  * Entregable **P2: Traducción humana de motivos técnicos de revisión** completado y validado localmente (`estable-ux-vencimientos-motivos-p2`).
 
-## Cambios del Entregable P1 (UX Vencimientos)
-*   **Visibilidad**: Detección inteligente de `g.requiereRevision === true` en la lista principal de vencimientos.
-*   **Aparición visual destacado**: Tarjetas con borde izquierdo ámbar (`borderLeft: "4px solid #f59e0b"`), fondo ámbar translúcido y glow sutil.
-*   **Badge Prominente**: Añadido badge `⚠️ Revisar` junto al título del servicio con tooltip descriptivo.
-*   **Detalle Descriptivo**: Renderizado automático de `g.motivoRevision` (si existe) en el cuerpo de la tarjeta para evitar ingresos a ciegas.
-*   **Aislamiento y Seguridad**: Cero impacto en lógica de persistencia (`guardarGasto`), cotizaciones, red, base Neon o desgloses monetarios.
+## Cambios del Entregable P2 (Traducción de Motivos)
+*   **Traducción de Claves**: Mapeo asociativo amigable para Vane y Gustavo:
+    *   `REVISAR_MONTO` → **"Confirmar importe"**
+    *   `REVISAR_FACTURA` → **"Esperando factura"**
+    *   `REVISAR_VENCIMIENTO` → **"Confirmar vencimiento"**
+    *   `REVISAR_MANUAL` → **"Revisar información"**
+    *   `COPIAR_ANTERIOR` → **"Factura estimada"**
+    *   `CARGA_MANUAL` → **"Confirmar datos"**
+    *   `PENDIENTE_REVISION` → **"Pendiente de revisión"**
+*   **Helper Centralizado**: Implementación de `getMotivoRevisionHumano` en `src/utils/formatters.js` con fallback robusto a *"Revisar información"*.
+*   **Aplicación Visual**: Integración en las tarjetas del calendario (`Grupo`) y en la sección inferior (`RevisionCard`) reemplazando las visualizaciones directas.
+*   **Seguridad**: Cero modificaciones lógicas o de persistencia. Solo presentación estética de solo lectura.
 
 ## Restricciones Vigentes
 * 🚫 **No tocar Cargar**: Excluir todo formulario o carga inicial interactiva de gastos/ingresos.
