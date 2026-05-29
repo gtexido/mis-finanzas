@@ -3,7 +3,7 @@
 * **Stack**: React + Vite + Vercel Serverless + Neon PostgreSQL
 * **Branch actual**: `refactor-appjsx-fase1`
 * **Estado actual**: Refactor seguro de `App.jsx` por microfases
-* **Último tag seguro**: `estable-refactor-fase14`
+* **Último tag seguro**: `estable-refactor-fase15`
 
 ## Registro de Avances
 
@@ -46,4 +46,24 @@
 * **Estado final**:
   * Tag `estable-refactor-fase14` creado
   * Listo para continuar con Microfase 15 en modo *Analyze only*
+
+### 2026-05-29
+* **Microfase 15**: Refactor helper getMesKey en vistas
+* **Objetivo**: eliminar duplicados locales de getMesKey en DetalleView y VencimientosView reutilizando el helper centralizado de src/utils/dates.js.
+* **Archivos modificados**:
+  * src/components/DetalleView.jsx
+  * src/components/VencimientosView.jsx
+* **Validaciones**:
+  * git status limpio
+  * npm run build OK
+  * Detalle validado visualmente
+  * Vencimientos validado visualmente
+  * Mes actual y meses históricos OK
+  * Gustavo y Vane OK
+  * Consola sin errores rojos
+* **Estado final**:
+  * Tag estable-refactor-fase15 creado
+  * Sprint Refactor 1 aproximadamente 90% completo
+  * Listo para evaluar Microfase 16 en modo Analyze only o cierre del sprint
+
 
