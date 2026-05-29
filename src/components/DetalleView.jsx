@@ -1,13 +1,12 @@
 import React from "react";
 import VencBadge from "./VencBadge";
-import { diasRestantes, getGrupoVencimiento, semaforo, getNombreMesKey } from "../utils/dates";
+import { diasRestantes, getGrupoVencimiento, semaforo, getNombreMesKey, getMesKey } from "../utils/dates";
 import { fmtARS, fmtFecha, normalizarEtiquetaVisual, getObservacionVisual } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
 
 export default function VencimientosView({ data, config, mesActual, tc, onEdit }) {
   const [soloMes, setSoloMes] = React.useState(false);
 
-  const getMesKey = (y, m) => `${y}-${String(m + 1).padStart(2, "0")}`;
   const mesKey = getMesKey(mesActual.y, mesActual.m);
 
   const todos = Object.entries(data.gastos).flatMap(([key, gastos]) =>
