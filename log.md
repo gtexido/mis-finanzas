@@ -87,4 +87,25 @@
 * **Próximo Sprint Recomendado**:
   * **Sprint UX Vencimientos Inteligentes** → Enfocado en la incorporación del badge "Revisar" para consumos periódicos pendientes de confirmación.
 
+### 2026-05-29
+* **Sprint UX Vencimientos Inteligentes - Entregable P1**
+* **Objetivo**: Mejorar la visibilidad de gastos pendientes de revisión (`g.requiereRevision === true`) en la lista de Vencimientos principal.
+* **Archivos modificados**:
+  * `src/components/VencimientosView.jsx`
+* **Cambios realizados**:
+  * Detección condicional de `requiereRevision` en el renderizado de tarjetas ordinarias del calendario.
+  * Añadida prominencia visual: borde izquierdo ámbar (`borderLeft: "4px solid #f59e0b"`), fondo ámbar translúcido con brillo premium, y glow de sombreado de alerta.
+  * Inyección del badge de advertencia `⚠️ Revisar` junto al título del concepto (con `fontSize: 10`, tooltip nativo `title` con la justificación y prevención de flex-shrink).
+  * Renderizado del motivo descriptivo `g.motivoRevision` de forma responsiva y adaptada (elipsis horizontal) bajo el subtítulo de la tarjeta.
+  * Cero modificaciones en lógica monetaria, desgloses, cotizaciones, base de datos Neon o guardados en `App.jsx`.
+* **Validaciones**:
+  * `git status` limpio.
+  * `npm run build` exitoso (cero errores en empaquetado de producción).
+  * QA visual validado localmente con Gustavo y Vane en mobile/desktop.
+  * Consola de navegador sin advertencias o logs rojos.
+* **Estado final**:
+  * Rama actual: `feature-ux-vencimientos-inteligentes`
+  * Commit estable: `67f7c5b`
+  * Tag seguro creado: `estable-ux-vencimientos-revisar-p1`
+
 

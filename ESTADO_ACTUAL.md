@@ -1,9 +1,9 @@
 # Estado Actual - Mis Finanzas
 
 * **Carpeta correcta**: `C:\mis-finanzas\mis-finanzas-backup-antes-ajuste`
-* **Branch**: `refactor-appjsx-fase1`
-* **Último commit estable**: `dfad12f docs: actualizar log con microfase 15`
-* **Último tag seguro**: `estable-refactor-fase15`
+* **Branch**: `feature-ux-vencimientos-inteligentes`
+* **Último commit estable**: `67f7c5b UX badge revisar en vencimientos`
+* **Último tag seguro**: `estable-ux-vencimientos-revisar-p1`
 
 ## Estado de la Aplicación
 * **Git**: Limpio (`git status` sin cambios pendientes).
@@ -12,12 +12,16 @@
 * **Consola navegador**: Sin errores rojos ni warnings bloqueantes.
 * **Producción**: Intacta y sin riesgos.
 
-## Cierre del Sprint Refactor 1
-* **Estado**: Completado con éxito en la Microfase 15.
-* **Decisión Técnica**: No implementar Microfase 16 debido a un retorno de inversión técnica decreciente (el único candidato seguro era centralizar `MESES` en la vista de Vencimientos, lo cual tiene un valor muy bajo). Se decide blindar y pausar la refactorización de helpers/cálculos sensibles para evitar riesgos innecesarios en la lógica monetaria, desgloses, cotizaciones y guardado.
+## Historial de Sprints
+* **Sprint Refactor 1**: Completado con éxito y cerrado bajo el tag `cierre-sprint-refactor-1` (Fases 8-15).
+* **Sprint UX Vencimientos Inteligentes**: **Iniciado**. Entregable **P1: UX badge revisar en vencimientos** completado y validado en producción local con éxito.
 
-## Próximo Sprint Recomendado (Pendiente Inmediato)
-* **Sprint UX Vencimientos Inteligentes**: Diseñar e implementar un badge visual claro de "Revisar" para aquellos gastos que están pendientes de revisión (por ejemplo, facturas de servicios variables como Gas) en la interfaz de usuario.
+## Cambios del Entregable P1 (UX Vencimientos)
+*   **Visibilidad**: Detección inteligente de `g.requiereRevision === true` en la lista principal de vencimientos.
+*   **Aparición visual destacado**: Tarjetas con borde izquierdo ámbar (`borderLeft: "4px solid #f59e0b"`), fondo ámbar translúcido y glow sutil.
+*   **Badge Prominente**: Añadido badge `⚠️ Revisar` junto al título del servicio con tooltip descriptivo.
+*   **Detalle Descriptivo**: Renderizado automático de `g.motivoRevision` (si existe) en el cuerpo de la tarjeta para evitar ingresos a ciegas.
+*   **Aislamiento y Seguridad**: Cero impacto en lógica de persistencia (`guardarGasto`), cotizaciones, red, base Neon o desgloses monetarios.
 
 ## Restricciones Vigentes
 * 🚫 **No tocar Cargar**: Excluir todo formulario o carga inicial interactiva de gastos/ingresos.
