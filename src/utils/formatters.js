@@ -149,3 +149,20 @@ export const getObservacionVisual = (observacion = "") => {
     iconColor: "#a78bfa",
   };
 };
+
+export const getMotivoRevisionHumano = (motivoRaw) => {
+  const MAPA = {
+    "REVISAR_MONTO": "Confirmar importe",
+    "REVISAR_FACTURA": "Esperando factura",
+    "REVISAR_VENCIMIENTO": "Confirmar vencimiento",
+    "REVISAR_MANUAL": "Revisar información",
+    "COPIAR_ANTERIOR": "Factura estimada",
+    "CARGA_MANUAL": "Confirmar datos",
+    "PENDIENTE_REVISION": "Pendiente de revisión"
+  };
+
+  const raw = String(motivoRaw || "").trim().toUpperCase();
+  if (!raw) return "Revisar información";
+
+  return MAPA[raw] || "Revisar información";
+};

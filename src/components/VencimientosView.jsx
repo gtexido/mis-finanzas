@@ -1,7 +1,7 @@
 import React from "react";
 import VencBadge from "./VencBadge";
 import { diasRestantes, getGrupoVencimiento, semaforo, getNombreMesKey, getMesKey } from "../utils/dates";
-import { fmtARS, fmtFecha } from "../utils/formatters";
+import { fmtARS, fmtFecha, getMotivoRevisionHumano } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
 import { claveRevisionGasto } from "../utils/gastos";
 
@@ -206,7 +206,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
 
                   {requiereRev && g.motivoRevision && (
                     <div
-                      title={g.motivoRevision}
+                      title={getMotivoRevisionHumano(g.motivoRevision)}
                       style={{
                         fontSize: 10.5,
                         color: "#fef08a",
@@ -219,7 +219,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
                     >
                       <span>💡</span>
                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {g.motivoRevision}
+                        {getMotivoRevisionHumano(g.motivoRevision)}
                       </span>
                     </div>
                   )}
@@ -348,7 +348,7 @@ export default function VencimientosView({ data, config, mesActual, tc, onEdit, 
     const ultimo = getUltimoRegistroRevision(g);
     const ultimoMonto = ultimo ? montoReal(ultimo, tc) : 0;
     const ultimoFecha = ultimo?.vencimiento ? fmtFecha(ultimo.vencimiento) : null;
-    const motivo = g.motivoRevision || "Falta confirmar factura actual";
+    const motivo = getMotivoRevisionHumano(g.motivoRevision);
 
     return (
       <div
