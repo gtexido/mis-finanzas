@@ -62,8 +62,29 @@
   * Gustavo y Vane OK
   * Consola sin errores rojos
 * **Estado final**:
-  * Tag estable-refactor-fase15 creado
-  * Sprint Refactor 1 aproximadamente 90% completo
-  * Listo para evaluar Microfase 16 en modo Analyze only o cierre del sprint
+  * Tag `estable-refactor-fase15` creado.
+  * Sprint Refactor 1 completado a nivel de alcance de refactorización segura de helpers y selectores puros.
+
+### 2026-05-29
+* **Cierre Formal de Sprint Refactor 1**
+* **Decisión Técnica**: No implementar Microfase 16. La única candidata técnicamente segura (unificación de constante `MESES` local en `VencimientosView.jsx`) aporta un beneficio marginal. Cualquier otro cambio colisiona con el código monetario (`guardarGasto`, `toARS_`, cotizaciones, desgloses, etc.), lo cual queda blindado por diseño.
+* **Alcance Cerrado de Sprint Refactor 1**:
+  * Extracción de helpers de catálogo: `conceptoDesdeGasto`
+  * Extracción de categorización dinámica: `categoriaRealDesdeGasto`
+  * Extracción de agrupación visual para desgloses: `metaGrupoDetalle`
+  * Unificación de claves de revisión: `claveRevisionGasto`
+  * Desduplicación y unificación del formateador de fechas históricas: `getNombreMesKey`
+  * Centralización y limpieza de normalizaciones: `normalizarEtiquetaVisual` en `DetalleView`
+  * Traslado e integración del formateador de notas: `getObservacionVisual` en `src/utils/formatters.js`
+  * Remoción de duplicaciones locales de control temporal: `getMesKey` centralizado en vistas.
+  * Documentación completa del proyecto: `log.md`, `ESTADO_ACTUAL.md`, `PLAN_REFACTOR.md`
+* **Estado Final Certificado**:
+  * Git clean / status limpio.
+  * `npm run build` OK (bundle 100% libre de errores de compilación).
+  * QA visual OK verificado en entorno local con Gustavo y Vane.
+  * Tags seguros creados hasta `estable-refactor-fase15`.
+  * Producción sin alterar.
+* **Próximo Sprint Recomendado**:
+  * **Sprint UX Vencimientos Inteligentes** → Enfocado en la incorporación del badge "Revisar" para consumos periódicos pendientes de confirmación.
 
 

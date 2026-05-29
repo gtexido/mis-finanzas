@@ -11,17 +11,24 @@ Reducir la complejidad y tamaño de `App.jsx` de forma progresiva hasta converti
 5. **Validación estricta**: Compilar mediante Vite (`npm run build`) y realizar QA visual en cada paso.
 
 ## Fases Completadas
-* [x] **Helpers de gastos**: `gastoTieneDesglose`, `tieneSubconceptosValidos`, `obtenerMedioPagoComparable`, `conceptoDesdeGasto`.
-* [x] **Helpers de categorías**: `categoriaRealDesdeGasto` (con su correspondiente wrapper local).
-* [x] **Helpers de vencimientos**: `claveRevisionGasto`, `metaGrupoDetalle`.
-* [x] **Helpers de fechas visuales**: `getNombreMesKey` (reutilizado en Vencimientos y Detalle).
-* [x] **Limpieza duplicada en vistas**: Remoción de `normalizarEtiquetaVisual` local en `DetalleView` reutilizando el helper centralizado.
+* [x] **Helpers de gastos**: `gastoTieneDesglose`, `tieneSubconceptosValidos`, `obtenerMedioPagoComparable`, `conceptoDesdeGasto` (Fases 1-8).
+* [x] **Helpers de categorías**: `categoriaRealDesdeGasto` (con su correspondiente wrapper local - Fase 9).
+* [x] **Helpers de vencimientos**: `claveRevisionGasto` (Fase 11), `metaGrupoDetalle` (Fase 10).
+* [x] **Helpers de fechas visuales**: `getNombreMesKey` (reutilizado en Vencimientos y Detalle - Fase 12).
+* [x] **Limpieza duplicada en vistas**: Remoción de `normalizarEtiquetaVisual` local en `DetalleView` (Fase 13).
+* [x] **Microfase 14**: Refactor del helper visual `getObservacionVisual` trasladándolo a `src/utils/formatters.js`.
+* [x] **Microfase 15**: Eliminación del helper local `getMesKey` duplicado en views centralizándolo en `src/utils/dates.js`.
 
-## Pendientes y Próximos Pasos
-* **Microfase 14**: Detección y propuesta del próximo helper puro o selector visual en modo *Analyze only*.
-* **Modularización progresiva**: Evaluar la extracción de selectores más grandes que no comprometan la lógica monetaria.
-* **Cargar Premium Asistido**: (Planificado para etapas posteriores).
-* **Badge visual**: Badge dinámico para gastos pendientes de revisión en la vista de Vencimientos (Planificado para etapas posteriores).
+## Cierre de Sprint Refactor 1 (Decisión de Diseño)
+Se descarta la implementación de una **Microfase 16** técnica de refactorización de código. La única candidata segura y sin impacto era la unificación de la constante local `MESES` en `VencimientosView.jsx`, la cual posee un valor técnico marginal. Cualquier otro refactor en `App.jsx` colisionaría con lógica monetaria, desgloses, cotizaciones y persistencia (`guardarGasto`), lo cual supera el alcance permitido para mantener el código blindado. **Sprint Refactor 1 cerrado formal y exitosamente.**
+
+## Pendientes y Próximos Pasos (Nuevo Sprint Recomendado)
+* **Sprint UX Vencimientos Inteligentes**:
+  * **Objetivo**: Diseñar y añadir un badge visual llamativo e intuitivo de **"Revisar"** en la vista de Vencimientos para alertar sobre gastos que requieren confirmación manual (por ejemplo, facturas de Gas u otros servicios variables).
+* **Pendientes a largo plazo (Futuros Sprints)**:
+  * **Cargar Premium Asistido**: Facilitar la carga inteligente guiada de movimientos.
+  * **Seguridad y Backups**: Estrategias automatizadas de resguardo de datos locales y Neon.
+  * **Cierre técnico de deuda sensible**: Refactorización profunda de componentes core (`App.jsx` orquestador) solo bajo una fase de testing automatizado y QA 100% dedicado.
 
 ## Checklist por Microfase
 * [ ] **Fase de Análisis**: Modo *Analyze only* con propuesta detallada que no toque zonas prohibidas.
