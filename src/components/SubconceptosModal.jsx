@@ -57,7 +57,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
       id: item?.id || item?.detalleId || item?.detalle_id || `sc_exist_${index}_${crearIdTemporal()}`,
       detalleId: item?.detalleId || item?.detalle_id || item?.id || "",
       nombre: item?.nombre || item?.nombreItem || item?.nombre_item || "",
-      monto,
+      monto: String(item?.monto ?? item?.montoUSD ?? ""),
       moneda: monedaItem,
       tipoCambio,
       montoARSCalculado,
@@ -101,7 +101,9 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         return {
           ...siguiente,
           moneda,
-          monto,
+          // El texto editado puede estar vacío o tener decimales incompletos.
+          // Convertirlo aquí a Number repone un 0 al borrar el campo.
+          monto: String(siguiente.monto ?? ""),
           tipoCambio,
           montoARSCalculado: calcularMontoARS(monto, moneda, tipoCambio),
         };
@@ -138,7 +140,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
       {
         id: crearIdTemporal(),
         nombre,
-        monto,
+        monto: String(nuevoItem.monto),
         moneda,
         tipoCambio,
         montoARSCalculado: calcularMontoARS(monto, moneda, tipoCambio),
@@ -435,6 +437,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
                       fontWeight: 800,
                     }}
                     value={item.monto === "" ? "" : item.monto}
+                    aria-label={`Importe del ítem ${index + 1}`}
                     placeholder="0.00"
                     onChange={(e) => actualizarItem(item.id, { monto: e.target.value })}
                   />

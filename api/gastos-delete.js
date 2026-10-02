@@ -45,7 +45,8 @@ export default async function handler(req, res) {
       });
     }
 
-    await sql`
+    const queries = [];
+    queries.push(sql`
       DELETE FROM movimiento_etiquetas
       WHERE movimiento_id = ${movimientoId}
         AND movimiento_id IN (
@@ -55,9 +56,9 @@ export default async function handler(req, res) {
             AND workspace_id = ${workspaceId}
             AND tipo_movimiento = 'GASTO'
         );
-    `;
+    `);
 
-    await sql`
+    queries.push(sql`
       DELETE FROM detalle_movimiento
       WHERE movimiento_id = ${movimientoId}
         AND movimiento_id IN (
@@ -67,15 +68,17 @@ export default async function handler(req, res) {
             AND workspace_id = ${workspaceId}
             AND tipo_movimiento = 'GASTO'
         );
-    `;
+    `);
 
-    await sql`
+    queries.push(sql`
       DELETE FROM movimientos
       WHERE movimiento_id = ${movimientoId}
         AND usuario_id = ${user.usuarioId}
         AND workspace_id = ${workspaceId}
         AND tipo_movimiento = 'GASTO';
-    `;
+    `);
+
+    await sql.transaction(queries);
 
     return res.status(200).json({
       ok: true,

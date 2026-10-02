@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { diasRestantes, semaforo } from "../utils/dates";
 import { fmtARS, fmtUSD } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
@@ -12,6 +12,9 @@ export default function EditModal({
   onClose,
   onAbrirSubconceptos,
 }) {
+  const guardandoRef = useRef(false);
+  const [guardando, setGuardando] = useState(false);
+  const [errorGuardado, setErrorGuardado] = useState("");
   const normalizarEtiquetasIniciales = (g) => {
     if (Array.isArray(g?.etiquetasIds)) return g.etiquetasIds.filter(Boolean);
 
@@ -690,10 +693,11 @@ export default function EditModal({
                 type="number"
                 inputMode="numeric"
                 style={{ ...EI2 }}
-                value={f.monto === 0 ? "" : f.monto ?? ""}
+                aria-label="Importe del gasto"
+                value={f.monto ?? ""}
                 onChange={(e) => {
                   const val = e.target.value;
-                  setF((p) => ({ ...p, monto: val === "" ? "" : Number(val) }));
+                  setF((p) => ({ ...p, monto: val }));
                 }}
               />
 
@@ -932,17 +936,26 @@ export default function EditModal({
           )}
         </div>
 
+        {errorGuardado && <div role="alert" style={{color:"#f87171",marginBottom:10}}>{errorGuardado}</div>}
         <button
-          onClick={() => {
-            if (pendienteSinVencimiento) {
+          disabled={guardando || pendienteSinVencimiento}
+          onClick={async () => {
+            if (guardandoRef.current || pendienteSinVencimiento) {
               return;
             }
 
             const totalFinal = tieneDesglose
               ? totalDetalleARS
               : Number(f.monto || 0);
-
-            onSave({
+            if (!Number.isFinite(totalFinal) || totalFinal <= 0) {
+              setErrorGuardado("Ingresá un importe mayor a cero.");
+              return;
+            }
+            guardandoRef.current = true;
+            setGuardando(true);
+            setErrorGuardado("");
+            try {
+            await onSave({
               ...f,
               moneda,
               monto: totalFinal,
@@ -956,6 +969,12 @@ export default function EditModal({
               motivoRevision: f.requiereRevision ? (f.motivoRevision || "REVISAR_MANUAL") : null,
               origenMovimiento: f.origenMovimiento || null,
             });
+            } catch (error) {
+              setErrorGuardado(error.message || "No se pudieron guardar los cambios.");
+            } finally {
+              guardandoRef.current = false;
+              setGuardando(false);
+            }
           }}
           style={{
             width: "100%",
@@ -970,7 +989,7 @@ export default function EditModal({
             fontSize: 16,
           }}
         >
-          Guardar cambios
+          {guardando ? "Guardando…" : "Guardar cambios"}
         </button>
       </div>
     </div>
