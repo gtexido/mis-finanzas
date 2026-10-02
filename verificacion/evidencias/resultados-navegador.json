@@ -1,0 +1,147 @@
+[
+  {
+    "id": "UI-01",
+    "title": "Borrar y reescribir un importe del desglose sin cero forzado",
+    "status": "correcto",
+    "emptyPreserved": true,
+    "typed": "25.50",
+    "saved": 25.5
+  },
+  {
+    "id": "UI-02",
+    "title": "Histórico y exportación de todos los meses",
+    "status": "correcto",
+    "months": [
+      "2026-06",
+      "2026-07",
+      "2026-08",
+      "2026-09",
+      "2026-10",
+      "2026-11"
+    ],
+    "fakeRestoreRemoved": true,
+    "fakeSheetsRemoved": true
+  },
+  {
+    "id": "UI-03",
+    "title": "Sesión vencida vuelve al ingreso",
+    "status": "correcto",
+    "loginVisible": true,
+    "tokenRemoved": true
+  },
+  {
+    "id": "UI-04",
+    "title": "Error de conexión no muestra saldos vacíos",
+    "status": "correcto",
+    "errorVisible": true
+  },
+  {
+    "id": "UI-05",
+    "title": "Doble toque guarda una sola vez",
+    "status": "correcto",
+    "posts": 1,
+    "records": 1
+  },
+  {
+    "id": "UI-06-ARS",
+    "title": "Ocultar opciones conserva desglose ARS",
+    "status": "correcto",
+    "payload": {
+      "periodo": "2026-10",
+      "dia": "1",
+      "categoria": "bancon",
+      "formaPago": "Manual",
+      "conceptoId": "con_audit",
+      "medioPagoId": "mp_bancon",
+      "instrumentoId": "ins_manual",
+      "categoriaGastoId": "cg_servicios",
+      "etiquetasIds": [
+        "tag_variable"
+      ],
+      "servicio": "Servicio de prueba",
+      "monto": 2500,
+      "moneda": "ARS",
+      "estado": "pagado",
+      "observacion": "",
+      "vencimiento": null,
+      "esRecurrente": false,
+      "requiereRevision": false,
+      "motivoRevision": null,
+      "origenMovimiento": null,
+      "subconceptos": [
+        {
+          "id": "sc_1790866800000_wodgkm",
+          "nombre": "Ítem ficticio",
+          "monto": 2500,
+          "moneda": "ARS",
+          "tipoCambio": null,
+          "montoARSCalculado": 2500,
+          "orden": 1,
+          "observacion": ""
+        }
+      ]
+    }
+  },
+  {
+    "id": "UI-06-USD",
+    "title": "Ocultar opciones conserva desglose USD",
+    "status": "correcto",
+    "payload": {
+      "periodo": "2026-10",
+      "dia": "1",
+      "categoria": "bancon",
+      "formaPago": "Manual",
+      "conceptoId": "con_audit",
+      "medioPagoId": "mp_bancon",
+      "instrumentoId": "ins_manual",
+      "categoriaGastoId": "cg_servicios",
+      "etiquetasIds": [
+        "tag_variable"
+      ],
+      "servicio": "Servicio de prueba",
+      "monto": 10000,
+      "moneda": "USD",
+      "estado": "pagado",
+      "observacion": "",
+      "vencimiento": null,
+      "esRecurrente": false,
+      "requiereRevision": false,
+      "motivoRevision": null,
+      "origenMovimiento": null,
+      "subconceptos": [
+        {
+          "id": "sc_1790866800000_nh9xga",
+          "nombre": "Ítem ficticio",
+          "monto": 10,
+          "moneda": "USD",
+          "tipoCambio": 1000,
+          "montoARSCalculado": 10000,
+          "orden": 1,
+          "observacion": ""
+        }
+      ]
+    }
+  },
+  {
+    "id": "UI-07",
+    "title": "La copia verifica el mes destino antes de escribir",
+    "status": "correcto",
+    "destinationWasRechecked": true,
+    "posts": 0
+  },
+  {
+    "id": "UI-08",
+    "title": "Edición de gasto: vacío, decimales y doble toque",
+    "status": "correcto",
+    "emptyPreserved": true,
+    "saved": 75.25,
+    "updates": 1
+  },
+  {
+    "id": "UI-09",
+    "title": "Copia válida y doble toque",
+    "status": "correcto",
+    "posts": 1,
+    "conceptPreserved": true
+  }
+]

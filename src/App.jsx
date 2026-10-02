@@ -56,7 +56,7 @@ import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparabl
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
-import { mapMovimientosDesdeApi } from "./mappers/movimientosMapper";
+import { mapMovimientosDesdeApi, mapHistorialDesdeApi } from "./mappers/movimientosMapper";
 
 // Components
 import VencBadge from "./components/VencBadge";
@@ -134,9 +134,29 @@ export default function App() {
   const [sueldoInput,setSueldoInput]=useState("");
   const [ingForm,setIngForm]=useState({fuente:"",monto:"",dia:String(now.getDate())});
   const [guardarIngresoLoading, setGuardarIngresoLoading] = useState(false);
+  const guardarGastoRef = useRef(false);
+  const [guardandoGasto, setGuardandoGasto] = useState(false);
+  const replicandoRef = useRef(false);
+  const [replicando, setReplicando] = useState(false);
   const [toast,setToast]=useState(null);
   const toastTimerRef = useRef(null);
   const [authUser,setAuthUser]=useState(getSessionUser());
+  const [cargaEstado,setCargaEstado]=useState("cargando");
+  const [cargaError,setCargaError]=useState("");
+  const [recarga,setRecarga]=useState(0);
+  const [exportandoBackup,setExportandoBackup]=useState(false);
+  const exportandoBackupRef=useRef(false);
+
+  useEffect(() => {
+    const sesionVencida = () => {
+      setAuthUser(null);
+      setData({gastos:{},ingresos:{},sueldo:{}});
+      setLoginError("Tu sesión venció. Ingresá nuevamente.");
+    };
+    window.addEventListener("mf:session-expired", sesionVencida);
+    return () => window.removeEventListener("mf:session-expired", sesionVencida);
+  }, []);
+
   const [loginForm,setLoginForm]=useState({ usuarioId:"usr_gustavo", pin:"" });
   const [loginLoading,setLoginLoading]=useState(false);
   const [loginError,setLoginError]=useState("");
@@ -190,7 +210,8 @@ export default function App() {
   const tc=cfg.tipoCambio||1415;
   
     useEffect(() => {
-    if (!authUser || !mesKey) return;
+    if (!authUser || !mesKey || cargaEstado !== "listo") return;
+    let cancelado = false;
 
     const cargarMesSeleccionado = async () => {
       try {
@@ -198,6 +219,7 @@ export default function App() {
           getMovimientos(mesKey),
           getMovimientos(mesAnteriorKey),
         ]);
+        if (cancelado) return;
         const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
         const dataAnterior = mapMovimientosDesdeApi(movimientosAnteriorApi, mesAnteriorKey);
 
@@ -220,12 +242,15 @@ export default function App() {
           },
         }));
       } catch (e) {
-        console.error("Error cargando mes seleccionado:", e);
+        if (cancelado) return;
+        setCargaError(e.message || "No se pudo cargar el mes.");
+        setCargaEstado("error");
       }
     };
 
     cargarMesSeleccionado();
-  }, [authUser, mesKey, mesAnteriorKey]);
+    return () => { cancelado = true; };
+  }, [authUser, mesKey, mesAnteriorKey, cargaEstado]);
   
   const normalizarFechaConversion = (gasto = {}) => {
   if (gasto.vencimiento) {
@@ -288,50 +313,28 @@ const abrirSubconceptosConCotizacion = async (gasto) => {
   useEffect(()=>{ try{localStorage.setItem("gcfg_v7",JSON.stringify(cfg));}catch{} },[cfg]);
   useEffect(()=>{ try{localStorage.setItem("grec_v7",JSON.stringify(recurrentes));}catch{} },[recurrentes]);
 
-// Fuente principal de lectura: Neon vía API
+// Carga completa: evolución, vencimientos y exportación comparten el mismo historial.
 useEffect(() => {
   if (!authUser) return;
-
-  const cargarDesdeApi = async () => {
+  let cancelado = false;
+  setCargaEstado("cargando");
+  setCargaError("");
+  const cargar = async () => {
     try {
-      const catalogosApi = await getCatalogos();
-      const periodoInicial = getMesKey(mes.y, mes.m);
-      const periodoAnteriorInicial = mesAnteriorKey;
-	  const [movimientosApi, movimientosAnteriorApi] = await Promise.all([
-        getMovimientos(periodoInicial),
-        getMovimientos(periodoAnteriorInicial),
-      ]);
-
-      const nuevoCfg = mapCatalogosDesdeApi(catalogosApi);
-      const nuevoData = mapMovimientosDesdeApi(movimientosApi, periodoInicial);
-      const dataAnterior = mapMovimientosDesdeApi(movimientosAnteriorApi, periodoAnteriorInicial);
-
-            setCfg(nuevoCfg);
-      setData((prev) => ({
-        ...prev,
-        gastos: {
-          ...prev.gastos,
-          ...nuevoData.gastos,
-        },
-        ingresos: {
-          ...prev.ingresos,
-          ...nuevoData.ingresos,
-          ...dataAnterior.ingresos,
-        },
-        sueldo: {
-          ...prev.sueldo,
-          ...nuevoData.sueldo,
-          ...dataAnterior.sueldo,
-        },
-      }));
-
-    } catch (e) {
-      console.error("Error:", e);
+      const [catalogosApi, movimientosApi] = await Promise.all([getCatalogos(), getMovimientos(null)]);
+      if (cancelado) return;
+      setCfg(mapCatalogosDesdeApi(catalogosApi));
+      setData(mapHistorialDesdeApi(movimientosApi));
+      setCargaEstado("listo");
+    } catch (error) {
+      if (cancelado) return;
+      setCargaError(error.message || "No se pudieron cargar tus datos.");
+      setCargaEstado("error");
     }
   };
-
-  cargarDesdeApi();
-}, [authUser?.usuarioId]);
+  cargar();
+  return () => { cancelado = true; };
+}, [authUser?.usuarioId, recarga]);
 
   const toast_=(msg,type="ok")=>{
     const normalizedType = type === "error" ? "err" : (type || "ok");
@@ -700,7 +703,7 @@ const calcularMontoARSParaDuplicado = (mov = {}) => {
   return monto;
 };
 
-const guardarGasto = async (extra = {}) => {
+const guardarGastoInterno = async (extra = {}) => {
   let f = { ...form, ...extra };
 
   const conceptoLimpio = String(f.servicio || "").trim();
@@ -1041,6 +1044,18 @@ try {
     toast_("No se pudo guardar en Neon", "err");
   }
 };
+
+  const guardarGasto = async (extra = {}) => {
+    if (guardarGastoRef.current) return;
+    guardarGastoRef.current = true;
+    setGuardandoGasto(true);
+    try {
+      await guardarGastoInterno(extra);
+    } finally {
+      guardarGastoRef.current = false;
+      setGuardandoGasto(false);
+    }
+  };
 
   const _guardarNuevo=(f)=>{
     const nuevo={...f,monto:Number(f.monto),id:Date.now(),subconceptos:f.subconceptos||[]};
@@ -1835,6 +1850,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   const gastosIncluidos= gastosFuenteReplicar.filter(g=>!excluirReplicar.has(g.id));
   const toggleExcluir=(id)=>setExcluirReplicar(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   const confirmarReplica = async () => {
+  if (replicandoRef.current) return;
   const nextKey = mesKeySiguiente();
 
   if (!gastosIncluidos.length) {
@@ -1842,7 +1858,17 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
     return;
   }
 
+  replicandoRef.current = true;
+  setReplicando(true);
+  let copiados = 0;
   try {
+    const destino = mapMovimientosDesdeApi(await getMovimientos(nextKey), nextKey);
+    if (destino.gastos[nextKey]?.length) {
+      setData(prev => ({...prev, gastos: {...prev.gastos, ...destino.gastos}}));
+      setReplicarStep(null);
+      toast_("Ese mes ya tiene gastos. Revisalo antes de volver a copiar.", "err");
+      return;
+    }
     for (const g of gastosIncluidos) {
       const subconceptosReplica = prepararSubconceptosParaReplica(g.subconceptos || []);
       const tieneDetalle = subconceptosReplica.length > 0;
@@ -1862,6 +1888,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
         categoriaGastoId: g.categoriaGastoId || categoriaGastoDesdeServicio(g.servicio),
         etiquetasIds: g.etiquetasIds || g.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(g.servicio),
         servicio: g.servicio,
+        conceptoId: g.conceptoId || null,
         monto: tieneDetalle ? 0 : Number(g.monto || 0),
         moneda: g.moneda || "ARS",
         estado: "pendiente",
@@ -1873,6 +1900,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
         origenMovimiento: "REPLICA_MES",
         subconceptos: subconceptosReplica,
       });
+      copiados += 1;
     }
 
     const movimientosApi = await getMovimientos(nextKey);
@@ -1898,7 +1926,10 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
     toast_(`✅ ${gastosIncluidos.length} gastos copiados a ${mesNombreSig()}`);
   } catch (e) {
     console.error("Error replicando mes:", e);
-    toast_("No se pudo replicar el mes en Neon", "err");
+    toast_(`${copiados ? `Se copiaron ${copiados} gastos. ` : ""}No se completó la copia. Revisá el mes destino antes de reintentar.`, "err");
+  } finally {
+    replicandoRef.current = false;
+    setReplicando(false);
   }
 };
 
@@ -1907,32 +1938,31 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
 // ======================================================
 
   // ── Backup / Restore de datos ──────────────────────────────────────────────
-  const exportarBackup = () => {
-    const backup = { data, config: cfg, recurrentes, version: 'v1', fecha: new Date().toISOString() };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = `mis-finanzas-backup-${new Date().toISOString().slice(0,10)}.json`;
-    a.click();
-    toast_('💾 Backup descargado');
+  const exportarBackup = async () => {
+    if (exportandoBackupRef.current) return;
+    exportandoBackupRef.current = true;
+    setExportandoBackup(true);
+    try {
+      const [movimientos, catalogos] = await Promise.all([getMovimientos(null), getCatalogos()]);
+      const historial = mapHistorialDesdeApi(movimientos);
+      const backup = { data: historial, config: mapCatalogosDesdeApi(catalogos), version: "v2",
+        alcance: "Movimientos del usuario actual; no incluye toda la base de datos",
+        usuarioId: authUser.usuarioId, workspaceId: authUser.workspaceId,
+        fecha: new Date().toISOString() };
+      const url = URL.createObjectURL(new Blob([JSON.stringify(backup, null, 2)], {type:"application/json"}));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `mis-finanzas-movimientos-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(url), 1000);
+      toast_("Se descargaron todos tus movimientos.");
+    } catch (error) {
+      toast_(error.message || "No se pudo completar la exportación.", "err");
+    } finally {
+      exportandoBackupRef.current = false;
+      setExportandoBackup(false);
+    }
   };
-  const importarBackup = (e) => {
-    const file = e.target.files[0]; if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      try {
-        const backup = JSON.parse(ev.target.result);
-        if (!backup.data) throw new Error('Archivo inválido');
-        setData(backup.data);
-        if (backup.config) setCfg(backup.config);
-        if (backup.recurrentes) setRecurrentes(backup.recurrentes);
-        toast_('✅ Datos restaurados correctamente');
-      } catch (err) { toast_('❌ Error al leer el archivo', 'err'); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  };
-
 
 // ======================================================
 // 🧱 HELPERS DE UI (estilos inline y render interno)
@@ -2289,6 +2319,15 @@ const handleLogout = async () => {
   setData({ gastos:{}, ingresos:{}, sueldo:{} });
   setView("home");
 };
+
+if (authUser && cargaEstado !== "listo") {
+  return <main style={{fontFamily:"sans-serif",background:"#0a0a0f",color:"#e2e8f0",minHeight:"100vh",padding:"48px 24px",textAlign:"center"}}>
+    <h1 style={{fontSize:22,marginBottom:16}}>Mis Finanzas</h1>
+    <p role={cargaEstado === "error" ? "alert" : "status"}>{cargaEstado === "error" ? cargaError : "Cargando tus movimientos…"}</p>
+    {cargaEstado === "error" && <button style={{margin:16,padding:12}} onClick={()=>setRecarga(n=>n+1)}>Reintentar</button>}
+    <button style={{margin:16,padding:12}} onClick={()=>{logout();setAuthUser(null);setData({gastos:{},ingresos:{},sueldo:{}});}}>Salir</button>
+  </main>;
+}
 
 if (!authUser) {
   return (
@@ -3063,6 +3102,8 @@ if (!authUser) {
                   ...f,
                   tipoGasto:"simple",
                   accionCompuesto:"nuevo",
+                  monto:"",
+                  decisionManual:true,
                   subconceptos:[]
                 }))}
                 style={{
@@ -3161,7 +3202,7 @@ if (!authUser) {
 
           {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
           {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
-{mostrarOpcionesCarga && form.tipoGasto === "detalle" ? (
+{form.tipoGasto === "detalle" ? (
   <>
     {/* Selector de moneda */}
     <div style={{ marginBottom:10 }}>
@@ -3426,6 +3467,7 @@ if (!authUser) {
 		  <button
   className="pb"
   style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
+  disabled={guardandoGasto}
   onClick={async () => {
     if (form.estado === "pendiente" && !form.vencimiento && !form.requiereRevision) {
       toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente, o marcá Revisar después.", "err");
@@ -3441,10 +3483,10 @@ if (!authUser) {
       });
       return;
     }
-    guardarGasto(mostrarOpcionesCarga ? {} : { tipoGasto:"simple", subconceptos:[] });
+    await guardarGasto();
   }}
 >
-  Guardar gasto
+  {guardandoGasto ? "Guardando…" : "Guardar gasto"}
   </button>
         </>)}
 
@@ -3904,32 +3946,18 @@ if (!authUser) {
           {cfgTab==="servicios"&&(<><div className="card" style={{ border:"1px solid #f9731655" }}><div style={{ fontWeight:900,marginBottom:6 }}>📝 Servicios legacy</div><div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>Esta sección pertenece al modelo anterior. Los nuevos gastos deberían ordenarse desde <strong>Conceptos</strong>, <strong>Categorías</strong>, <strong>Medios</strong> y <strong>Etiquetas</strong>.</div></div><div className="card"><span style={lbl}>AGREGAR</span><select className="inf" value={selCatServ} onChange={e=>setSelCatServ(e.target.value)} style={{ marginBottom:10 }}><option value="">Seleccioná categoría...</option>{cfg.categorias.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Nombre" value={newServ} onChange={e=>setNewServ(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={addServ}>+</button></div></div>{cfg.categorias.map(cat=>{ const ss=cfg.servicios[cat.id]||[]; if(!ss.length)return null; return(<div key={cat.id} className="card"><div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}><div style={{ width:10,height:10,borderRadius:"50%",background:cat.color }}/><span style={{ fontWeight:700,fontSize:14,color:cat.color }}>{cat.label}</span></div>{ss.map((s,idx)=>(<div key={idx} style={rowS}><span style={{ fontSize:13 }}>{s}{esDolarConcepto(s)?" 💵":""}</span><button style={ib("#2a1a1a","#f87171")} onClick={()=>delServ(cat.id,idx)}>✕</button></div>))}</div>); })}</>)}
           {cfgTab==="backup"&&(
             <div>
-              {/* Info sync Sheets */}
-              <div className="card" style={{ border: SHEETS_URL==='TU_URL_AQUI'?"1px solid #422006":"1px solid #14532d" }}>
-                <div style={{ fontSize:14,fontWeight:700,marginBottom:8 }}>
-                  {SHEETS_URL==='TU_URL_AQUI'?"⚠️ Google Sheets no configurado":"✅ Google Sheets configurado"}
-                </div>
-                {SHEETS_URL==='TU_URL_AQUI'
-                  ? <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.7 }}>Para activar la sincronización automática seguí los pasos del archivo <strong>INSTALACION.md</strong> (Pasos 3 y 4) y reemplazá la URL en App.jsx</div>
-                  : <div style={{ fontSize:12,color:"#4ade80" }}>Los datos se sincronizan automáticamente cada vez que cargás un gasto.</div>
-                }
-                {SHEETS_URL!=='TU_URL_AQUI'&&<button className="pb" style={{ width:"100%",background:"#14532d",color:"#4ade80",marginTop:12 }} onClick={()=>{ syncFullBackup(data); toast_("📤 Backup completo enviado a Sheets"); }}>📤 Enviar backup completo a Sheets</button>}
-              </div>
-              {/* Backup local JSON */}
               <div className="card">
-                <div style={{ fontSize:14,fontWeight:700,marginBottom:4 }}>💾 Backup local</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginBottom:12,lineHeight:1.6 }}>
-                  Guardá todos tus datos en un archivo JSON en tu celu o PC. <strong style={{ color:"#e2e8f0" }}>Hacelo antes de cada actualización</strong> para no perder nada.
-                </div>
-                <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff",marginBottom:10 }} onClick={exportarBackup}>
-                  📥 Descargar backup (.json)
+                <div style={{fontSize:16,fontWeight:700,marginBottom:8}}>Exportar mis movimientos</div>
+                <p style={{fontSize:13,color:"#94a3b8",lineHeight:1.6,marginBottom:12}}>
+                  Descargá los gastos, ingresos y sueldos de todos tus meses en un archivo JSON.
+                  Corresponde al usuario actual. No incluye las cuentas de otros usuarios ni reemplaza un respaldo completo.
+                </p>
+                <button className="pb" disabled={exportandoBackup} style={{width:"100%",background:"#7c3aed",color:"#fff"}} onClick={exportarBackup}>
+                  {exportandoBackup ? "Preparando archivo…" : "Descargar movimientos (.json)"}
                 </button>
-                <div style={{ fontSize:12,color:"#64748b",marginBottom:8 }}>Restaurar desde backup:</div>
-                <label style={{ display:"block",background:"#1e1e2e",borderRadius:12,padding:"12px 16px",textAlign:"center",cursor:"pointer",color:"#94a3b8",fontSize:13,fontWeight:600 }}>
-                  📂 Seleccionar archivo .json
-                  <input type="file" accept=".json" onChange={importarBackup} style={{ display:"none" }}/>
-                </label>
-                <div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>⚠️ Restaurar reemplaza todos los datos actuales</div>
+                <p style={{fontSize:12,color:"#94a3b8",lineHeight:1.5,marginTop:12}}>
+                  La restauración desde archivo no está disponible. Conservá la copia para consulta y recuperación asistida.
+                </p>
               </div>
               {/* Estadísticas */}
               <div className="card">
@@ -4036,7 +4064,7 @@ if (!authUser) {
           </div>
           <div style={{ display:"flex",gap:10 }}>
             <button className="pb" style={{ flex:1,background:"#1e1e2e",color:"#94a3b8" }} onClick={()=>setReplicarStep("modal")}>← Volver</button>
-            <button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff",fontSize:15 }} onClick={confirmarReplica}>✅ Confirmar copia</button>
+            <button className="pb" disabled={replicando} style={{ flex:2,background:"#7c3aed",color:"#fff",fontSize:15 }} onClick={confirmarReplica}>{replicando ? "Copiando…" : "✅ Confirmar copia"}</button>
           </div>
         </div>
       )}

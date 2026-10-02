@@ -1,0 +1,80 @@
+[
+  {
+    "id": "API-01",
+    "title": "Alta válida con detalle mixto y etiquetas",
+    "status": "correcto",
+    "http": 200,
+    "totalARS": 10100,
+    "details": 2,
+    "batches": 1
+  },
+  {
+    "id": "API-02",
+    "title": "Fallo del detalle revierte toda el alta",
+    "status": "correcto",
+    "http": 500,
+    "databaseUnchanged": true
+  },
+  {
+    "id": "API-03",
+    "title": "Violación real de clave foránea revierte el alta",
+    "status": "correcto",
+    "databaseUnchanged": true
+  },
+  {
+    "id": "API-04",
+    "title": "Fallo en edición conserva cabecera, etiquetas y detalle originales",
+    "status": "correcto",
+    "databaseUnchanged": true
+  },
+  {
+    "id": "API-05",
+    "title": "Edición válida cambia cabecera, etiquetas y detalle juntos",
+    "status": "correcto",
+    "saved": 75.25
+  },
+  {
+    "id": "API-06",
+    "title": "Fallo al borrar revierte los borrados de etiquetas y detalles",
+    "status": "correcto",
+    "databaseUnchanged": true
+  },
+  {
+    "id": "API-07",
+    "title": "Borrado válido elimina el gasto y sus dependencias",
+    "status": "correcto",
+    "http": 200
+  },
+  {
+    "id": "API-08",
+    "title": "Rechazo de importes y fechas inválidos antes de escribir",
+    "status": "correcto",
+    "invalidCases": 7,
+    "http": 400,
+    "writes": 0
+  },
+  {
+    "id": "API-09",
+    "title": "Ingreso y sueldo válidos; sueldo existente se actualiza",
+    "status": "correcto",
+    "records": 2,
+    "salary": 2000
+  },
+  {
+    "id": "API-10",
+    "title": "Sin sesión y sin propiedad no modifica datos",
+    "status": "correcto",
+    "http": [
+      401,
+      404,
+      404
+    ],
+    "databaseUnchanged": true
+  },
+  {
+    "id": "CALC-01",
+    "title": "Totales ARS, USD y desglose mixto",
+    "status": "correcto",
+    "cases": 4
+  }
+]

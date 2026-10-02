@@ -1,6 +1,22 @@
 const TOKEN_KEY = "mf_auth_token";
 const USER_KEY = "mf_auth_user";
 
+async function readResponse(res) {
+  if (res.status === 401) {
+    logout();
+    window.dispatchEvent(new Event("mf:session-expired"));
+  }
+  let json;
+  try { json = await res.json(); }
+  catch { throw new Error("No se pudo leer la respuesta. Volvé a intentarlo."); }
+  if (!res.ok || !json.ok) {
+    const error = new Error(json.error || "No se pudo completar la solicitud.");
+    error.status = res.status;
+    throw error;
+  }
+  return json;
+}
+
 function getAuthToken() {
   try {
     return localStorage.getItem(TOKEN_KEY);
@@ -40,7 +56,7 @@ export async function login(usuarioId, pin) {
     body: JSON.stringify({ usuarioId, pin }),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "No se pudo iniciar sesión");
@@ -56,7 +72,7 @@ export async function login(usuarioId, pin) {
 
 export async function getCatalogos() {
   const res = await fetch("/api/catalogos", { headers: authHeaders() });
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al traer catálogos");
@@ -71,8 +87,9 @@ function getPeriodoActual() {
 }
 
 export async function getMovimientos(periodo = getPeriodoActual()) {
-  const res = await fetch(`/api/movimientos?periodo=${periodo}`, { headers: authHeaders() });
-  const json = await res.json();
+  const query = periodo ? `?periodo=${encodeURIComponent(periodo)}` : "";
+  const res = await fetch(`/api/movimientos${query}`, { headers: authHeaders() });
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al traer movimientos");
@@ -90,7 +107,7 @@ export async function crearGasto(payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al guardar gasto");
@@ -108,7 +125,7 @@ export async function eliminarGasto(movimientoId) {
     body: JSON.stringify({ movimientoId }),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al eliminar gasto");
@@ -126,7 +143,7 @@ export async function actualizarGasto(payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al actualizar gasto");
@@ -144,7 +161,7 @@ export async function actualizarEstadoGasto(payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al actualizar estado del gasto");
@@ -162,7 +179,7 @@ export async function crearIngreso(payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al guardar ingreso");
@@ -180,7 +197,7 @@ export async function eliminarIngreso(movimientoId) {
     body: JSON.stringify({ movimientoId }),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al eliminar ingreso");
@@ -198,7 +215,7 @@ export async function guardarSueldoNeon(payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al guardar sueldo");
@@ -216,7 +233,7 @@ export async function getCotizacionPorFecha(fecha, tipo = "tarjeta") {
   });
 
   const res = await fetch(`/api/cotizaciones?${params.toString()}`, { headers: authHeaders() });
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al traer cotización");
@@ -234,7 +251,7 @@ export async function guardarCotizacion(payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error al guardar cotización");
@@ -252,7 +269,7 @@ async function catalogosAdminRequest(method, payload) {
     body: JSON.stringify(payload),
   });
 
-  const json = await res.json();
+  const json = await readResponse(res);
 
   if (!json.ok) {
     throw new Error(json.error || "Error administrando catálogo");

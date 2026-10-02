@@ -3,6 +3,20 @@ function getPeriodoActual() {
   return `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}`;
 }
 
+export const mapHistorialDesdeApi = (apiData) => {
+  const payload = apiData?.data && !Array.isArray(apiData.data) ? apiData.data : apiData || {};
+  const rows = payload.movimientos || [];
+  const periodos = [...new Set(rows.map(m => m.periodo))];
+  const result = { gastos: {}, ingresos: {}, sueldo: {} };
+  for (const periodo of periodos) {
+    const mes = mapMovimientosDesdeApi({ ...payload, movimientos: rows.filter(m => m.periodo === periodo) }, periodo);
+    Object.assign(result.gastos, mes.gastos);
+    Object.assign(result.ingresos, mes.ingresos);
+    Object.assign(result.sueldo, mes.sueldo);
+  }
+  return result;
+};
+
 export const mapMovimientosDesdeApi = (apiData, periodo = getPeriodoActual()) => {
   const payload =
     apiData?.data && !Array.isArray(apiData.data)

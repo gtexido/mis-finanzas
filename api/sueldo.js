@@ -1,3 +1,4 @@
+import { validarPeriodoDia, validarImporte } from "./_validation.js";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { fuenteDefaultPorUsuario, generarId } from "./_db.js";
@@ -15,6 +16,8 @@ export default async function handler(req, res) {
     const user = requireAuth(req, res);
     if (!user) return;
     const body = req.body || {};
+    validarPeriodoDia(body.periodo, body.dia ?? 1);
+    validarImporte(body.monto);
 
     const { periodo, monto } = body;
 
@@ -128,7 +131,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("Error en /api/sueldo:", error);
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       ok: false,
       error: error.message || "Error interno",
     });

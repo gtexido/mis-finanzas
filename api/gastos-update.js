@@ -1,3 +1,4 @@
+import { validarGasto } from "./_validation.js";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { generarId, normalizarFecha, normalizarListaIds, normalizarMoneda, toNumber } from "./_db.js";
@@ -200,6 +201,7 @@ export default async function handler(req, res) {
     const user = requireAuth(req, res);
     if (!user) return;
     const body = req.body || {};
+    validarGasto(body);
 
     const {
       id,
@@ -374,7 +376,8 @@ export default async function handler(req, res) {
             0
           )
         : toNumber(monto, 0);
-    await sql`
+    const queries = [];
+    queries.push(sql`
       UPDATE movimientos
       SET
         fecha_operacion = ${fechaOperacion},
@@ -407,9 +410,9 @@ export default async function handler(req, res) {
         AND usuario_id = ${usuarioId}
         AND workspace_id = ${workspaceId}
         AND tipo_movimiento = 'GASTO';
-    `;
+    `);
 
-    await sql`
+    queries.push(sql`
       DELETE FROM movimiento_etiquetas
       WHERE movimiento_id = ${id}
         AND movimiento_id IN (
@@ -419,11 +422,11 @@ export default async function handler(req, res) {
             AND workspace_id = ${workspaceId}
             AND tipo_movimiento = 'GASTO'
         );
-    `;
+    `);
 
     if (etiquetasNormalizadas.length > 0) {
       for (const etiquetaId of etiquetasNormalizadas) {
-        await sql`
+        queries.push(sql`
           INSERT INTO movimiento_etiquetas (
             movimiento_id,
             etiqueta_id
@@ -432,11 +435,11 @@ export default async function handler(req, res) {
             ${etiquetaId}
           )
           ON CONFLICT (movimiento_id, etiqueta_id) DO NOTHING;
-        `;
+        `);
       }
     }
 
-    await sql`
+    queries.push(sql`
       DELETE FROM detalle_movimiento
       WHERE movimiento_id = ${id}
         AND movimiento_id IN (
@@ -446,7 +449,7 @@ export default async function handler(req, res) {
             AND workspace_id = ${workspaceId}
             AND tipo_movimiento = 'GASTO'
         );
-    `;
+    `);
 
     if (detallesNormalizados.length > 0) {
       let orden = 1;
@@ -454,7 +457,7 @@ export default async function handler(req, res) {
       for (const sub of detallesNormalizados) {
         const detalleId = generarId("det");
 
-        await sql`
+        queries.push(sql`
           INSERT INTO detalle_movimiento (
             detalle_id,
             movimiento_id,
@@ -478,11 +481,13 @@ export default async function handler(req, res) {
             ${sub.observacion || null},
             true
           );
-        `;
+        `);
 
         orden++;
       }
     }
+
+    await sql.transaction(queries);
 
     return res.status(200).json({
       ok: true,
