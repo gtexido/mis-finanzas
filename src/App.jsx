@@ -68,6 +68,11 @@ import VariacionView from "./views/VariacionView";
 import AnalisisView from "./views/AnalisisView";
 import IngresosView from "./views/IngresosView";
 import DetalleViewShell from "./views/DetalleView";
+import UiIcon from "./components/UiIcon";
+import MovementRow from "./components/MovementRow";
+import PremiumHome from "./components/PremiumHome";
+import ExpenseFields from "./components/ExpenseFields";
+import "./premium.css";
 
 // LEGACY parcial: localStorage queda temporalmente como respaldo de UI.
 const load = () => {
@@ -103,7 +108,7 @@ export default function App() {
   const now=new Date();
   const stored=load();
   const [view,setView]=useState("home");
-  const [analisisTab,setAnalisisTab]=useState("medio");
+  const [analisisTab,setAnalisisTab]=useState("concepto");
   const [data,setData]=useState(stored.data);
   const [cfg,setCfg]=useState(stored.config);
   const [recurrentes,setRecurrentes]=useState(stored.recurrentes);
@@ -728,8 +733,6 @@ const guardarGastoInterno = async (extra = {}) => {
     !instrumentoIdNormalizado.includes("sin_definir") &&
     instrumentoNombreNormalizado !== "sin definir";
 
-  const categoriaValida =
-    !!f.categoriaGastoId;
 
   if (!conceptoLimpio) {
     toast_("Escribí el concepto del gasto antes de guardar.", "err");
@@ -752,14 +755,10 @@ const guardarGastoInterno = async (extra = {}) => {
   }
 
   if (!instrumentoValido) {
-    toast_("Seleccioná cómo pagaste en Más opciones: manual, débito, crédito, transferencia, efectivo o débito automático.", "err");
+    toast_("Seleccioná cómo pagaste antes de guardar.", "err");
     return;
   }
 
-  if (!categoriaValida) {
-    toast_("Seleccioná una categoría en Más opciones para clasificar bien el gasto.", "err");
-    return;
-  }
 
   if (!esDetalle && (!Number.isFinite(montoNumero) || montoNumero <= 0)) {
     toast_("Ingresá un monto mayor a cero.", "err");
@@ -875,7 +874,7 @@ const guardarGastoInterno = async (extra = {}) => {
         crearConceptoPendiente: false,
       });
 
-      toast_("✅ Gasto actualizado");
+      toast_("Gasto actualizado");
       return;
     } catch (e) {
       console.error(e);
@@ -900,7 +899,7 @@ if (!f.conceptoId && f.crearConceptoPendiente) {
       medioPagoId: f.medioPagoId || "mp_sin_definir",
       instrumentoId: f.instrumentoId,
       monedaDefault: f.moneda || "ARS",
-      etiquetasIds: f.etiquetasIds?.length ? f.etiquetasIds : ["tag_variable"],
+      etiquetasIds: f.etiquetasIds || [],
     });
 
     const catalogosApi = await getCatalogos();
@@ -982,7 +981,7 @@ try {
     medioPagoId: f.medioPagoId || medioPagoDesdeCategoriaLegacy(f.categoria),
     instrumentoId: f.instrumentoId,
     categoriaGastoId: f.categoriaGastoId || categoriaGastoDesdeServicio(f.servicio),
-    etiquetasIds: f.etiquetasIds?.length ? f.etiquetasIds : etiquetasDesdeServicio(f.servicio),
+    etiquetasIds: f.etiquetasIds || [],
     servicio: f.servicio,
     monto: montoCabecera,
     moneda: f.moneda || "ARS",
@@ -1041,7 +1040,7 @@ try {
     toast_("Gasto guardado correctamente");
   } catch (e) {
     console.error(e);
-    toast_("No se pudo guardar en Neon", "err");
+    toast_("No se pudo guardar", "err");
   }
 };
 
@@ -1204,10 +1203,10 @@ try {
 
     setEditingGasto(null);
     setEditingMesKey(null);
-    toast_(gastoEditado.guardarComoConceptoFrecuente ? "✅ Concepto guardado y gasto actualizado" : "✅ Cambios guardados en Neon");
+    toast_(gastoEditado.guardarComoConceptoFrecuente ? "Concepto guardado y gasto actualizado" : "Cambios guardados");
   } catch (e) {
     console.error("ERROR EN handleEditSave", e);
-    toast_(e.message || "No se pudo editar en Neon", "err");
+    toast_(e.message || "No se pudieron guardar los cambios", "err");
   }
 };
 
@@ -1264,6 +1263,7 @@ const handleSubconceptosSave = (items) => {
   if (editingGasto && editingGasto.id === subconceptosGasto.id) {
     setEditingGasto((prev) => ({
       ...prev,
+      ...subconceptosGasto,
       moneda: prev.moneda || monedaBase,
       monto: montoTotalARS,
       tipoGasto: "detalle",
@@ -1366,7 +1366,7 @@ const handleSubconceptosSave = (items) => {
     );
   } catch (e) {
     console.error(e);
-    toast_("No se pudo actualizar el estado en Neon", "err");
+    toast_("No se pudo actualizar el estado", "err");
   }
 };
  const guardarIngreso = async () => {
@@ -1423,10 +1423,10 @@ const handleSubconceptosSave = (items) => {
       dia: String(now.getDate()),
     }));
 
-    toast_("¡Ingreso guardado en Neon!");
+    toast_("¡Ingreso guardado!");
   } catch (e) {
     console.error(e);
-    toast_("No se pudo guardar ingreso en Neon", "err");
+    toast_("No se pudo guardar ingreso", "err");
   } finally {
     setGuardarIngresoLoading(false);
   }
@@ -1464,10 +1464,10 @@ const guardarSueldo = async () => {
     }));
 
     setSueldoInput("");
-    toast_("Sueldo guardado en Neon");
+    toast_("Sueldo guardado");
   } catch (e) {
     console.error(e);
-    toast_("No se pudo guardar sueldo en Neon", "err");
+    toast_("No se pudo guardar sueldo", "err");
   }
 };
 
@@ -1507,7 +1507,7 @@ const eliminar = async (tipo, id) => {
   } catch (e) {
     console.error(e);
     setConfirmDel(null);
-    toast_("No se pudo eliminar en Neon", "err");
+    toast_("No se pudo eliminar", "err");
   }
 };
   //const eliminar=(tipo,id)=>{ setData(prev=>({...prev,[tipo]:{...prev[tipo],[mesKey]:(prev[tipo][mesKey]||[]).filter(g=>g.id!==id)}})); setConfirmDel(null); toast_("Eliminado","err"); };
@@ -1579,7 +1579,7 @@ const eliminar = async (tipo, id) => {
 
       await refrescarCatalogos();
       setEditConcepto(null);
-      toast_("✅ Concepto actualizado");
+      toast_("Concepto actualizado");
     } catch (e) {
       console.error(e);
       toast_(e.message || "No se pudo actualizar el concepto", "err");
@@ -1636,7 +1636,7 @@ const eliminar = async (tipo, id) => {
       await crearMedioPago({ nombre, tipo: nuevoMedio.tipo || "banco", color: nuevoMedio.color || "#60a5fa", ordenVisual: nuevoMedio.ordenVisual ? Number(nuevoMedio.ordenVisual) : undefined, workspaceId: "ws_default" });
       await refrescarCatalogos();
       setNuevoMedio({ nombre:"", tipo:"banco", color:"#60a5fa", ordenVisual:"" });
-      toast_("✅ Medio de pago creado");
+      toast_("Medio de pago creado");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo crear el medio de pago", "err"); }
   };
 
@@ -1647,7 +1647,7 @@ const eliminar = async (tipo, id) => {
       await actualizarMedioPago({ medioPagoId: editMedio.id, nombre: editMedio.nombre.trim(), tipo: editMedio.tipo || "otro", color: editMedio.color || "#64748b", ordenVisual: Number(editMedio.ordenVisual || 99), activo: true });
       await refrescarCatalogos();
       setEditMedio(null);
-      toast_("✅ Medio de pago actualizado");
+      toast_("Medio de pago actualizado");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar el medio de pago", "err"); }
   };
 
@@ -1696,7 +1696,7 @@ const eliminar = async (tipo, id) => {
       await crearCategoriaGasto({ nombre, color: nuevaCategoriaGasto.color || "#64748b", ordenVisual: nuevaCategoriaGasto.ordenVisual ? Number(nuevaCategoriaGasto.ordenVisual) : undefined, workspaceId: "ws_default" });
       await refrescarCatalogos();
       setNuevaCategoriaGasto({ nombre:"", color:"#60a5fa", ordenVisual:"" });
-      toast_("✅ Categoría creada");
+      toast_("Categoría creada");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la categoría", "err"); }
   };
 
@@ -1707,7 +1707,7 @@ const eliminar = async (tipo, id) => {
       await actualizarCategoriaGasto({ categoriaGastoId: editCategoriaGasto.id, nombre: editCategoriaGasto.nombre.trim(), color: editCategoriaGasto.color || "#64748b", ordenVisual: Number(editCategoriaGasto.ordenVisual || 99), activo: true });
       await refrescarCatalogos();
       setEditCategoriaGasto(null);
-      toast_("✅ Categoría actualizada");
+      toast_("Categoría actualizada");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la categoría", "err"); }
   };
 
@@ -1748,7 +1748,7 @@ const eliminar = async (tipo, id) => {
       await crearEtiqueta({ nombre, color: nuevaEtiqueta.color || "#64748b", ordenVisual: nuevaEtiqueta.ordenVisual ? Number(nuevaEtiqueta.ordenVisual) : undefined, workspaceId: "ws_default" });
       await refrescarCatalogos();
       setNuevaEtiqueta({ nombre:"", color:"#f97316", ordenVisual:"" });
-      toast_("✅ Etiqueta creada");
+      toast_("Etiqueta creada");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la etiqueta", "err"); }
   };
 
@@ -1759,7 +1759,7 @@ const eliminar = async (tipo, id) => {
       await actualizarEtiqueta({ etiquetaId: editEtiqueta.id, nombre: editEtiqueta.nombre.trim(), color: editEtiqueta.color || "#64748b", ordenVisual: Number(editEtiqueta.ordenVisual || 99), activo: true });
       await refrescarCatalogos();
       setEditEtiqueta(null);
-      toast_("✅ Etiqueta actualizada");
+      toast_("Etiqueta actualizada");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la etiqueta", "err"); }
   };
 
@@ -1923,7 +1923,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
     }));
 
     setReplicarStep("done");
-    toast_(`✅ ${gastosIncluidos.length} gastos copiados a ${mesNombreSig()}`);
+    toast_(`${gastosIncluidos.length} gastos copiados a ${mesNombreSig()}`);
   } catch (e) {
     console.error("Error replicando mes:", e);
     toast_(`${copiados ? `Se copiaron ${copiados} gastos. ` : ""}No se completó la copia. Revisá el mes destino antes de reintentar.`, "err");
@@ -1974,186 +1974,6 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
 
   // Render gasto en detalle
   // Render gasto en detalle
-const GastoRow=({item})=>{
-  const filaRef = useRef(null);
-  const dias=diasRestantes(item.vencimiento);
-  const s=item.estado==="pendiente"?semaforo(dias):null;
-  const tieneSubconceptos=item.subconceptos&&item.subconceptos.length>0;
-  const desgloseAbierto = !!desglosesAbiertos[item.id];
-  const totalMostrarARS = montoReal(item, tc);
-  const totalUSDDetalle = montoUSDReal(item);
-  const medioPagoDetalle = normalizarEtiquetaVisual(item.medioPagoNombre || item.medioPago, "");
-  const instrumentoDetalle = normalizarEtiquetaVisual(item.instrumentoNombre || item.instrumento || item.formaPago, "Manual");
-  const categoriaDetalle = normalizarEtiquetaVisual(categoriaRealDesdeGasto(item).label, "");
-
-  const detalleModeloNuevo = [
-    medioPagoDetalle,
-    instrumentoDetalle,
-    categoriaDetalle
-  ].filter(Boolean).join(" · ");
-
-  const textoInstrumentoNormalizado = [
-    item.instrumentoId,
-    item.instrumentoNombre,
-    item.instrumento,
-    item.formaPago,
-    item.formaPagoId,
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/dã©bito|dãƒÂ©bito|dã©bito/g, "debito")
-    .replace(/automã¡tico|automãƒÂ¡tico|automã¡tico/g, "automatico");
-
-  const esDebitoAutomatico =
-    item.instrumentoId === "ins_debito_automatico" ||
-    item.formaPagoId === "fp_debito_automatico" ||
-    textoInstrumentoNormalizado.includes("ins_debito_automatico") ||
-    textoInstrumentoNormalizado.includes("fp_debito_automatico") ||
-    textoInstrumentoNormalizado.includes("debito automatico");
-  const estadoPagado = item.estado === "pagado";
-  const estadoBg = estadoPagado ? "#052e16" : "#2a1608";
-  const estadoColor = estadoPagado ? "#4ade80" : "#fb923c";
-
-  return(
-    <div
-      ref={filaRef}
-      style={{
-        padding:"12px 0",
-        borderBottom:"1px solid #1e1e2e",
-        cursor:"pointer"
-      }}
-      onClick={()=>openEdit(item)}
-    >
-      <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12 }}>
-        <div style={{ flex:1,minWidth:0 }}>
-          <div style={{ display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:10,marginBottom:7 }}>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:14,fontWeight:900,color:"#e2e8f0",lineHeight:1.2,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>
-                {item.servicio}
-              </div>
-              <div style={{ fontSize:10,color:"#64748b",marginTop:3 }}>
-                Tocá para editar
-              </div>
-            </div>
-
-            <div style={{ textAlign:"right",flexShrink:0 }}>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:900,color:totalMostrarARS>0?"#f8fafc":"#64748b",lineHeight:1.1 }}>
-                {fmtARS(totalMostrarARS)}
-              </div>
-              {totalUSDDetalle > 0 && (
-                <div style={{ fontSize:10,color:"#a78bfa",fontWeight:800,marginTop:3 }}>
-                  {fmtUSD(totalUSDDetalle)} USD
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div style={{ display:"flex",gap:5,flexWrap:"wrap",marginBottom:7,alignItems:"center" }}>
-            <span
-              onClick={e=>{e.stopPropagation();toggleEstado(item.id);}}
-              style={{
-                display:"inline-flex",
-                alignItems:"center",
-                gap:4,
-                padding:"3px 8px",
-                borderRadius:999,
-                fontSize:10,
-                fontWeight:900,
-                background:estadoBg,
-                color:estadoColor,
-                border:`1px solid ${estadoColor}33`,
-                cursor:"pointer"
-              }}
-            >
-              {estadoPagado?"✓ Pagado":"⏳ Pendiente"}
-            </span>
-
-            {item.requiereRevision&&<span style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"4px 9px",borderRadius:999,fontSize:10,fontWeight:900,background:"linear-gradient(135deg,rgba(124,58,237,.20),rgba(76,29,149,.10))",color:"#ddd6fe",border:"1px solid rgba(167,139,250,.35)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}>🔎 Revisar</span>}
-            {esDebitoAutomatico&&<span title="Este gasto está marcado como débito automático" style={{ display:"inline-flex",alignItems:"center",gap:5,padding:"4px 9px",borderRadius:999,fontSize:10,fontWeight:900,letterSpacing:.2,background:"linear-gradient(135deg,rgba(139,92,246,.18),rgba(30,41,59,.18))",color:"#ddd6fe",border:"1px solid rgba(196,181,253,.42)",boxShadow:"inset 0 1px 0 rgba(255,255,255,.06)" }}><span style={{ fontSize:11,lineHeight:1 }}>↻</span> Débito auto</span>}
-            {s&&<VencBadge fecha={item.vencimiento} estado={item.estado}/>}          
-            {tieneSubconceptos&&<button
-              type="button"
-              onClick={(e)=>{
-                e.preventDefault();
-                e.stopPropagation();
-                const topAntes = filaRef.current?.getBoundingClientRect?.().top ?? 0;
-                setDesglosesAbiertos(prev=>({ ...prev, [item.id]: !prev[item.id] }));
-                requestAnimationFrame(()=>{
-                  requestAnimationFrame(()=>{
-                    const topDespues = filaRef.current?.getBoundingClientRect?.().top ?? topAntes;
-                    const diferencia = topDespues - topAntes;
-                    if (Math.abs(diferencia) > 1) {
-                      window.scrollBy({ top: diferencia, behavior: "auto" });
-                    }
-                  });
-                });
-              }}
-              style={{ display:"inline-flex",alignItems:"center",gap:4,padding:"3px 8px",borderRadius:999,fontSize:10,fontWeight:800,background:desgloseAbierto?"#12304a":"#0f1a2e",color:"#38bdf8",border:"1px solid #38bdf855",cursor:"pointer" }}
-            >
-              {desgloseAbierto?"Ocultar desglose":"Desglose"} · {item.subconceptos.length} ítems
-            </button>}
-          </div>
-
-          <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.45 }}>
-            Día {item.dia}/{mes.m+1} · {detalleModeloNuevo || "Sin detalle"}
-            {item.requiereRevision?" · Dato de referencia":""}
-            {item.vencimiento?` · Vence ${fmtFecha(item.vencimiento)}`:""}
-            {item.observacion?` · ${item.observacion}`:""}
-          </div>
-
-          {tieneSubconceptos && desgloseAbierto && (
-            <div
-              onClick={(e)=>e.stopPropagation()}
-              style={{ marginTop:8,padding:"9px 10px",background:"#0f172a",border:"1px solid #1e3a5f",borderRadius:12,maxHeight:220,overflowY:"auto",overscrollBehavior:"contain" }}
-            >
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6 }}>
-                <div style={{ fontSize:10,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Desglose</div>
-                <div style={{ fontSize:10,color:"#94a3b8" }}>{item.subconceptos.length} ítem{item.subconceptos.length===1?"":"s"}</div>
-              </div>
-              {item.subconceptos.map((sub,idx)=>(
-                <div key={sub.id || `${item.id}_sub_${idx}`} style={{ padding:"6px 0",borderTop:idx?"1px solid #1e293b":"none" }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}>
-                    <span style={{ fontSize:11,color:"#cbd5e1",minWidth:0,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap" }}>{sub.nombre}</span>
-                    <span style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#38bdf8",fontWeight:800,whiteSpace:"nowrap",flexShrink:0 }}>
-                      {fmtMonto(Number(sub.monto ?? sub.montoUSD ?? 0), sub.moneda || item.moneda || "ARS")}
-                    </span>
-                  </div>
-                  {sub.observacion&&(
-                    <div style={{ marginTop:3,fontSize:10,color:"#94a3b8",lineHeight:1.35,display:"flex",gap:5,alignItems:"flex-start" }}>
-                      <span style={{ flexShrink:0 }}>📝</span>
-                      <span style={{ minWidth:0,overflow:"hidden",textOverflow:"ellipsis" }}>{sub.observacion}</span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <button
-          title="Eliminar"
-          style={{
-            background:"#1e1e2e",
-            border:"1px solid #2a2a3e",
-            color:"#94a3b8",
-            borderRadius:10,
-            padding:"5px 8px",
-            cursor:"pointer",
-            fontSize:11,
-            flexShrink:0
-          }}
-          onClick={e=>{e.stopPropagation();setConfirmDel({...item,tipo:"gastos"});}}
-        >
-          ✕
-        </button>
-      </div>
-    </div>
-  );
-};
-
   const esDolar_form = esDolarConcepto(form.servicio);
 
   const esConceptoSoloHistorico = (concepto = {}) => {
@@ -2188,52 +2008,7 @@ const GastoRow=({item})=>{
     ? conceptosFiltrados
     : conceptosFiltrados.slice(0, textoConceptoNormalizado ? 8 : 10);
 
-  const conceptoPreviewCarga = (cfg.conceptos || []).find((c) => c.id === form.conceptoId) || conceptoExacto || null;
-  const medioPreviewCarga = (cfg.mediosPago || []).find((m) => m.id === (form.medioPagoId || conceptoPreviewCarga?.medioPagoId));
-  const instrumentoPreviewCarga = (cfg.instrumentosPago || []).find((i) => i.id === (form.instrumentoId || conceptoPreviewCarga?.instrumentoId));
-  const categoriaPreviewCarga = (cfg.categoriasGasto || []).find((c) => c.id === (form.categoriaGastoId || conceptoPreviewCarga?.categoriaGastoId));
-  const etiquetasPreviewCarga = (form.etiquetasIds?.length ? form.etiquetasIds : conceptoPreviewCarga?.etiquetasIds || [])
-    .map((id) => (cfg.etiquetas || []).find((t) => t.id === id)?.nombre)
-    .filter(Boolean);
-  const resumenPreviewCarga = [
-    conceptoPreviewCarga?.nombre || textoConcepto || "Sin concepto",
-    categoriaPreviewCarga?.nombre,
-    medioPreviewCarga?.nombre,
-    instrumentoPreviewCarga?.nombre,
-    etiquetasPreviewCarga.length ? etiquetasPreviewCarga.join(" · ") : null,
-    form.moneda || conceptoPreviewCarga?.monedaDefault || "ARS"
-  ].filter(Boolean);
-
-  const medioCargaSeleccionado = (cfg.mediosPago || []).find((m) => m.id === form.medioPagoId && form.medioPagoId !== "mp_sin_definir");
-  const instrumentoCargaSeleccionado = (cfg.instrumentosPago || []).find((i) => {
-    const id = String(i.id || "").trim().toLowerCase();
-    const nombre = String(i.nombre || "").trim().toLowerCase();
-    return i.id === form.instrumentoId && !id.includes("sin_definir") && nombre !== "sin definir";
-  });
-  const categoriaCargaSeleccionada = (cfg.categoriasGasto || []).find((c) => c.id === form.categoriaGastoId);
-  const diaCargaNumero = Number(form.dia || 0);
   const ultimoDiaCarga = new Date(mes.y, mes.m + 1, 0).getDate();
-  const conceptoCargaOk = String(form.servicio || "").trim().length > 0;
-  const montoCargaOk =
-    form.tipoGasto === "detalle"
-      ? Array.isArray(form.subconceptos) && form.subconceptos.length > 0
-      : Number.isFinite(Number(form.monto || 0)) && Number(form.monto || 0) > 0;
-  const diaCargaOk = Number.isInteger(diaCargaNumero) && diaCargaNumero >= 1 && diaCargaNumero <= ultimoDiaCarga;
-
-  const validacionesCargaPreview = [
-    { id:"concepto", label:"Concepto", ok:conceptoCargaOk, detalle: conceptoCargaOk ? String(form.servicio || "").trim() : "Falta escribir qué pagaste" },
-    { id:"medio", label:"Medio de pago", ok:!!medioCargaSeleccionado, detalle: medioCargaSeleccionado?.nombre || "Falta elegir desde dónde salió la plata" },
-    { id:"instrumento", label:"Cómo pagaste", ok:!!instrumentoCargaSeleccionado, detalle: instrumentoCargaSeleccionado?.nombre || "Falta elegir manual, débito, crédito, transferencia o efectivo" },
-    { id:"categoria", label:"Categoría", ok:!!categoriaCargaSeleccionada, detalle: categoriaCargaSeleccionada?.nombre || "Falta clasificar el gasto" },
-    { id:"monto", label:form.tipoGasto === "detalle" ? "Desglose" : "Monto", ok:montoCargaOk, detalle:montoCargaOk ? (form.tipoGasto === "detalle" ? `${form.subconceptos.length} ítem(s)` : fmtMonto(Number(form.monto || 0), form.moneda || "ARS")) : "Falta un monto mayor a cero" },
-    { id:"dia", label:"Día", ok:diaCargaOk, detalle:diaCargaOk ? `Día ${form.dia}` : `Falta un día válido entre 1 y ${ultimoDiaCarga}` },
-  ];
-  const faltantesCargaPreview = validacionesCargaPreview.filter((item) => !item.ok);
-  const datosCompletosCarga = validacionesCargaPreview.length - faltantesCargaPreview.length;
-  const progresoCargaPct = Math.round((datosCompletosCarga / Math.max(validacionesCargaPreview.length, 1)) * 100);
-  const cargaListaParaGuardar = faltantesCargaPreview.length === 0;
-  const requiereOpcionesAvanzadasCarga = faltantesCargaPreview.some((item) => ["instrumento","categoria"].includes(item.id));
- 
  const aplicarConceptoExistente = (concepto) => {
   if (!concepto) return;
 
@@ -2281,7 +2056,7 @@ const GastoRow=({item})=>{
     decisionManual: false,
   }));
 
-  toast_("Concepto preparado. Elegí medio, instrumento, categoría y guardá el gasto.");
+  toast_("Vamos a recordar este concepto cuando guardes el gasto.");
 };
 
 
@@ -2330,64 +2105,23 @@ if (authUser && cargaEstado !== "listo") {
 }
 
 if (!authUser) {
-  return (
-    <div style={{ fontFamily:"'DM Sans',sans-serif",background:"#0a0a0f",minHeight:"100vh",color:"#e2e8f0",maxWidth:480,margin:"0 auto",padding:"32px 18px" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        input,select,button{font-family:'DM Sans',sans-serif;}
-        .inf{width:100%;background:#1a1a24;border:1.5px solid #2a2a3e;border-radius:12px;padding:13px;color:#e2e8f0;font-size:16px;outline:none;}
-        .inf:focus{border-color:#7c3aed;}
-        .pb{border:none;border-radius:14px;padding:14px 16px;cursor:pointer;font-weight:700;font-size:15px;}
-      `}</style>
-
-      <div style={{ marginTop:48,background:"#13131a",border:"1px solid #1e1e2e",borderRadius:24,padding:22,boxShadow:"0 18px 50px rgba(0,0,0,.28)" }}>
-        <div style={{ fontSize:42,marginBottom:12 }}>🔐</div>
-        <h1 style={{ fontSize:25,marginBottom:6 }}>Mis Finanzas</h1>
-        <p style={{ color:"#94a3b8",fontSize:14,lineHeight:1.6,marginBottom:22 }}>
-          Acceso privado por usuario. Cada uno ve solamente sus propios movimientos.
-        </p>
-
-        <form onSubmit={handleLogin}>
-          <label style={{ display:"block",fontSize:12,color:"#64748b",fontWeight:700,marginBottom:8 }}>USUARIO</label>
-          <select
-            className="inf"
-            value={loginForm.usuarioId}
-            onChange={(e)=>setLoginForm((prev)=>({ ...prev, usuarioId:e.target.value }))}
-            style={{ marginBottom:14 }}
-          >
-            <option value="usr_gustavo">Gustavo</option>
-            <option value="usr_vane">Vane</option>
-          </select>
-
-          <label style={{ display:"block",fontSize:12,color:"#64748b",fontWeight:700,marginBottom:8 }}>PIN</label>
-          <input
-            className="inf"
-            type="password"
-            inputMode="numeric"
-            placeholder="Ingresá tu PIN"
-            value={loginForm.pin}
-            onChange={(e)=>setLoginForm((prev)=>({ ...prev, pin:e.target.value }))}
-            style={{ marginBottom:12 }}
-          />
-
-          {loginError && (
-            <div style={{ background:"#2a1515",border:"1px solid #7f1d1d",color:"#fecaca",borderRadius:12,padding:10,fontSize:13,marginBottom:12 }}>
-              {loginError}
-            </div>
-          )}
-
-          <button className="pb" disabled={loginLoading} style={{ width:"100%",background:"#7c3aed",color:"#fff",opacity:loginLoading ? .7 : 1 }}>
-            {loginLoading ? "Validando..." : "Ingresar"}
-          </button>
-        </form>
-
-        <div style={{ marginTop:18,fontSize:12,color:"#64748b",lineHeight:1.6 }}>
-          Modo seguro: el filtro se aplica también en API/Neon, no solo en pantalla.
-        </div>
-      </div>
+  return <main className="premium-login">
+    <div className="brand"><span className="brand-mark"><UiIcon name="chart" size={21}/></span>Mis Finanzas</div>
+    <div className="login-main">
+      <span className="eyebrow muted">TU ESPACIO PERSONAL</span>
+      <h1>Tu plata.<br/>Todo más claro.</h1>
+      <p>Gastos, ingresos y próximos pagos.<br/>Una mirada simple a tus finanzas.</p>
+      <form onSubmit={handleLogin}>
+        <label htmlFor="login-user">Usuario</label>
+        <select id="login-user" value={loginForm.usuarioId} onChange={e=>setLoginForm(p=>({...p,usuarioId:e.target.value}))}><option value="usr_gustavo">Gustavo</option><option value="usr_vane">Vane</option></select>
+        <label htmlFor="login-pin">PIN</label>
+        <input id="login-pin" type="password" inputMode="numeric" autoComplete="current-password" placeholder="Ingresá tu PIN" value={loginForm.pin} onChange={e=>setLoginForm(p=>({...p,pin:e.target.value}))}/>
+        {loginError&&<div role="alert" className="error-note">{loginError}</div>}
+        <button className="primary" disabled={loginLoading}>{loginLoading?"Validando…":"Ingresar"}<UiIcon name="arrow" size={19}/></button>
+      </form>
     </div>
-  );
+    <div className="login-footer"><UiIcon name="lock" size={15}/>Un espacio privado para tus movimientos</div>
+  </main>;
 }
 
 
@@ -2395,7 +2129,7 @@ if (!authUser) {
 // 🎨 RENDER PRINCIPAL
 // ======================================================
   return (
-    <div style={{ fontFamily:"'DM Sans',sans-serif",background:"#0a0a0f",minHeight:"100vh",color:"#e2e8f0",maxWidth:480,margin:"0 auto",paddingBottom:88 }}>
+    <div className="app-shell" data-view={view} style={{ fontFamily:"'DM Sans',sans-serif",minHeight:"100vh",color:"#e2e8f0",margin:"0 auto" }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0;}
@@ -2427,12 +2161,10 @@ if (!authUser) {
         .ei{background:#1a1a24;border:1.5px solid #7c3aed;border-radius:10px;padding:7px 10px;color:#e2e8f0;font-size:14px;outline:none;flex:1;font-family:'DM Sans',sans-serif;}
         .stat-box{flex:1;background:#13131a;border-radius:16px;padding:12px 14px;border:1px solid #1e1e2e;}
       `}</style>
-      <div style={{ position:"sticky",top:0,zIndex:850,display:"flex",justifyContent:"space-between",alignItems:"center",background:"#0a0a0fcc",backdropFilter:"blur(10px)",borderBottom:"1px solid #1e1e2e",padding:"9px 14px",marginBottom:8 }}>
-        <div style={{ fontSize:12,color:"#94a3b8" }}>🔐 {authUser.nombre}</div>
-        <button className="pb" style={{ background:"#1e1e2e",color:"#cbd5e1",fontSize:12,padding:"7px 10px" }} onClick={handleLogout}>
-          Salir
-        </button>
-      </div>
+      <header className="topbar">
+        <div className="brand"><span className="brand-mark"><UiIcon name="chart" size={21}/></span>Mis Finanzas</div>
+        <div className="topbar-actions"><span className="avatar" title={authUser.nombre}>{authUser.nombre.slice(0,1)}</span><button className="icon-button" aria-label="Ajustes" onClick={()=>setView("config")}><UiIcon name="settings" size={22}/></button></div>
+      </header>
 
       {toast&&toastVisual&&(
         <div className={`toast toast-${toast.type}`} role="status" aria-live="polite">
@@ -2617,878 +2349,32 @@ if (!authUser) {
         </div>
       )}
 
-      {/* HEADER */}
-      {!["ingresos","vencimientos"].includes(view)&&(
-        <div style={{ padding:"18px 14px 0",display:"flex",justifyContent:"space-between",alignItems:"center" }}>
-          <div>
-            <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,color:"#7c3aed",letterSpacing:2,textTransform:"uppercase" }}>Mis Finanzas</div>
-            <div style={{ fontSize:18,fontWeight:700 }}>{view==="config"?"Ajustes":view==="analisis"?"Análisis":view==="variacion"?"Evolución":view==="vencimientos"?"Vencimientos":`${MESES[mes.m]} ${mes.y}`}</div>
-          </div>
-          {!["config","variacion","vencimientos","analisis"].includes(view)&&(
-            <div style={{ display:"flex",gap:8 }}>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(-1)}>‹</button>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 11px",minWidth:34 }} onClick={()=>cambiarMes(1)}>›</button>
-            </div>
-          )}
-        </div>
-      )}
-
-      <div style={{ padding:view==="ingresos"?"18px 12px 0":"12px 12px 0" }}>
+      <div className="page-header">
+        <h1>{({home:"Tu mes, en claro.",cargar:"Cargar gasto",resumen:"Movimientos",ingresos:"Ingresos",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",config:"Ajustes"})[view]}</h1>
+        <p>{({home:`Hola, ${authUser.nombre}. Este es tu resumen.`,cargar:"Lo esencial, sin vueltas.",resumen:"Cada gasto, a mano.",ingresos:"Todo lo que entra en el mes.",vencimientos:"Tus pagos, a tiempo.",analisis:"Entendé en qué se va tu plata.",variacion:"Una mirada a lo que cambia.",config:"Tu app, a tu manera."})[view]}</p>
+        {view!=="config"&&<div className="period-picker"><span>{MESES[mes.m]} {mes.y}</span><div className="period-controls"><button className="icon-button" aria-label="Mes anterior" onClick={()=>cambiarMes(-1)}><UiIcon name="chevron" size={17} style={{transform:"rotate(180deg)"}}/></button><button className="icon-button" aria-label="Mes siguiente" onClick={()=>cambiarMes(1)}><UiIcon name="chevron" size={17}/></button></div></div>}
+      </div>
+      <div className="app-content">
+        {["resumen","ingresos"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="resumen"} onClick={()=>setView("resumen")}>Gastos</button><button aria-pressed={view==="ingresos"} onClick={()=>setView("ingresos")}>Ingresos</button></div>}
+        {["analisis","variacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button></div>}
 
         {/* HOME */}
-        {view==="home"&&(<>
-          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#7c3aed55 0%,transparent 36%),linear-gradient(135deg,#111827 0%,#1a1230 52%,#0f172a 100%)",border:`1px solid ${saludFinanciera.color}55`,boxShadow:"0 12px 32px rgba(0,0,0,0.24)",padding:14,borderRadius:18,marginBottom:10 }}>
-            <div style={{ position:"absolute",right:-36,top:-44,width:108,height:108,borderRadius:"50%",background:`${saludFinanciera.color}18` }}/>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:12,position:"relative" }}>
-              <div>
-                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1.2,textTransform:"uppercase",marginBottom:4 }}>Resumen del mes</div>
-                <div style={{ fontSize:12,color:"#cbd5e1",marginBottom:3 }}>Disponible estimado</div>
-                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:32,lineHeight:1.05,fontWeight:700,color:saldoColor }}>{fmtARS(saldo)}</div>
-              </div>
-              <div style={{ background:`${saludFinanciera.color}1f`,border:`1px solid ${saludFinanciera.color}55`,borderRadius:14,padding:"7px 8px",minWidth:78,textAlign:"center" }}>
-                <div style={{ fontSize:15 }}>{saludFinanciera.icon}</div>
-                <div style={{ fontSize:10,fontWeight:800,color:saludFinanciera.color,marginTop:1 }}>{saludFinanciera.label}</div>
-              </div>
-            </div>
-
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginTop:12,position:"relative" }}>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
-                <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>INGRESOS</div>
-                <div style={{ fontSize:14,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalIngresos)}</div>
-              </div>
-              <div className="stat-box" style={{ background:"rgba(19,19,26,0.78)",padding:"9px 10px",borderRadius:14 }}>
-                <div style={{ fontSize:10,color:"#64748b",marginBottom:3,fontWeight:800 }}>GASTOS</div>
-                <div style={{ fontSize:14,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{fmtARS(totalGastos)}</div>
-              </div>
-            </div>
-
-            {totalIngresos>0&&<>
-              <div className="pgb" style={{ height:6,marginTop:10,background:"rgba(30,30,46,0.9)" }}>
-                <div className="pgf" style={{ width:`${Math.min(porcentajeUsoIngreso,100)}%`,background:saludFinanciera.color }}/>
-              </div>
-              <div style={{ display:"flex",justifyContent:"space-between",fontSize:10,color:"#94a3b8",marginTop:5 }}>
-                <span>{porcentajeUsoIngreso}% del ingreso utilizado</span>
-                <span>{porcentajeSaldoIngreso}% libre</span>
-              </div>
-            </>}
-          </div>
-
-          <div className="card" style={{ background:"#101827",border:"1px solid #1e293b",padding:"10px 11px",borderRadius:16,marginBottom:9 }}>
-            <div style={{ display:"flex",alignItems:"flex-start",gap:9 }}>
-              <div style={{ width:26,height:26,borderRadius:10,background:"#38bdf822",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>💡</div>
-              <div style={{ flex:1,minWidth:0 }}>
-                <div style={{ display:"flex",alignItems:"center",gap:6,marginBottom:3 }}>
-                  <div style={{ fontSize:10,color:"#38bdf8",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Diagnóstico</div>
-                  <div style={{ width:5,height:5,borderRadius:"50%",background:saludFinanciera.color }}/>
-                </div>
-                <div style={{ fontSize:12,color:"#e2e8f0",lineHeight:1.32,fontWeight:700 }}>{recomendacionHome}</div>
-              </div>
-            </div>
-          </div>
-
-
-          {accionesHome.length>0&&<div className="card" style={{ padding:"10px 11px",borderRadius:16,marginBottom:9,border:"1px solid #2a1a4e",background:"linear-gradient(135deg,#15111f,#101827)" }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:8 }}>
-              <div>
-                <div style={{ fontSize:10,color:"#c4b5fd",fontWeight:900,letterSpacing:1,textTransform:"uppercase" }}>Qué conviene hacer ahora</div>
-                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Dos focos para avanzar sin ruido</div>
-              </div>
-              <div style={{ width:28,height:28,borderRadius:10,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:15 }}>🎯</div>
-            </div>
-            <div style={{ display:"grid",gap:6 }}>
-              {accionesHome.map((accion,idx)=>(
-                <div key={`${accion.titulo}-${idx}`} style={{ display:"flex",alignItems:"center",gap:8,padding:"7px 8px",borderRadius:12,background:"#0b1020",border:"1px solid #1e293b" }}>
-                  <div style={{ width:26,height:26,borderRadius:9,background:"#1e1b4b",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,flexShrink:0 }}>{accion.icon}</div>
-                  <div style={{ minWidth:0 }}>
-                    <div style={{ fontSize:12,fontWeight:800,color:"#e2e8f0" }}>{accion.titulo}</div>
-                    <div style={{ fontSize:10,color:"#94a3b8",lineHeight:1.25,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{accion.detalle}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>}
-
-          <div style={{ display:"grid",gridTemplateColumns:totalUSD_>0?"1fr 1fr 1fr":"1fr 1fr",gap:6,marginBottom:10 }}>
-            <div className="stat-box" style={{ border:"1px solid #14532d",background:"#0f1f17",padding:"8px 9px",borderRadius:13 }}>
-              <div style={{ fontSize:10,color:"#86efac",marginBottom:2,fontWeight:800 }}>PAGADO</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#4ade80",whiteSpace:"nowrap" }}>{fmtARS(totalPagado)}</div>
-              <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{pagosRealizadosPct}%</div>
-            </div>
-            <div className="stat-box" style={{ border:"1px solid #422006",background:"#21160b",padding:"8px 9px",borderRadius:13 }}>
-              <div style={{ fontSize:10,color:"#fdba74",marginBottom:2,fontWeight:800 }}>PENDIENTE</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#fb923c",whiteSpace:"nowrap" }}>{fmtARS(totalPendiente)}</div>
-              <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>{gastosDelMes.filter(g=>g.estado==="pendiente").length} ítems</div>
-            </div>
-            {totalUSD_>0&&<div className="stat-box" style={{ border:"1px solid #1e3a5f",background:"#0b1726",padding:"8px 9px",borderRadius:13 }}>
-              <div style={{ fontSize:10,color:"#7dd3fc",marginBottom:2,fontWeight:800 }}>USD</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#38bdf8" }}>{fmtUSD(totalUSD_)}</div>
-              <div style={{ fontSize:10,color:"#94a3b8",marginTop:3 }}>incluido en ARS</div>
-            </div>}
-          </div>
-
-          <div className="card" style={{ padding:"9px 11px",borderRadius:15,marginBottom:10,display:"flex",alignItems:"center",justifyContent:"space-between",gap:10 }}>
-            <div style={{ minWidth:0 }}>
-              <div style={{ fontSize:10,color:"#64748b",fontWeight:800,letterSpacing:0.6,textTransform:"uppercase" }}>Actividad del mes</div>
-              <div style={{ fontSize:11,color:"#94a3b8",marginTop:3 }}>{totalOperacionesMes} operaciones · ticket prom. <span style={{ color:"#e2e8f0",fontWeight:800 }}>{fmtARS(ticketPromedioMes)}</span></div>
-            </div>
-            <div onClick={()=>gastoMayorDelMes&&setView("resumen")} style={{ minWidth:105,textAlign:"right",cursor:gastoMayorDelMes?"pointer":"default" }}>
-              <div style={{ fontSize:10,color:"#64748b",fontWeight:800 }}>MAYOR GASTO</div>
-              <div style={{ fontFamily:"'Space Mono',monospace",fontSize:11,fontWeight:800,color:"#f87171",whiteSpace:"nowrap" }}>{gastoMayorDelMes?fmtARS(toARS_(gastoMayorDelMes)):fmtARS(0)}</div>
-            </div>
-          </div>
-
-          {cantidadAlertasProximas > 0 && (
-            <div className="card" onClick={() => setView("vencimientos")} style={{ border:"1px solid #f8717144",background:"linear-gradient(135deg,#1a1010,#241111)",cursor:"pointer",padding:12,borderRadius:16,marginBottom:10 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:7, marginBottom:6 }}>
-                <div style={{ fontSize:18 }}>⚠️</div>
-                <div style={{ fontSize:12, fontWeight:800, color:"#fca5a5", flex:1 }}>Vencimientos próximos: {cantidadAlertasProximas}</div>
-                <div style={{ fontSize:20, color:"#fca5a5" }}>›</div>
-              </div>
-              <div style={{ fontSize:11, color:"#cbd5e1", marginBottom:4 }}>Total a cubrir: <span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(totalAlertasProximas)}</span></div>
-              {mayorAlertaProxima && (<div style={{ fontSize:10, color:"#94a3b8" }}>Próximo foco: <span style={{ color:"#e2e8f0", fontWeight:700 }}>{mayorAlertaProxima.servicio}</span>{" · "}<span style={{ color:"#fca5a5", fontWeight:800 }}>{fmtARS(mayorAlertaProxima.montoARS)}</span>{" · "}<span>{mayorAlertaProxima.dias === 0 ? "vence hoy" : `vence en ${mayorAlertaProxima.dias} día${mayorAlertaProxima.dias > 1 ? "s" : ""}`}</span></div>)}
-            </div>
-          )}
-
-          {topCategoriasHome.length>0&&<div className="card" style={{ padding:12,borderRadius:16,marginBottom:10 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-              <div>
-                <div style={{ fontSize:10,color:"#94a3b8",fontWeight:800,letterSpacing:1,textTransform:"uppercase" }}>Principales categorías</div>
-                <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>Top 3 del mes. Tocá una para ver el detalle.</div>
-              </div>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",fontSize:11,padding:"6px 8px" }} onClick={()=>setView("analisis")}>Analizar</button>
-            </div>
-            {topCategoriasHome.map((cat,idx)=>{
-              const pctCat=totalGastos>0?Math.round((cat.total/totalGastos)*100):0;
-              return(<div key={cat.id} onClick={()=>{ setFiltroCatInicio(cat.id); setFiltroEstado("todos"); setView("resumen"); }} style={{ padding:"8px 0",borderBottom:idx<topCategoriasHome.length-1?"1px solid #1e1e2e":"none",cursor:"pointer" }}>
-                <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,marginBottom:6 }}>
-                  <div style={{ display:"flex",alignItems:"center",gap:9,minWidth:0 }}>
-                    <div style={{ width:22,height:22,borderRadius:8,background:`${cat.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:900,color:cat.color,flexShrink:0 }}>{idx+1}</div>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:13,fontWeight:900,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.label}</div>
-                      <div style={{ fontSize:10,color:"#64748b" }}>{cat.items.length} ítem{cat.items.length===1?"":"s"} · {pctCat}% del gasto</div>
-                    </div>
-                  </div>
-                  <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:900,color:cat.color,whiteSpace:"nowrap",textAlign:"right" }}>{fmtARS(cat.total)}</div>
-                </div>
-                <div style={{ height:4,borderRadius:4,background:"#1e1e2e",overflow:"hidden" }}><div style={{ height:"100%",width:`${Math.min(pctCat,100)}%`,background:cat.color,borderRadius:4 }}/></div>
-              </div>);
-            })}
-            {categoriasConGasto.length>3&&(
-              <button className="pb" style={{ width:"100%",background:"#1e1e2e",color:"#cbd5e1",marginTop:10,padding:"9px 12px",fontSize:12,border:"1px solid #2a2a3e" }} onClick={()=>{ setFiltroCatInicio(null); setFiltroEstado("todos"); setView("resumen"); }}>
-                Ver detalle completo →
-              </button>
-            )}
-          </div>}
-
-          {/* Card replicar mes */}
-          {mostrarReplicar()&&<div style={{ background:"linear-gradient(135deg,#15111f 0%,#0f172a 100%)",border:"1px solid #2a1a4e",borderRadius:16,padding:"10px 11px",marginBottom:10 }}>
-            <div style={{ display:"flex",alignItems:"center",gap:9,marginBottom:10 }}>
-              <div style={{ width:26,height:26,borderRadius:9,background:"#7c3aed22",display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0 }}>📋</div>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontWeight:800,fontSize:12 }}>Preparar próximo mes</div>
-                <div style={{ fontSize:10,color:"#94a3b8",marginTop:1 }}>Copiá los gastos frecuentes de {MESES[mes.m]} como base para {mesNombreSig()}.</div>
-              </div>
-            </div>
-            <div style={{ display:"flex",gap:10 }}>
-              <button className="pb" style={{ flex:1,background:"#7c3aed",color:"#fff",fontSize:12,padding:"8px 10px" }} onClick={()=>{ setExcluirReplicar(new Set()); setFiltCatReplicar("todos"); setReplicarStep("modal"); }}>Replicar gastos</button>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#64748b",fontSize:12,padding:"8px 10px" }} onClick={()=>setPrepararMesOculto(mesKey)}>Ahora no</button>
-            </div>
-          </div>}
-
-          {gastosDelMes.length===0&&<div style={{ textAlign:"center",padding:"40px 0",color:"#64748b" }}><div style={{ fontSize:40,marginBottom:12 }}>💸</div><div style={{ fontWeight:600 }}>Sin gastos este mes</div><div style={{ fontSize:12,marginTop:6 }}>Cargá el primer gasto y el resumen se arma automáticamente.</div></div>}
-        </>)}
+        {view==="home"&&<PremiumHome gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} onNavigate={setView} onEdit={openEdit} canReplicate={mostrarReplicar()} onReplicate={()=>{setExcluirReplicar(new Set());setFiltCatReplicar("todos");setReplicarStep("modal");}}/>}
 
         {/* CARGAR */}
-        {view==="cargar"&&(<>
-          <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-            <div style={{ fontWeight:700,fontSize:18 }}>Cargar gasto</div>
-            <button className="pb" style={{ background:"#1a1230",color:"#7c3aed",fontSize:13,padding:"8px 14px",border:"1px solid #2a1a4e" }} onClick={()=>setShowCotizador(!showCotizador)}>💵 {showCotizador?"Ocultar":"Ver dólar"}</button>
-          </div>
-          {showCotizador&&<CotizadorWidget onSelectTC={(valor,tipo)=>{ setCfg(p=>({...p,tipoCambio:valor})); toast_(`TC ${tipo}: $${valor.toLocaleString("es-AR")}`); setShowCotizador(false); }}/>}
-          <div style={{ marginBottom:14, background:"#101827", border:"1px solid #1e293b", borderRadius:16, padding:14 }}>
-            <div style={{ fontSize:11, color:"#38bdf8", fontWeight:800, letterSpacing:1, marginBottom:12 }}>
-              CARGA SIMPLE
-            </div>
-
-            <div style={{ marginBottom:14 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                <span style={lbl}>¿QUÉ PAGASTE?</span>
-                <span style={{ fontSize:11,color:"#64748b" }}>
-                  elegí de la lista o escribí uno nuevo
-                </span>
-              </div>
-
-              <div style={{ position:"relative", marginBottom:10 }}>
-                <input
-                  className="inf"
-                  placeholder="Ej: Caruso, Nafta, Panadería"
-                  value={form.servicio}
-                  onChange={e=>{
-  const val=e.target.value;
-  setMostrarTodosConceptos(false);
-  setForm(f=>({
-    ...f,
-    conceptoId:"",
-    servicio:val,
-    categoriaGastoId:"",
-    etiquetasIds:[],
-    categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
-    formaPago:f.formaPago||formaPagoLegacyDesdeInstrumentoId(f.instrumentoId),
-    decisionManual:false,
-    crearConceptoPendiente:false
-  }));
-}}
-                  style={{ paddingRight: form.servicio ? 42 : undefined }}
-                />
-
-                {form.servicio && (
-                  <button
-                    type="button"
-                    onClick={()=>{
-                      setMostrarTodosConceptos(false);
-                      setForm(f=>({
-  ...f,
-  conceptoId:"",
-  servicio:"",
-  categoriaGastoId:"",
-  etiquetasIds:[],
-  decisionManual:false,
-  crearConceptoPendiente:false
-}));
-                    }}
-                    style={{
-                      position:"absolute",
-                      right:8,
-                      top:"50%",
-                      transform:"translateY(-50%)",
-                      border:"none",
-                      borderRadius:10,
-                      background:"#1e1e2e",
-                      color:"#94a3b8",
-                      width:28,
-                      height:28,
-                      cursor:"pointer",
-                      fontWeight:800
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-
-              {(cfg.conceptos || []).length > 0 && (
-                <div style={{ background:"#0b1220",border:"1px solid #1e293b",borderRadius:14,padding:10 }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                    <span style={{ fontSize:11,color:"#64748b",fontWeight:700 }}>
-                      {textoConceptoNormalizado ? `Coincidencias (${conceptosFiltrados.length})` : "Sugeridos"}
-                    </span>
-
-                    {conceptosFiltrados.length > conceptosVisibles.length && (
-                      <button
-                        className="pb"
-                        onClick={()=>setMostrarTodosConceptos(true)}
-                        style={{ background:"transparent",color:"#38bdf8",fontSize:11,padding:"2px 4px" }}
-                      >
-                        Ver todos
-                      </button>
-                    )}
-                  </div>
-
-                  {conceptosVisibles.length > 0 ? (
-                    <div style={{ display:"flex",flexWrap:"wrap",gap:6 }}>
-                      {conceptosVisibles.map(concepto=>(
-                        <button
-                          key={concepto.id}
-                          className="pb"
-                          onClick={()=>{
-                            aplicarConceptoExistente(concepto);
-                          }}
-                          style={{
-                            background:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#1e3a5f":"#1e4032"):"#1e1e2e",
-                            color:form.conceptoId===concepto.id?(concepto.monedaDefault==="USD"?"#38bdf8":"#4ade80"):"#94a3b8",
-                            fontSize:12,
-                            padding:"6px 10px",
-                            border:concepto.monedaDefault==="USD"?"1px solid #38bdf833":"none"
-                          }}
-                        >
-                          {concepto.nombre}{concepto.monedaDefault==="USD"?" 💵":""}
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize:12,color:"#64748b",lineHeight:1.45 }}>
-                      No encontré ese gasto. Podés usarlo solo esta vez o recordarlo para futuras cargas.
-                    </div>
-                  )}
-
-                  {textoConcepto && conceptoExactoOcultoCarga && (
-                    <div style={{ marginTop:10,fontSize:12,color:"#fbbf24",background:"rgba(113,63,18,.16)",border:"1px solid #f59e0b",borderRadius:12,padding:"9px 10px",lineHeight:1.45 }}>
-                      “Gastos sin clasificar” se usa solo para ordenar gastos históricos. Para nuevas cargas, escribí un concepto más específico.
-                    </div>
-                  )}
-
-                  {textoConcepto && !conceptoExacto && !conceptoExactoOcultoCarga && conceptosFiltrados.length === 0 && (
-  <div style={{ display:"grid",gap:8,marginTop:10 }}>
-    <button
-      className="pb"
-      onClick={crearConceptoDesdeTexto}
-      style={{
-        width:"100%",
-        background:"#14532d",
-        color:"#86efac",
-        border:"1px solid #22c55e66",
-        fontSize:12
-      }}
-    >
-      + Recordar “{textoConcepto}” para futuras cargas
-    </button>
-
-    <button
-      className="pb"
-      onClick={()=>setForm(f=>({
-        ...f,
-        conceptoId:"",
-        servicio:textoConcepto,
-        medioPagoId:f.medioPagoId || "mp_sin_definir",
-        instrumentoId:f.instrumentoId || "",
-        categoriaGastoId:f.categoriaGastoId || "",
-        categoria:f.categoria||categoriaLegacyDesdeMedioPagoId(f.medioPagoId || "mp_sin_definir"),
-        formaPago:f.formaPago || (f.instrumentoId ? formaPagoLegacyDesdeInstrumentoId(f.instrumentoId) : ""),
-        decisionManual:true,
-        crearConceptoPendiente:false
-      }))}
-      style={{
-        width:"100%",
-        background:"#1a1230",
-        color:"#a78bfa",
-        border:"1px dashed #7c3aed66",
-        fontSize:12
-      }}
-    >
-      Usar solo esta vez
-    </button>
-  </div>
-)}
-                </div>
-              )}
-            </div>
-
-            <div style={{ marginBottom:14,background:"linear-gradient(135deg,#111827,#131025)",border:"1px solid rgba(124,58,237,.28)",borderRadius:18,padding:"12px 13px" }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:8 }}>
-                <div>
-                  <div style={{ fontSize:12,color:cargaListaParaGuardar?"#86efac":"#ddd6fe",fontWeight:900 }}>
-                    {cargaListaParaGuardar ? "Listo para guardar" : "Faltan datos"}
-                  </div>
-                  <div style={{ fontSize:11,color:"#94a3b8",marginTop:2 }}>
-                    {datosCompletosCarga}/{validacionesCargaPreview.length} datos completos
-                  </div>
-                </div>
-                <div style={{ width:70,height:6,background:"#1e1e2e",borderRadius:999,overflow:"hidden",flexShrink:0 }}>
-                  <div style={{ width:`${progresoCargaPct}%`,height:"100%",background:cargaListaParaGuardar?"#22c55e":"#7c3aed",borderRadius:999,transition:"width .25s ease" }} />
-                </div>
-              </div>
-
-              <div style={{ fontSize:12,color:cargaListaParaGuardar?"#d1fae5":"#c4b5fd",fontWeight:800,lineHeight:1.45 }}>
-                {cargaListaParaGuardar
-                  ? resumenPreviewCarga.join(" · ")
-                  : `Pendiente: ${faltantesCargaPreview.map((item)=>item.label).join(" · ")}`}
-              </div>
-            </div>
-
-            <div style={{ marginBottom:12 }}>
-              <span style={lbl}>MEDIO DE PAGO</span>
-              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                {(cfg.mediosPago || []).map(mp=>(
-                  <button
-                    key={mp.id}
-                    className="pb"
-                    onClick={()=>setForm(f=>({
-                      ...f,
-                      medioPagoId:mp.id,
-                      categoria:categoriaLegacyDesdeMedioPagoId(mp.id)
-                    }))}
-                    style={{ background:form.medioPagoId===mp.id?(mp.color||"#38bdf8"):"#1e1e2e",color:form.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"7px 10px",border:form.medioPagoId===mp.id?"1px solid rgba(255,255,255,.18)":"1px solid transparent" }}
-                  >
-                    {mp.nombre}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom:12 }}>
-              <span style={lbl}>¿CÓMO PAGASTE?</span>
-              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                {(cfg.instrumentosPago || [])
-                  .filter((ins) => {
-                    const id = String(ins.id || "").trim().toLowerCase();
-                    const nombre = String(ins.nombre || "").trim().toLowerCase();
-                    return !id.includes("sin_definir") && nombre !== "sin definir";
-                  })
-                  .map(ins=>(
-                  <button
-                    key={ins.id}
-                    className="pb"
-                    onClick={()=>setForm(f=>({
-                      ...f,
-                      instrumentoId:ins.id,
-                      formaPago:formaPagoLegacyDesdeInstrumentoId(ins.id),
-                      decisionManual:true
-                    }))}
-                    style={{ background:form.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:form.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"7px 10px",border:form.instrumentoId===ins.id?"1px solid rgba(255,255,255,.18)":"1px solid transparent" }}
-                  >
-                    {ins.nombre}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div style={{ marginBottom:12 }}>
-              <span style={lbl}>CATEGORÍA</span>
-              <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                {(cfg.categoriasGasto || []).map(cg=>(
-                  <button
-                    key={cg.id}
-                    className="pb"
-                    onClick={()=>setForm(f=>({...f,categoriaGastoId:cg.id, decisionManual:true}))}
-                    style={{ background:form.categoriaGastoId===cg.id?(cg.color||"#38bdf8"):"#1e1e2e",color:form.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"7px 10px",border:form.categoriaGastoId===cg.id?"1px solid rgba(255,255,255,.18)":"1px solid transparent" }}
-                  >
-                    {cg.nombre}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="pb"
-              onClick={() => setMostrarOpcionesCarga((v) => !v)}
-              style={{ width:"100%",marginBottom:12,background:mostrarOpcionesCarga?"#1a1230":"#1e1e2e",color:mostrarOpcionesCarga?"#a78bfa":"#94a3b8",border:"1px solid #2a1a4e",fontSize:13 }}
-            >
-              {mostrarOpcionesCarga ? "Ocultar opciones avanzadas" : "Más opciones avanzadas"}
-            </button>
-
-            {mostrarOpcionesCarga && (
-              <div style={{ marginBottom:12 }}>
-                <span style={lbl}>TIPO / ETIQUETAS</span>
-                <div style={{ display:"flex",flexWrap:"wrap",gap:8 }}>
-                  {(cfg.etiquetas || []).map(tag=>{
-                    const activo=(form.etiquetasIds||[]).includes(tag.id);
-                    return (
-                      <button
-                        key={tag.id}
-                        className="pb"
-                        onClick={()=>setForm(f=>{
-                          const actuales=f.etiquetasIds||[];
-                          return {...f,etiquetasIds: actuales.includes(tag.id)?actuales.filter(x=>x!==tag.id):[...actuales,tag.id]};
-                        })}
-                        style={{ background:activo?(tag.color||"#38bdf8"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}
-                      >
-                        {tag.nombre}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {mostrarOpcionesCarga && <>
-          <div style={{ marginBottom:14 }}>
-            <span style={lbl}>DESGLOSE DEL GASTO</span>
-            <div style={{ display:"flex", gap:8 }}>
-              <button
-                className="pb"
-                onClick={() => setForm((f) => ({
-                  ...f,
-                  tipoGasto:"simple",
-                  accionCompuesto:"nuevo",
-                  monto:"",
-                  decisionManual:true,
-                  subconceptos:[]
-                }))}
-                style={{
-                  background: form.tipoGasto==="simple" ? "#7c3aed" : "#1e1e2e",
-                  color: form.tipoGasto==="simple" ? "#fff" : "#94a3b8",
-                  fontSize: 13
-                }}
-              >
-                Sin desglose
-              </button>
-
-              <button
-                className="pb"
-                onClick={() => setForm((f) => ({
-                  ...f,
-                  tipoGasto:"detalle",
-                  monto:""
-                }))}
-                style={{
-                  background: form.tipoGasto==="detalle" ? "#7c3aed" : "#1e1e2e",
-                  color: form.tipoGasto==="detalle" ? "#fff" : "#94a3b8",
-                  fontSize: 13
-                }}
-              >
-                Agregar desglose
-              </button>
-            </div>
-
-            <div style={{ marginTop:8,fontSize:11,color:"#94a3b8",lineHeight:1.45 }}>
-              Usá desglose cuando un mismo pago incluye varios ítems. Si pagaste con medios distintos, cargalos como movimientos separados.
-            </div>
-
-            {form.tipoGasto === "detalle" && (
-              <div style={{ marginTop:8,fontSize:12,color:"#38bdf8",background:"rgba(30,58,95,.16)",border:"1px solid #38bdf8",borderRadius:12,padding:"9px 10px",lineHeight:1.45 }}>
-                Este gasto se guardará como un solo movimiento con ítems internos.
-              </div>
-            )}
-          </div>
-
-          {form.servicio && gastoCompuestoExistente && (
-            <div style={{
-              marginBottom: 14,
-              background: "#13131a",
-              border: "1px solid #2a2a3e",
-              borderRadius: 14,
-              padding: "12px 14px"
-            }}>
-              <div style={{ fontSize:11, color:"#64748b", marginBottom:6 }}>
-                {contarRepeticionesServicio(form.servicio) >= 2
-                  ? "Detectamos múltiples cargas similares este mes"
-                  : "Encontramos un gasto similar este mes"}
-              </div>
-
-              <div style={{ fontSize: 12, color: "#64748b", marginBottom: 8 }}>
-                Ya existe un gasto similar este mes
-              </div>
-
-              <div style={{ fontWeight: 600, marginBottom: 10 }}>
-                {gastoCompuestoExistente.servicio} — {fmtMonto(
-                  gastoCompuestoExistente.monto,
-                  gastoCompuestoExistente.moneda || form.moneda
-                )}
-              </div>
-
-              <div style={{ display:"flex", gap:8 }}>
-                <button
-                  className="pb"
-                  onClick={() => setForm((f) => ({ ...f, accionCompuesto:"existente", decisionManual:true }))}
-                  style={{
-                    background: form.accionCompuesto==="existente" ? "#14532d" : "#1e1e2e",
-                    color: form.accionCompuesto==="existente" ? "#4ade80" : "#94a3b8",
-                    border: form.accionCompuesto==="existente" ? "1px solid #4ade80" : "1px solid transparent",
-                    fontSize: 12
-                  }}
-                >
-                  Sumar al gasto existente
-                </button>
-
-                <button
-                  className="pb"
-                  onClick={() => setForm((f) => ({ ...f, accionCompuesto:"nuevo", decisionManual:true }))}
-                  style={{
-                    background: form.accionCompuesto==="nuevo" ? "#1e3a5f" : "#1e1e2e",
-                    color: form.accionCompuesto==="nuevo" ? "#38bdf8" : "#94a3b8",
-                    border: form.accionCompuesto==="nuevo" ? "1px solid #38bdf8" : "1px solid transparent",
-                    fontSize: 12
-                  }}
-                >
-                  Guardar como nuevo movimiento
-                </button>
-              </div>
-            </div>
-          )}
-
-	           </>}
-
-          {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
-          {/* Si es concepto dólar, mostrar desglose; si no, monto normal */}
-{form.tipoGasto === "detalle" ? (
-  <>
-    {/* Selector de moneda */}
-    <div style={{ marginBottom:10 }}>
-      <div style={{ display:"flex",gap:8 }}>
-        <button
-          className="pb"
-          onClick={() => setForm(f => ({ ...f, moneda:"ARS" }))}
-          style={{
-            background: form.moneda==="ARS" ? "#7c3aed" : "#1e1e2e",
-            color: form.moneda==="ARS" ? "#fff" : "#94a3b8"
-          }}
-        >
-          $ARS
-        </button>
-
-        <button
-          className="pb"
-          onClick={() => setForm(f => ({ ...f, moneda:"USD" }))}
-          style={{
-            background: form.moneda==="USD" ? "#1e3a5f" : "#1e1e2e",
-            color: form.moneda==="USD" ? "#38bdf8" : "#94a3b8"
-          }}
-        >
-          💵 USD
-        </button>
-      </div>
-    </div>
-
-    {/* Bloque de desglose */}
-    <div style={{
-      marginBottom:14,
-      background:"#0f1a2e",
-      border:"1px solid #1e3a5f",
-      borderRadius:16,
-      padding:"14px 16px"
-    }}>
-      <div style={{
-        fontSize:11,
-        color:"#38bdf8",
-        fontWeight:700,
-        letterSpacing:1,
-        marginBottom:10
-      }}>
-        🧾 DESGLOSE — {form.moneda}
-        {form.moneda === "USD" ? ` — TC $${tc.toLocaleString("es-AR")}` : ""}
-      </div>
-
-      {form.subconceptos.length > 0 && form.subconceptos.map((s,i) => (
-        <div
-          key={i}
-          style={{
-            display:"flex",
-            justifyContent:"space-between",
-            padding:"4px 0",
-            fontSize:13
-          }}
-        >
-          <span>{s.nombre}</span>
-          <span style={{
-            color:"#38bdf8",
-            fontFamily:"'Space Mono',monospace"
-          }}>
-            {fmtMonto(
-              Number(s.monto ?? s.montoUSD ?? 0),
-              s.moneda || form.moneda
-            )}
-          </span>
-        </div>
-      ))}
-
-      {form.subconceptos.length > 0 && (
-        <div style={{
-          borderTop:"1px solid #1e3a5f",
-          marginTop:8,
-          paddingTop:8,
-          display:"flex",
-          justifyContent:"space-between"
-        }}>
-          <span style={{ color:"#64748b",fontSize:13 }}>Total</span>
-
-          <div style={{ textAlign:"right" }}>
-            <div style={{
-              color:"#38bdf8",
-              fontFamily:"'Space Mono',monospace",
-              fontSize:14,
-              fontWeight:700
-            }}>
-              {fmtARS(
-                form.subconceptos.reduce(
-                  (a, s) => a + (
-                    String(s.moneda || form.moneda || "ARS").toUpperCase() === "USD"
-                      ? Number(s.monto ?? s.montoUSD ?? 0) * Number(s.tipoCambio || tc || 1)
-                      : Number(s.monto ?? s.montoUSD ?? 0)
-                  ),
-                  0
-                )
-              )}
-            </div>
-
-            {form.subconceptos.some((s) => String(s.moneda || form.moneda || "ARS").toUpperCase() === "USD") && (
-              <div style={{ fontSize:11,color:"#a78bfa" }}>
-                {fmtUSD(
-                  form.subconceptos.reduce(
-                    (a, s) => a + (
-                      String(s.moneda || form.moneda || "ARS").toUpperCase() === "USD"
-                        ? Number(s.monto ?? s.montoUSD ?? 0)
-                        : 0
-                    ),
-                    0
-                  )
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <button
-  onClick={() =>
-  abrirSubconceptosConCotizacion({
-    ...form,
-    id: "new_" + Date.now(),
-    moneda: form.moneda || "ARS"
-  })
-}
-  style={{ width:"100%",background:"#1e3a5f",border:"none",color:"#38bdf8",borderRadius:12,padding:"10px 0",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:700,fontSize:14,marginTop:10 }}
->
-  {form.subconceptos.length>0 ? "✏️ Editar desglose" : "+ Agregar ítems al desglose"}
-</button>
-    </div>
-  </>
-) : (
-  <>
-    <div style={{ marginBottom:10 }}>
-      <span style={lbl}>¿CUÁNTO?</span>
-      <input
-        className="inf"
-        type="number"
-        placeholder="0"
-        value={form.monto}
-        onChange={e=>setForm(f=>({...f,monto:e.target.value}))}
-        inputMode="decimal"
-      />
-    </div>
-
-    <div style={{ marginBottom:14 }}>
-      <span style={lbl}>MONEDA</span>
-      <div style={{ display:"flex",gap:8 }}>
-        <button
-          className="pb"
-          onClick={() => setForm(f => ({ ...f, moneda:"ARS" }))}
-          style={{
-            flex:1,
-            background: form.moneda==="ARS" ? "#7c3aed" : "#1e1e2e",
-            color: form.moneda==="ARS" ? "#fff" : "#94a3b8"
-          }}
-        >
-          $ ARS
-        </button>
-
-        <button
-          className="pb"
-          onClick={() => setForm(f => ({ ...f, moneda:"USD" }))}
-          style={{
-            flex:1,
-            background: form.moneda==="USD" ? "#1e3a5f" : "#1e1e2e",
-            color: form.moneda==="USD" ? "#38bdf8" : "#94a3b8"
-          }}
-        >
-          💵 USD
-        </button>
-      </div>
-
-      {form.moneda === "USD" && (
-        <div style={{ fontSize:11,color:"#38bdf8",marginTop:6,lineHeight:1.4 }}>
-          Se tomará como referencia el tipo de cambio actual: ${tc.toLocaleString("es-AR")}
-        </div>
-      )}
-    </div>
-  </>
-)}
-
-          <div style={{ marginBottom:14 }}><span style={lbl}>ESTADO</span><div style={{ display:"flex",gap:8 }}><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pagado"}))} style={{ background:form.estado==="pagado"?"#14532d":"#1e1e2e",color:form.estado==="pagado"?"#4ade80":"#64748b",border:form.estado==="pagado"?"2px solid #4ade80":"2px solid transparent" }}>✅ Pagado</button><button className="pb" onClick={()=>setForm(f=>({...f,estado:"pendiente"}))} style={{ background:form.estado==="pendiente"?"#422006":"#1e1e2e",color:form.estado==="pendiente"?"#fb923c":"#64748b",border:form.estado==="pendiente"?"2px solid #fb923c":"2px solid transparent" }}>⏳ Pendiente</button></div></div>
-          <div style={{ display:"flex",gap:10,marginBottom:14 }}><div style={{ flex:1 }}><span style={lbl}>DÍA</span><input className="inf" type="number" placeholder={now.getDate()} value={form.dia} onChange={e=>setForm(f=>({...f,dia:e.target.value}))} inputMode="numeric"/></div></div>
-          {(mostrarOpcionesCarga || form.estado === "pendiente") && (
-          <div style={{ marginBottom:14 }}><span style={lbl}>📅 VENCIMIENTO</span><input className="inf" type="date" style={{ colorScheme:"dark" }} value={form.vencimiento} onChange={e=>setForm(f=>({...f,vencimiento:e.target.value}))}/>{form.estado === "pendiente" && !form.vencimiento && <div style={{ fontSize:11,color:"#fb923c",marginTop:6,lineHeight:1.4 }}>Recomendado para recordar cuándo hay que pagarlo.</div>}{form.vencimiento&&(()=>{const dias=diasRestantes(form.vencimiento);const s=semaforo(dias);return s?<div style={{ fontSize:12,color:s.color,marginTop:6,fontWeight:600 }}>{s.icon} {dias===0?"¡Hoy!":dias<0?`Venció hace ${Math.abs(dias)}d`:`Faltan ${dias}d`}</div>:null;})()}</div>
-          )}
-          <div
-            onClick={() => setForm(f => ({
-              ...f,
-              requiereRevision: !f.requiereRevision,
-              motivoRevision: !f.requiereRevision ? "REVISAR_MANUAL" : null,
-              origenMovimiento: !f.requiereRevision ? "CARGA_MANUAL" : null,
-            }))}
-            style={{
-              marginBottom:14,
-              background: form.requiereRevision
-                ? "linear-gradient(135deg,rgba(124,58,237,.20),rgba(30,41,59,.52))"
-                : "#13131a",
-              border: form.requiereRevision
-                ? "1px solid rgba(167,139,250,.55)"
-                : "1px solid #1e1e2e",
-              borderRadius:16,
-              padding:"12px 14px",
-              display:"flex",
-              alignItems:"center",
-              justifyContent:"space-between",
-              gap:12,
-              cursor:"pointer",
-              boxShadow: form.requiereRevision ? "0 12px 28px rgba(124,58,237,.12)" : "none"
-            }}
-          >
-            <div>
-              <div style={{ fontSize:14,fontWeight:900,color:form.requiereRevision?"#ddd6fe":"#cbd5e1",display:"flex",gap:6,alignItems:"center" }}>
-                🔎 Revisar después
-              </div>
-              <div style={{ fontSize:11,color:"#94a3b8",lineHeight:1.35,marginTop:4 }}>
-                Marcá este gasto si necesitás controlar monto, factura o vencimiento más tarde.
-              </div>
-              {form.requiereRevision && (
-                <div style={{ marginTop:8,fontSize:11,color:"#c4b5fd",background:"rgba(124,58,237,.13)",border:"1px solid rgba(167,139,250,.28)",borderRadius:10,padding:"7px 9px" }}>
-                  Se verá con badge “Revisar” y, si no tiene vencimiento confirmado, aparecerá en Pendientes de revisar.
-                </div>
-              )}
-            </div>
-            <div style={{
-              flexShrink:0,
-              minWidth:54,
-              textAlign:"center",
-              padding:"8px 12px",
-              borderRadius:999,
-              background:form.requiereRevision?"#7c3aed":"#1e1e2e",
-              color:form.requiereRevision?"#fff":"#cbd5e1",
-              fontWeight:900,
-              fontSize:13,
-              border:form.requiereRevision?"1px solid #a78bfa":"1px solid #334155"
-            }}>
-              {form.requiereRevision ? "Sí" : "No"}
-            </div>
-          </div>
-
-          {mostrarOpcionesCarga && <>
-          <div style={{ marginBottom:14 }}><span style={lbl}>OBSERVACIÓN</span><input className="inf" placeholder="Ej: Cuota 2" value={form.observacion} onChange={e=>setForm(f=>({...f,observacion:e.target.value}))}/></div>
-          <div style={{ marginBottom:20,display:"flex",alignItems:"center",gap:12,background:"#13131a",borderRadius:14,padding:"12px 14px",border:"1px solid #1e1e2e",cursor:"pointer" }} onClick={()=>setForm(f=>({...f,esRecurrente:!f.esRecurrente}))}>
-            <div style={{ width:20,height:20,borderRadius:6,border:"2px solid #7c3aed",background:form.esRecurrente?"#7c3aed":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{form.esRecurrente&&<span style={{ color:"#fff",fontSize:13 }}>✓</span>}</div>
-            <div><div style={{ fontSize:14,fontWeight:600 }}>Guardar como recurrente</div><div style={{ fontSize:11,color:"#64748b" }}>Aparecerá cada mes para cargarlo fácil</div></div>
-          </div>
-          </>}
-          
-		    {form.servicio && gastoCompuestoExistente && (
-  <div style={{
-    marginBottom: 12,
-    fontSize: 12,
-    color: form.accionCompuesto === "existente" ? "#4ade80" : "#38bdf8"
-  }}>
-    {form.accionCompuesto === "existente"
-      ? "Se va a agregar al gasto existente."
-      : "Se va a crear un gasto nuevo independiente."}
-  </div>
-)}
-		  
-		  <button
-  className="pb"
-  style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }}
-  disabled={guardandoGasto}
-  onClick={async () => {
-    if (form.estado === "pendiente" && !form.vencimiento && !form.requiereRevision) {
-      toast_("Agregá una fecha de vencimiento para guardar este gasto como pendiente, o marcá Revisar después.", "err");
-      return;
-    }
-    if (form.tipoGasto === "detalle" && form.subconceptos.length === 0) {
-      toast_("Primero agregá ítems al desglose y guardá el desglose", "err");
-      abrirSubconceptosConCotizacion({
-        ...form,
-        id: "new_" + Date.now(),
-        moneda: form.moneda || "ARS",
-        subconceptos: form.subconceptos || [],
-      });
-      return;
-    }
-    await guardarGasto();
-  }}
->
-  {guardandoGasto ? "Guardando…" : "Guardar gasto"}
-  </button>
-        </>)}
+        {view==="cargar"&&<>
+          <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button></div>
+          <ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>
+          {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
+          <button className="primary form-submit" disabled={guardandoGasto} onClick={async()=>{
+            if(form.estado==="pendiente"&&!form.vencimiento&&!form.requiereRevision){toast_("Agregá una fecha de vencimiento o marcá Revisar después.","err");return;}
+            if(form.tipoGasto==="detalle"&&!form.subconceptos.length){toast_("Agregá los ítems y guardá el desglose.","err");abrirSubconceptosConCotizacion({...form,id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:[]});return;}
+            await guardarGasto();
+          }}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button>
+          <p className="form-note">Se guardará en {MESES[mes.m].toLowerCase()} de {mes.y}.</p>
+          <button className="text-button" onClick={()=>setShowCotizador(!showCotizador)}>{showCotizador?"Ocultar cotización":"Consultar cotización del dólar"}</button>
+          {showCotizador&&<CotizadorWidget onSelectTC={(valor,tipo)=>{setCfg(p=>({...p,tipoCambio:valor}));toast_(`Cotización ${tipo}: ${fmtARS(valor)}`);setShowCotizador(false);}}/>}
+        </>}
 
         {/* DETALLE / RESUMEN */}
         {view==="resumen"&&(
@@ -3533,7 +2419,7 @@ if (!authUser) {
                       <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{porcentajeGrupo}% del filtro</div>
                     </div>
                   </div>
-                  {cat.items.map(item => (<GastoRow key={item.id} item={item}/>))}
+                  {cat.items.map(item => (<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} onDelete={g=>setConfirmDel({...g,tipo:"gastos"})}/>))}
                 </div>
               );
             })}
@@ -3622,62 +2508,7 @@ if (!authUser) {
         {view==="ingresos"&&(
           <IngresosView mes={mes} cambiarMes={cambiarMes}>
 
-          <div className="card" style={{ position:"relative",overflow:"hidden",background:"radial-gradient(circle at top right,#22c55e44 0%,transparent 36%),linear-gradient(135deg,#102018 0%,#111827 58%,#1a1230 100%)",border:"1px solid #22c55e55",padding:14,borderRadius:18 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",gap:12,alignItems:"flex-start",position:"relative" }}>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:10,color:"#86efac",fontWeight:900,letterSpacing:1,textTransform:"uppercase",marginBottom:5 }}>Ingresos del mes</div>
-                <div style={{ fontFamily:"'Space Mono',monospace",fontSize:30,fontWeight:900,color:"#4ade80",lineHeight:1.05 }}>{fmtARS(totalIngresos)}</div>
-                <div style={{ fontSize:11,color:"#94a3b8",marginTop:5 }}>
-                  {movimientosIngresosMes} movimiento{movimientosIngresosMes!==1?"s":""} · {ingresosHoy>0?`${fmtARS(ingresosHoy)} hoy`:"Hoy sin ingresos"}
-                </div>
-              </div>
-              <div style={{ minWidth:92,textAlign:"right",background:tieneIngresosMesAnterior?(variacionIngresos>=0?"#052e16":"#2a1212"):"#1e1e2e",border:`1px solid ${tieneIngresosMesAnterior?(variacionIngresos>=0?"#22c55e55":"#f8717155"):"#334155"}`,borderRadius:14,padding:"8px 9px" }}>
-                <div style={{ fontSize:9,color:"#94a3b8",fontWeight:900,textTransform:"uppercase" }}>vs mes anterior</div>
-                <div style={{ fontSize:15,fontWeight:900,color:tieneIngresosMesAnterior?(variacionIngresos>=0?"#4ade80":"#f87171"):"#cbd5e1",lineHeight:1.1 }}>
-                  {tieneIngresosMesAnterior ? `${variacionIngresos>=0?"▲":"▼"} ${variacionIngresosPct!==null?`${Math.abs(variacionIngresosPct)}%`:fmtARS(Math.abs(variacionIngresos))}` : "Sin base"}
-                </div>
-                <div style={{ fontSize:9,color:"#64748b",marginTop:3 }}>{mesAnteriorInfo.label}</div>
-              </div>
-            </div>
-            {tieneIngresosMesAnterior&&(
-              <div style={{ fontSize:11,color:"#94a3b8",marginTop:10 }}>
-                {variacionIngresos===0
-                  ? "Ingresaste lo mismo que el mes anterior."
-                  : variacionIngresos>0
-                    ? `Ingresaste ${fmtARS(Math.abs(variacionIngresos))} más que ${mesAnteriorInfo.label}.`
-                    : `Ingresaste ${fmtARS(Math.abs(variacionIngresos))} menos que ${mesAnteriorInfo.label}.`}
-              </div>
-            )}
-          </div>
-
-          <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:10 }}>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>SUELDO FIJO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#4ade80" }}>{fmtARS(sueldoDelMes)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>Base mensual</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>VARIABLE</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#38bdf8" }}>{fmtARS(totalIngresosExtras)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{ingresosDelMes.length} carga{ingresosDelMes.length!==1?"s":""}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>PROM. POR CARGA</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#fbbf24" }}>{ingresosDelMes.length>0?fmtARS(promedioPorCargaIngreso):"$ 0"}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>sobre {ingresosDelMes.length} ingreso{ingresosDelMes.length!==1?"s":""} variable{ingresosDelMes.length!==1?"s":""}</div></div>
-            <div className="card" style={{ padding:11 }}><span style={lbl}>ÚLTIMO INGRESO</span><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:900,color:"#a78bfa" }}>{ultimoIngresoVariable?fmtARS(ultimoIngresoVariable.monto):"$ 0"}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{ultimoIngresoVariable?`Día ${ultimoIngresoVariable.dia} · ${normalizarFuenteIngreso(ultimoIngresoVariable.fuente)}`:"Sin cargas variables"}</div></div>
-          </div>
-
-          <div className="card" style={{ border:"1px solid #2563eb55",background:"#0f172a",padding:11 }}>
-            <div style={{ display:"flex",gap:10,alignItems:"flex-start" }}>
-              <div style={{ width:28,height:28,borderRadius:11,display:"grid",placeItems:"center",background:"#1e3a8a",fontSize:15 }}>💡</div>
-              <div style={{ minWidth:0 }}>
-                <div style={{ fontSize:11,color:"#38bdf8",fontWeight:900,letterSpacing:.8,textTransform:"uppercase" }}>Resumen</div>
-                <div style={{ fontSize:13,fontWeight:800,color:"#e2e8f0",lineHeight:1.35,marginTop:3 }}>
-                  {totalIngresos<=0
-                    ? "Todavía no hay ingresos cargados para este mes."
-                    : totalIngresosExtras>0
-                      ? `Sumaste ${fmtARS(totalIngresosExtras)} en ingresos variables reales del mes.`
-                      : "Este mes se sostiene principalmente con ingresos fijos."}
-                </div>
-                <div style={{ fontSize:11,color:"#94a3b8",marginTop:4 }}>
-                  {tieneIngresosMesAnterior
-                    ? (variacionIngresos>=0 ? "La tendencia viene mejor que el mes anterior." : "La tendencia viene por debajo del mes anterior.")
-                    : "No hay base del mes anterior para comparar."}
-                </div>
-              </div>
-            </div>
-          </div>
-
+          <section className="report-total"><span className="eyebrow muted">Ingresos del mes</span><div className="money" style={{color:"var(--mint)"}}>{fmtARS(totalIngresos)}</div><p className="muted">{tieneIngresosMesAnterior?(variacionIngresos===0?"Sin cambios respecto al mes anterior.":`${fmtARS(Math.abs(variacionIngresos))} ${variacionIngresos>0?"más":"menos"} que el mes anterior.`):"Todavía no hay un mes anterior para comparar."}</p></section>
           <div className="card" style={{ padding:12,border:"1px solid #22c55e33" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
               <div><span style={lbl}>SUELDO DEL MES</span><div style={{ fontSize:11,color:"#64748b" }}>Ingreso fijo usado para calcular saldo y margen.</div></div>
@@ -3691,7 +2522,7 @@ if (!authUser) {
 
           <div className="card" style={{ padding:12,border:"1px solid #22c55e44",background:"linear-gradient(135deg,#0f1f17,#101827)" }}>
             <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
-              <div><span style={lbl}>INGRESO VARIABLE</span><div style={{ fontSize:11,color:"#94a3b8" }}>Cargá ventas, extras, cobros o trabajos del día.</div></div><div style={{ fontSize:18 }}>⚡</div>
+              <div><span style={lbl}>INGRESO VARIABLE</span><div style={{ fontSize:11,color:"#94a3b8" }}>Cargá ventas, extras, cobros o trabajos del día.</div></div><UiIcon name="down" size={19}/>
             </div>
             <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:10 }}>{[...new Set([...(cfg.fuentesIngreso || []), ...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))].map(f=>(<button key={f} className="pb" disabled={guardarIngresoLoading} onClick={()=>setIngForm(i=>({...i,fuente:f}))} style={{ background:ingForm.fuente===f?"#14532d":"#1e1e2e",color:ingForm.fuente===f?"#4ade80":"#94a3b8",fontSize:12,padding:"7px 10px",border:ingForm.fuente===f?"1px solid #22c55e66":"1px solid #2a2a3e",opacity:guardarIngresoLoading?0.6:1 }}>{f}</button>))}</div>
             <div style={{ display:"grid",gridTemplateColumns:"1fr 86px",gap:8,marginBottom:10 }}>
@@ -3766,30 +2597,8 @@ if (!authUser) {
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
-          <div className="card" style={{ padding:14,border:"1px solid #334155",background:"radial-gradient(circle at top right,#7c3aed33 0%,transparent 38%),linear-gradient(180deg,#111827,#0f172a)",marginBottom:14 }}>
-            <div style={{ fontSize:11,color:"#a78bfa",fontWeight:900,letterSpacing:1.4,textTransform:"uppercase",marginBottom:5 }}>Mis Finanzas</div>
-            <div style={{ fontSize:21,fontWeight:900,marginBottom:6,lineHeight:1.08 }}>Ajustes</div>
-            <div style={{ fontSize:12,color:"#93c5fd",lineHeight:1.5,marginBottom:12 }}>
-              Configurá cómo se cargan, clasifican y respaldan tus datos. Lo diario queda arriba; lo técnico y sensible queda separado.
-            </div>
-            <div style={{ display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7 }}>
-              {[
-                ["Conceptos",(cfg.conceptos||[]).length],
-                ["Medios",(cfg.mediosPago||[]).filter(m=>m.activo!==false).length],
-                ["Categorías",(cfg.categoriasGasto||[]).filter(c=>c.activo!==false).length],
-                ["Etiquetas",(cfg.etiquetas||[]).filter(e=>e.activo!==false).length],
-              ].map(([label,val])=>(<div key={label} style={{ background:"#0f172a",border:"1px solid #1e293b",borderRadius:12,padding:"8px 7px" }}><div style={{ fontSize:9,color:"#64748b",fontWeight:900,textTransform:"uppercase" }}>{label}</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:900,color:"#e2e8f0",marginTop:2 }}>{val}</div></div>))}
-            </div>
-          </div>
-
-          <div className="card" style={{ padding:12,marginBottom:18 }}>
-            <div style={{ fontSize:10,color:"#94a3b8",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",marginBottom:8 }}>Configuración principal</div>
-            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["conceptos","🧠 Conceptos"],["medios","💳 Medios"],["categorias","🏷️ Categorías"],["etiquetas","🏷️ Etiquetas"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
-            <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",margin:"14px 0 8px" }}>Ingresos</div>
-            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["fuentes","💰 Orígenes de ingreso"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
-            <div style={{ fontSize:10,color:"#64748b",fontWeight:900,letterSpacing:1.1,textTransform:"uppercase",margin:"14px 0 8px" }}>Herramientas</div>
-            <div style={{ display:"flex",gap:6,flexWrap:"wrap" }}>{[["tc","💵 Tipo de cambio"],["backup","💾 Backup y datos"]].map(([id,label])=>(<button key={id} className="tb" onClick={()=>setCfgTab(id)} style={{ background:cfgTab===id?"#7c3aed":"#1e1e2e",color:cfgTab===id?"#fff":"#94a3b8" }}>{label}</button>))}</div>
-          </div>
+          <p className="settings-intro">Administrá tus conceptos frecuentes, medios de pago y copias de tus datos.</p>
+          <div className="settings-tabs">{[["conceptos","Conceptos"],["medios","Medios de pago"],["fuentes","Ingresos"],["tc","Dólar"],["backup","Copias y datos"]].map(([id,label])=><button key={id} aria-pressed={cfgTab===id} onClick={()=>setCfgTab(id)}>{label}</button>)}</div>
           {cfgTab==="conceptos"&&(
             <>
               <div className="card">
@@ -3801,7 +2610,7 @@ if (!authUser) {
               {editConcepto&&(
                 <div className="card" style={{ border:"1px solid #7c3aed55" }}>
                   <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8 }}>
-                    <div style={{ fontWeight:800,fontSize:15 }}>✏️ Editar concepto</div>
+                    <div style={{ fontWeight:800,fontSize:15 }}>Editar concepto</div>
                     <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"6px 10px" }} onClick={()=>setEditConcepto(null)}>✕</button>
                   </div>
                   <span style={lbl}>NOMBRE</span>
@@ -3810,27 +2619,19 @@ if (!authUser) {
                   <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
                     {(cfg.mediosPago||[]).map(mp=><button key={mp.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,medioPagoId:mp.id}))} style={{ background:editConcepto.medioPagoId===mp.id?(mp.color||"#7c3aed"):"#1e1e2e",color:editConcepto.medioPagoId===mp.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{mp.nombre}</button>)}
                   </div>
-                  <span style={lbl}>INSTRUMENTO SUGERIDO</span>
+                  <span style={lbl}>Cómo pagás habitualmente</span>
                   <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
                     {(cfg.instrumentosPago||[]).map(ins=><button key={ins.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,instrumentoId:ins.id}))} style={{ background:editConcepto.instrumentoId===ins.id?"#7c3aed":"#1e1e2e",color:editConcepto.instrumentoId===ins.id?"#fff":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{ins.nombre}</button>)}
                   </div>
-                  <span style={lbl}>CATEGORÍA</span>
-                  <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:12 }}>
-                    {(cfg.categoriasGasto||[]).map(cg=><button key={cg.id} className="pb" onClick={()=>setEditConcepto(p=>({...p,categoriaGastoId:cg.id}))} style={{ background:editConcepto.categoriaGastoId===cg.id?(cg.color||"#7c3aed"):"#1e1e2e",color:editConcepto.categoriaGastoId===cg.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{cg.nombre}</button>)}
-                  </div>
-                  <span style={lbl}>MONEDA DEFAULT</span>
+                  <span style={lbl}>Moneda habitual</span>
                   <div style={{ display:"flex",gap:8,marginBottom:12 }}>{["ARS","USD"].map(mon=><button key={mon} className="pb" onClick={()=>setEditConcepto(p=>({...p,monedaDefault:mon}))} style={{ background:editConcepto.monedaDefault===mon?(mon==="USD"?"#1e3a5f":"#14532d"):"#1e1e2e",color:editConcepto.monedaDefault===mon?(mon==="USD"?"#38bdf8":"#4ade80"):"#94a3b8" }}>{mon}</button>)}</div>
-                  <span style={lbl}>ETIQUETAS SUGERIDAS</span>
-                  <div style={{ display:"flex",gap:6,flexWrap:"wrap",marginBottom:14 }}>
-                    {(cfg.etiquetas||[]).map(tag=>{ const activo=(editConcepto.etiquetasIds||[]).includes(tag.id); return <button key={tag.id} className="pb" onClick={()=>toggleEtiquetaConceptoEdit(tag.id)} style={{ background:activo?(tag.color||"#7c3aed"):"#1e1e2e",color:activo?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 10px" }}>{tag.nombre}</button>; })}
-                  </div>
                   <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarConceptoEditado}>Guardar concepto</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarConceptoCfg({id:editConcepto.id,nombre:editConcepto.nombre})}>Desactivar</button></div>
                 </div>
               )}
 
               <div className="card"><span style={lbl}>CONCEPTOS ACTIVOS</span>
                 {conceptosConfigFiltrados.slice(0,80).map(con=>{ const cg=(cfg.categoriasGasto||[]).find(x=>x.id===con.categoriaGastoId); const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); const tags=(con.etiquetasIds||[]).map(id=>(cfg.etiquetas||[]).find(t=>t.id===id)?.nombre).filter(Boolean); return(
-                  <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{normalizarEtiquetaVisual(cg?.nombre, "Sin categoría")} · {normalizarEtiquetaVisual(mp?.nombre, "Medio no definido")} · {normalizarEtiquetaVisual(ins?.nombre, "Manual")} · {con.monedaDefault||"ARS"}</div>{tags.length>0&&<div style={{ display:"flex",gap:5,flexWrap:"wrap",marginTop:7 }}>{tags.map(t=><span key={t} style={{ fontSize:10,background:"#1e1e2e",color:"#94a3b8",borderRadius:999,padding:"3px 7px" }}>{t}</span>)}</div>}</div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarConcepto(con)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarConceptoCfg(con)}>✕</button></div></div></div>
+                  <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{normalizarEtiquetaVisual(mp?.nombre, "Medio no definido")} · {normalizarEtiquetaVisual(ins?.nombre, "Manual")} · {con.monedaDefault||"ARS"}</div></div><div style={{ display:"flex",gap:6 }}><button className="icon-button" aria-label={`Editar concepto ${con.nombre}`} onClick={()=>abrirEditarConcepto(con)}><UiIcon name="settings" size={18}/></button><button className="icon-button" aria-label={`Desactivar concepto ${con.nombre}`} onClick={()=>desactivarConceptoCfg(con)}><UiIcon name="trash" size={18}/></button></div></div></div>
                 );})}
                 {conceptosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay conceptos con ese filtro.</div>}
               </div>
@@ -3839,7 +2640,7 @@ if (!authUser) {
           {cfgTab==="medios"&&(
             <>
               <div className="card" style={{ border:"1px solid #1e3a5f",background:"#0f172a" }}>
-                <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>💳 Medios de pago</div>
+                <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>Medios de pago</div>
                 <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6 }}>Administrá bancos, billeteras, efectivo o cuentas propias. Los cambios impactan en carga, edición, conceptos y análisis.</div>
               </div>
               <div className="card"><span style={lbl}>CREAR MEDIO DE PAGO</span>
@@ -3874,76 +2675,6 @@ if (!authUser) {
             </>
           )}
           {cfgTab==="tc"&&(<div className="card"><span style={lbl}>TIPO DE CAMBIO USD → ARS</span><div style={{ fontSize:13,color:"#64748b",marginBottom:10 }}>Actual: <strong style={{ color:"#38bdf8" }}>${tc.toLocaleString("es-AR")}</strong></div><div style={{ display:"flex",gap:10,marginBottom:12 }}><input className="inf" type="number" placeholder="Ej: 1415" value={tcInput} onChange={e=>setTcInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/><button className="pb" style={{ background:"#38bdf8",color:"#0a0a0f",fontWeight:700 }} onClick={guardarTC}>OK</button></div><CotizadorWidget onSelectTC={(valor,tipo)=>{ setCfg(p=>({...p,tipoCambio:valor})); toast_(`TC ${tipo}: $${valor.toLocaleString("es-AR")}`); }}/></div>)}
-          {cfgTab==="categorias"&&(
-            <>
-              <div className="card">
-                <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>🏷️ Categorías reales</div>
-                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6,marginBottom:14 }}>Administrá las categorías analíticas usadas para clasificar gastos: Hogar, Auto, Mascotas, Vacaciones, etc.</div>
-                <span style={lbl}>CREAR CATEGORÍA</span>
-                <input className="inf" placeholder="Ej: Mascotas, Auto, Vacaciones" value={nuevaCategoriaGasto.nombre} onChange={e=>setNuevaCategoriaGasto(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
-                <div style={{ display:"grid",gridTemplateColumns:"1fr",gap:10,marginBottom:10 }}>
-                  <input className="inf" type="number" placeholder="Orden" value={nuevaCategoriaGasto.ordenVisual} onChange={e=>setNuevaCategoriaGasto(p=>({...p,ordenVisual:e.target.value}))}/>
-                </div>
-                <span style={lbl}>COLOR</span>
-                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNuevaCategoriaGasto(p=>({...p,color:c}))} style={{ background:c,borderColor:nuevaCategoriaGasto.color===c?"#fff":"transparent",transform:nuevaCategoriaGasto.color===c?"scale(1.2)":"none" }}/>)}</div>
-                <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={crearCategoriaGastoCfg}>+ Crear categoría</button>
-              </div>
-
-              <div className="card"><span style={lbl}>BUSCAR CATEGORÍA</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaCategoriaGastoCfg} onChange={e=>setBusquedaCategoriaGastoCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{categoriasGastoConfigFiltradas.length} categoría(s) activa(s).</div></div>
-
-              {editCategoriaGasto&&(
-                <div className="card" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR CATEGORÍA</span>
-                  <input className="inf" value={editCategoriaGasto.nombre} onChange={e=>setEditCategoriaGasto(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
-                  <input className="inf" type="number" placeholder="Orden" value={editCategoriaGasto.ordenVisual} onChange={e=>setEditCategoriaGasto(p=>({...p,ordenVisual:e.target.value}))} style={{ marginBottom:10 }}/>
-                  <span style={lbl}>COLOR</span>
-                  <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setEditCategoriaGasto(p=>({...p,color:c}))} style={{ background:c,borderColor:editCategoriaGasto.color===c?"#fff":"transparent",transform:editCategoriaGasto.color===c?"scale(1.2)":"none" }}/>)}</div>
-                  <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarCategoriaGastoEditada}>Guardar categoría</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarCategoriaGastoCfg({id:editCategoriaGasto.id,nombre:editCategoriaGasto.nombre})}>Desactivar</button></div>
-                </div>
-              )}
-
-              <div className="card"><span style={lbl}>CATEGORÍAS ACTIVAS</span>
-                {categoriasGastoConfigFiltradas.map(cat=>(
-                  <div key={cat.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}><div style={{ display:"flex",alignItems:"center",gap:10,minWidth:0 }}><span style={{ width:14,height:14,borderRadius:"50%",background:cat.color||"#64748b",flexShrink:0 }}/><div style={{ minWidth:0 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{cat.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>orden {cat.ordenVisual??"—"}</div></div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarCategoriaGasto(cat)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarCategoriaGastoCfg(cat)}>✕</button></div></div></div>
-                ))}
-                {categoriasGastoConfigFiltradas.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay categorías con ese filtro.</div>}
-              </div>
-            </>
-          )}
-          {cfgTab==="etiquetas"&&(
-            <>
-              <div className="card">
-                <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>🏷️ Etiquetas</div>
-                <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6,marginBottom:14 }}>Administrá etiquetas transversales como Fijo, Variable, Emergencia, Pareja, Trabajo o No esencial.</div>
-                <span style={lbl}>CREAR ETIQUETA</span>
-                <input className="inf" placeholder="Ej: Emergencia, Pareja, No esencial" value={nuevaEtiqueta.nombre} onChange={e=>setNuevaEtiqueta(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
-                <input className="inf" type="number" placeholder="Orden" value={nuevaEtiqueta.ordenVisual} onChange={e=>setNuevaEtiqueta(p=>({...p,ordenVisual:e.target.value}))} style={{ marginBottom:10 }}/>
-                <span style={lbl}>COLOR</span>
-                <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNuevaEtiqueta(p=>({...p,color:c}))} style={{ background:c,borderColor:nuevaEtiqueta.color===c?"#fff":"transparent",transform:nuevaEtiqueta.color===c?"scale(1.2)":"none" }}/>)}</div>
-                <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={crearEtiquetaCfg}>+ Crear etiqueta</button>
-              </div>
-
-              <div className="card"><span style={lbl}>BUSCAR ETIQUETA</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaEtiquetaCfg} onChange={e=>setBusquedaEtiquetaCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{etiquetasConfigFiltradas.length} etiqueta(s) activa(s).</div></div>
-
-              {editEtiqueta&&(
-                <div className="card" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR ETIQUETA</span>
-                  <input className="inf" value={editEtiqueta.nombre} onChange={e=>setEditEtiqueta(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
-                  <input className="inf" type="number" placeholder="Orden" value={editEtiqueta.ordenVisual} onChange={e=>setEditEtiqueta(p=>({...p,ordenVisual:e.target.value}))} style={{ marginBottom:10 }}/>
-                  <span style={lbl}>COLOR</span>
-                  <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setEditEtiqueta(p=>({...p,color:c}))} style={{ background:c,borderColor:editEtiqueta.color===c?"#fff":"transparent",transform:editEtiqueta.color===c?"scale(1.2)":"none" }}/>)}</div>
-                  <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarEtiquetaEditada}>Guardar etiqueta</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarEtiquetaCfg({id:editEtiqueta.id,nombre:editEtiqueta.nombre})}>Desactivar</button></div>
-                </div>
-              )}
-
-              <div className="card"><span style={lbl}>ETIQUETAS ACTIVAS</span>
-                {etiquetasConfigFiltradas.map(tag=>(
-                  <div key={tag.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}><div style={{ display:"flex",alignItems:"center",gap:10,minWidth:0 }}><span style={{ width:14,height:14,borderRadius:"50%",background:tag.color||"#64748b",flexShrink:0 }}/><div style={{ minWidth:0 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{tag.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>orden {tag.ordenVisual??"—"}</div></div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarEtiqueta(tag)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarEtiquetaCfg(tag)}>✕</button></div></div></div>
-                ))}
-                {etiquetasConfigFiltradas.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay etiquetas con ese filtro.</div>}
-              </div>
-            </>
-          )}
-          {cfgTab==="formas"&&(<><div className="card" style={{ border:"1px solid #7c3aed55" }}><div style={{ fontWeight:900,marginBottom:6 }}>💳 Formas legacy</div><div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>Se mantienen por compatibilidad con cargas anteriores. Para el uso diario priorizá <strong>Medios de pago</strong> e <strong>Instrumentos</strong>.</div></div><div className="card"><span style={lbl}>NUEVA</span><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Ej: Crédito BBVA" value={newForma} onChange={e=>setNewForma(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={addForma}>+</button></div></div><div className="card"><span style={lbl}>ACTUALES</span>{cfg.formasPago.map((fp,idx)=>(<div key={idx}>{editForma?.idx===idx?(<div style={{ display:"flex",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e",alignItems:"center" }}><input className="ei" value={editForma.val} onChange={e=>setEditForma(ef=>({...ef,val:e.target.value}))}/><button style={ib("#14532d","#4ade80")} onClick={saveForma}>✓</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditForma(null)}>✕</button></div>):(<div style={rowS}><span style={{ fontSize:14 }}>{fp}</span><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditForma({idx,val:fp})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delForma(idx)}>✕</button></div></div>)}</div>))}</div></>)}
-          {cfgTab==="servicios"&&(<><div className="card" style={{ border:"1px solid #f9731655" }}><div style={{ fontWeight:900,marginBottom:6 }}>📝 Servicios legacy</div><div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.45 }}>Esta sección pertenece al modelo anterior. Los nuevos gastos deberían ordenarse desde <strong>Conceptos</strong>, <strong>Categorías</strong>, <strong>Medios</strong> y <strong>Etiquetas</strong>.</div></div><div className="card"><span style={lbl}>AGREGAR</span><select className="inf" value={selCatServ} onChange={e=>setSelCatServ(e.target.value)} style={{ marginBottom:10 }}><option value="">Seleccioná categoría...</option>{cfg.categorias.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}</select><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Nombre" value={newServ} onChange={e=>setNewServ(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={addServ}>+</button></div></div>{cfg.categorias.map(cat=>{ const ss=cfg.servicios[cat.id]||[]; if(!ss.length)return null; return(<div key={cat.id} className="card"><div style={{ display:"flex",alignItems:"center",gap:8,marginBottom:10 }}><div style={{ width:10,height:10,borderRadius:"50%",background:cat.color }}/><span style={{ fontWeight:700,fontSize:14,color:cat.color }}>{cat.label}</span></div>{ss.map((s,idx)=>(<div key={idx} style={rowS}><span style={{ fontSize:13 }}>{s}{esDolarConcepto(s)?" 💵":""}</span><button style={ib("#2a1a1a","#f87171")} onClick={()=>delServ(cat.id,idx)}>✕</button></div>))}</div>); })}</>)}
           {cfgTab==="backup"&&(
             <div>
               <div className="card">
@@ -3961,11 +2692,11 @@ if (!authUser) {
               </div>
               {/* Estadísticas */}
               <div className="card">
-                <div style={{ fontSize:14,fontWeight:700,marginBottom:12 }}>📊 Estadísticas</div>
+                <div style={{ fontSize:14,fontWeight:700,marginBottom:12 }}>Tus registros</div>
                 {[
                   ["Meses con datos", Object.keys(data.gastos).filter(k=>data.gastos[k]?.length>0).length],
                   ["Total gastos cargados", Object.values(data.gastos).flat().length],
-                  ["Categorías", cfg.categorias.length],
+                  ["Medios de pago", (cfg.mediosPago||[]).length],
                   ["Recurrentes", recurrentes.length],
                 ].map(([label,val])=>(<div key={label} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #1e1e2e" }}><span style={{ fontSize:13,color:"#94a3b8" }}>{label}</span><span style={{ fontSize:13,fontWeight:700 }}>{val}</span></div>))}
               </div>
@@ -3973,7 +2704,7 @@ if (!authUser) {
           )}
           {cfgTab==="fuentes"&&(<>
             <div className="card" style={{ border:"1px solid #14532d55",background:"#0f1f17" }}>
-              <div style={{ fontWeight:900,marginBottom:6 }}>💰 Orígenes de ingreso</div>
+              <div style={{ fontWeight:900,marginBottom:6 }}>Orígenes de ingreso</div>
               <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.5 }}>
                 Definí las fuentes que aparecen en la pantalla Ingresos. Usalas para ordenar cargas variables como Hogar, Ventas, Trabajo Diario u Otros.
               </div>
@@ -3982,6 +2713,7 @@ if (!authUser) {
             <div className="card"><span style={lbl}>ORÍGENES ACTIVOS</span>{cfg.fuentesIngreso.map((f,idx)=>(<div key={idx}>{editFuente?.idx===idx?(<div style={{ display:"flex",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e",alignItems:"center" }}><input className="ei" value={editFuente.val} onChange={e=>setEditFuente(ef=>({...ef,val:e.target.value}))}/><button style={ib("#14532d","#4ade80")} onClick={saveFuente}>✓</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditFuente(null)}>✕</button></div>):(<div style={rowS}><div><div style={{ fontSize:14,fontWeight:800 }}>{normalizarFuenteIngreso(f)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{f!==normalizarFuenteIngreso(f)?`Alias anterior: ${f}`:"Disponible en Ingresos"}</div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditFuente({idx,val:f})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delFuente(idx)}>✕</button></div></div>)}</div>))}</div>
           </>)}
         </>)}
+      {view==="config"&&<button className="logout-button" onClick={handleLogout}>Cerrar sesión</button>}
       </div>
 
       {/* ── MODAL REPLICAR MES ── */}
@@ -4057,14 +2789,14 @@ if (!authUser) {
           </div>
           <div style={{ background:"#13131a",border:"1px solid #1e1e2e",borderRadius:16,padding:"14px 16px",marginBottom:24 }}>
             <div style={{ fontSize:12,color:"#64748b",marginBottom:10,fontWeight:700 }}>SE COPIA</div>
-            {["Concepto y categoría","Forma de pago","Monto (como referencia)","Subconceptos USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
+            {["Concepto y medio de pago","Forma de pago","Monto (como referencia)","Subconceptos USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
             <div style={{ borderTop:"1px solid #1e1e2e",marginTop:8,paddingTop:8 }}>
               {["Estado → Pendiente (marcás cuando pagás)","Marca → Revisar monto y/o vencimiento","Fecha vencimiento → se mueve si existía; si no, la completás"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
             </div>
           </div>
           <div style={{ display:"flex",gap:10 }}>
             <button className="pb" style={{ flex:1,background:"#1e1e2e",color:"#94a3b8" }} onClick={()=>setReplicarStep("modal")}>← Volver</button>
-            <button className="pb" disabled={replicando} style={{ flex:2,background:"#7c3aed",color:"#fff",fontSize:15 }} onClick={confirmarReplica}>{replicando ? "Copiando…" : "✅ Confirmar copia"}</button>
+            <button className="pb" disabled={replicando} style={{ flex:2,background:"#7c3aed",color:"#fff",fontSize:15 }} onClick={confirmarReplica}>{replicando ? "Copiando…" : "Confirmar copia"}</button>
           </div>
         </div>
       )}
@@ -4080,7 +2812,7 @@ if (!authUser) {
           </div>
           <div style={{ background:"#13131a",border:"1px solid #1e1e2e",borderRadius:16,padding:"14px 16px",marginBottom:24,textAlign:"left" }}>
             <div style={{ fontSize:12,color:"#64748b",marginBottom:8,fontWeight:700 }}>PRÓXIMOS PASOS</div>
-            {["Andá a "+mesNombreSig()+" con las flechas ‹ ›","En Detalle filtrá visualmente los gastos con badge Revisar","Ajustá montos y vencimientos reales","Marcá ✅ Pagado a medida que abonás"].map((paso,i)=>(<div key={i} style={{ display:"flex",gap:10,padding:"6px 0",borderBottom:i<3?"1px solid #1e1e2e":"none" }}><div style={{ width:20,height:20,borderRadius:"50%",background:"#7c3aed22",color:"#7c3aed",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div><span style={{ fontSize:13,color:"#94a3b8" }}>{paso}</span></div>))}
+            {["Andá a "+mesNombreSig()+" con las flechas ‹ ›","En Movimientos, usá el filtro Revisar","Ajustá montos y vencimientos reales","Marcá Pagado a medida que abonás"].map((paso,i)=>(<div key={i} style={{ display:"flex",gap:10,padding:"6px 0",borderBottom:i<3?"1px solid #1e1e2e":"none" }}><div style={{ width:20,height:20,borderRadius:"50%",background:"#7c3aed22",color:"#7c3aed",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div><span style={{ fontSize:13,color:"#94a3b8" }}>{paso}</span></div>))}
           </div>
           <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }} onClick={()=>{ setReplicarStep(null); cambiarMes(1); }}>
             Ir a {mesNombreSig()} →
@@ -4089,16 +2821,12 @@ if (!authUser) {
       )}
 
       {/* BOTTOM NAV */}
-      <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#0d0d14",borderTop:"1px solid #1e1e2e",display:"flex",padding:"7px 0 11px" }}>
-        {[{id:"home",icon:"📊",label:"Inicio"},{id:"cargar",icon:"➕",label:"Cargar"},{id:"resumen",icon:"📋",label:"Detalle"},{id:"analisis",icon:"🔎",label:"Analizar"},{id:"vencimientos",icon:"📅",label:"Vence"},{id:"variacion",icon:"📈",label:"Evol."},{id:"ingresos",icon:"💰",label:"Ingresos"},{id:"config",icon:"⚙️",label:"Ajustes"}].map(nav=>(
-          <div key={nav.id} className="ni" style={{ position:"relative" }} onClick={()=>setView(nav.id)}>
-            <div style={{ fontSize:17,lineHeight:1 }}>{nav.icon}</div>
-            <div style={{ fontSize:9,fontWeight:view===nav.id?800:500,color:view===nav.id?"#7c3aed":"#64748b",marginTop:2 }}>{nav.label}</div>
-            {view===nav.id&&<div style={{ position:"absolute",bottom:-4,width:16,height:3,background:"#7c3aed",borderRadius:2 }}/>}
-            {nav.id==="vencimientos"&&vencUrgentes>0&&<div style={{ position:"absolute",top:2,right:6,background:"#f87171",borderRadius:"50%",width:16,height:16,display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:700,color:"#fff" }}>{vencUrgentes}</div>}
-          </div>
-        ))}
-      </div>
+      <nav className="bottom-nav" aria-label="Navegación principal">
+        {[{id:"home",icon:"home",label:"Inicio"},{id:"resumen",icon:"movements",label:"Movimientos"},{id:"cargar",icon:"plus",label:"Cargar"},{id:"vencimientos",icon:"calendar",label:"Vencimientos"},{id:"analisis",icon:"chart",label:"Informes"}].map(nav=>{
+          const active=view===nav.id||(nav.id==="resumen"&&view==="ingresos")||(nav.id==="analisis"&&view==="variacion");
+          return <button key={nav.id} className={`ni ${nav.id==="cargar"?"nav-add":""}`} aria-current={active?"page":undefined} onClick={()=>{setView(nav.id);window.scrollTo({top:0,behavior:"instant"});}}><UiIcon name={nav.icon}/><span>{nav.label}</span>{nav.id==="vencimientos"&&vencUrgentes>0&&<span className="nav-dot" aria-label={`${vencUrgentes} pagos urgentes`}/>}</button>;
+        })}
+      </nav>
     </div>
   );
 }

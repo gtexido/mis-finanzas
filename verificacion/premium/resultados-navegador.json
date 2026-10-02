@@ -1,0 +1,72 @@
+[
+  {
+    "id": "UI-01",
+    "title": "Borrar y reescribir un importe del desglose sin cero forzado",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-02",
+    "title": "Histórico y exportación de todos los meses",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-03",
+    "title": "Sesión vencida vuelve al ingreso",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-04",
+    "title": "Error de conexión no muestra saldos vacíos",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-05",
+    "title": "Doble toque guarda una sola vez",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-06-ARS",
+    "title": "Ocultar opciones conserva desglose ARS",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-06-USD",
+    "title": "Ocultar opciones conserva desglose USD",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-07",
+    "title": "La copia verifica el mes destino antes de escribir",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-08",
+    "title": "Edición de gasto: vacío, decimales y doble toque",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-09",
+    "title": "Copia válida y doble toque",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-10",
+    "title": "Carga libre sin categoría ni tipo, con decimales",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-11",
+    "title": "Edición conserva clasificación histórica y datos del pago",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-12",
+    "title": "Evolución cuenta más de cuatro conceptos y vencimiento futuro",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-13",
+    "title": "Navegación y diseño sin desbordes en móvil pequeño y escritorio",
+    "status": "correcto"
+  }
+]
