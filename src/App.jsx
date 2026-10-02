@@ -70,6 +70,7 @@ import IngresosView from "./views/IngresosView";
 import DetalleViewShell from "./views/DetalleView";
 import UiIcon from "./components/UiIcon";
 import MovementRow from "./components/MovementRow";
+import ReplicateAction from "./components/ReplicateAction";
 import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import "./premium.css";
@@ -193,7 +194,6 @@ export default function App() {
   const [gestionCatModal,setGestionCatModal]=useState(false);
   const [nuevoServInline,setNuevoServInline]=useState("");
   const [replicarStep,setReplicarStep]=useState(null); // null | 'modal' | 'confirmar' | 'done'
-  const [prepararMesOculto,setPrepararMesOculto]=useState(null);
   const [excluirReplicar,setExcluirReplicar]=useState(new Set());
   const [filtCatReplicar,setFiltCatReplicar]=useState("todos");
   const [mesesAtrasVar,setMesesAtrasVar]=useState(3);
@@ -1845,7 +1845,11 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
   const yaHayMesSiguiente=()=> !!(data.gastos[mesKeySiguiente()]?.length);
-  const mostrarReplicar=()=> gastosDelMes.length>0 && !yaHayMesSiguiente() && prepararMesOculto !== mesKey;
+  const abrirReplica = () => {
+    setExcluirReplicar(new Set());
+    setFiltCatReplicar("todos");
+    setReplicarStep(!gastosDelMes.length || yaHayMesSiguiente() ? "informacion" : "modal");
+  };
   const gastosFuenteReplicar= gastosDelMes;
   const gastosIncluidos= gastosFuenteReplicar.filter(g=>!excluirReplicar.has(g.id));
   const toggleExcluir=(id)=>setExcluirReplicar(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
@@ -2359,7 +2363,7 @@ if (!authUser) {
         {["analisis","variacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button></div>}
 
         {/* HOME */}
-        {view==="home"&&<PremiumHome gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} onNavigate={setView} onEdit={openEdit} canReplicate={mostrarReplicar()} onReplicate={()=>{setExcluirReplicar(new Set());setFiltCatReplicar("todos");setReplicarStep("modal");}}/>}
+        {view==="home"&&<PremiumHome gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} onNavigate={setView} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
 
         {/* CARGAR */}
         {view==="cargar"&&<>
@@ -2377,6 +2381,7 @@ if (!authUser) {
         </>}
 
         {/* DETALLE / RESUMEN */}
+        {view==="resumen"&&<ReplicateAction nextMonth={mesNombreSig()} onClick={abrirReplica}/>}
         {view==="resumen"&&(
           <DetalleViewShell
             mes={mes}
@@ -2717,6 +2722,17 @@ if (!authUser) {
       </div>
 
       {/* ── MODAL REPLICAR MES ── */}
+      {replicarStep==="informacion"&&(
+        <div className="ov" style={{zIndex:980}} onClick={()=>setReplicarStep(null)}>
+          <section className="ob" role="dialog" aria-modal="true" aria-labelledby="replicate-info-title" onClick={e=>e.stopPropagation()}>
+            <div className="section-line"><h2 id="replicate-info-title" style={{fontSize:20}}>Replicar gastos</h2><button className="icon-button" aria-label="Cerrar replicación" onClick={()=>setReplicarStep(null)}><UiIcon name="close"/></button></div>
+            <p className="replicate-info-message">{!gastosDelMes.length?`No hay gastos en ${MESES[mes.m].toLowerCase()} para replicar.`:`${mesNombreSig()} ya tiene gastos cargados.`}</p>
+            <p className="muted small" style={{marginBottom:22}}>{!gastosDelMes.length?"Elegí un mes con gastos o cargá el primero para usarlo como base del siguiente.":"La copia actual requiere un mes destino vacío. Podés revisar lo que ya está cargado antes de continuar."}</p>
+            <button className="primary" onClick={()=>{setReplicarStep(null);if(gastosDelMes.length){cambiarMes(1);setView("resumen");}else{setView("cargar");}window.scrollTo({top:0,behavior:"instant"});}}>{gastosDelMes.length?`Ver gastos de ${mesNombreSig().toLowerCase()}`:"Cargar un gasto"}<UiIcon name="arrow" size={19}/></button>
+            <button className="text-button" style={{width:"100%",marginTop:10}} onClick={()=>setReplicarStep(null)}>Volver</button>
+          </section>
+        </div>
+      )}
       {replicarStep==="modal"&&(
         <div style={{ position:"fixed",inset:0,background:"#0a0a0f",zIndex:980,overflowY:"auto",paddingBottom:100 }}>
           {/* Header fijo */}

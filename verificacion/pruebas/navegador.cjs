@@ -202,7 +202,7 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
   await probe('UI-07','La copia verifica el mes destino antes de escribir',async()=>{
     const s=await setup({emptyNext:true});try{
       s.db['2026-11']=[movimiento('2026-11',123)];
-      await s.page.getByRole('button',{name:/Preparar el próximo mes/}).click();
+      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
       await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().click();
       await s.page.getByRole('button',{name:/Confirmar copia/}).click();
       await s.page.getByText('Ese mes ya tiene gastos. Revisalo antes de volver a copiar.',{exact:true}).waitFor();
@@ -226,7 +226,7 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
   });
   await probe('UI-09','Copia válida y doble toque',async()=>{
     const s=await setup({emptyNext:true,delayWrites:true});try{
-      await s.page.getByRole('button',{name:/Preparar el próximo mes/}).click();
+      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
       await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().click();
       await s.page.getByRole('button',{name:/Confirmar copia/}).evaluate(b=>{b.click();b.click();});
       await s.page.waitForFunction(()=>JSON.parse(localStorage.getItem('gapp_v7')).gastos['2026-11']?.length===1);
@@ -281,6 +281,37 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
         }
       }
       assert.equal(s.pageErrors.length,0);return {widths:[320,390,1024],screens:8,consoleErrors:0};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-14','Replicar sigue visible con destino ocupado y no duplica datos',async()=>{
+    const s=await setup();try{
+      const action=s.page.getByRole('button',{name:/Replicar gastos/});assert(await action.isVisible());
+      const rect=await action.boundingBox();assert(rect.y+rect.height<766,'Acceso visible antes del menú inferior');
+      await action.click();const dialog=s.page.getByRole('dialog');
+      assert(await dialog.getByText('Noviembre ya tiene gastos cargados.',{exact:true}).isVisible());
+      assert.equal(writes(s).length,0);
+      await dialog.getByRole('button',{name:'Ver gastos de noviembre',exact:true}).click();
+      assert.equal(await s.page.locator('.period-picker>span').innerText(),'Noviembre 2026');
+      assert(await s.page.getByRole('button',{name:/Replicar gastos/}).isVisible());
+      return {actionVisible:true,destinationOpened:true,posts:0};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-15','Mes vacío explica qué necesita la copia y permite cargar',async()=>{
+    const s=await setup({emptyCurrent:true});try{
+      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
+      const dialog=s.page.getByRole('dialog');
+      assert(await dialog.getByText('No hay gastos en octubre para replicar.',{exact:true}).isVisible());
+      await dialog.getByRole('button',{name:'Cargar un gasto',exact:true}).click();
+      assert(await s.page.getByLabel('¿Qué pagaste?',{exact:true}).isVisible());assert.equal(writes(s).length,0);
+      return {emptyMonthExplained:true,canLoadExpense:true,posts:0};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-16','Replicar desde Movimientos permite elegir los gastos',async()=>{
+    const s=await setup({emptyNext:true});try{
+      await nav(s.page,'Detalle');await s.page.getByRole('button',{name:/Replicar gastos/}).click();
+      assert(await s.page.getByText('Replicar a Noviembre',{exact:false}).isVisible());
+      assert(await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().isVisible());assert.equal(writes(s).length,0);
+      return {selectionAvailable:true,postsBeforeConfirmation:0};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

@@ -25,3 +25,12 @@ La carga y la edición tenían demasiadas decisiones simultáneas, y ocho acceso
 La prueba reproducible es `verificacion/pruebas/navegador.cjs`. Requiere Playwright/Chromium y `AUDIT_PROJECT` apuntando al proyecto. Se pueden usar `AUDIT_BROWSER_EXECUTABLE` y `AUDIT_CHROMIUM_MODULE` para un navegador instalado, según el entorno. El servidor local de prueba usa el puerto 4173 y bloquea conexiones externas.
 
 La rama es una propuesta para revisión; el diseño no se publicó en producción.
+
+## Ajuste de acceso a Replicar gastos
+
+- Se recupera el nombre «Replicar gastos» y se ubica debajo de Cargar en Inicio, además de Movimientos.
+- El acceso permanece visible cuando el próximo mes ya tiene gastos o cuando el mes de origen está vacío.
+- En esos casos se explica el motivo y se ofrece abrir el mes destino o cargar el primer gasto. No se inicia ninguna escritura.
+- La selección de gastos, la confirmación y la comprobación del mes destino antes de copiar siguen vigentes.
+- Compilación correcta y cinco pruebas enfocadas en replicación aprobadas: destino modificado mientras se usa la app, doble toque, destino ya ocupado, origen vacío y acceso desde Movimientos.
+- Resultados de esta revisión: [resultados-replicacion.json](resultados-replicacion.json).

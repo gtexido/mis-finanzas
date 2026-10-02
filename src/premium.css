@@ -10,3 +10,6 @@
 
 .month-values{margin:16px 0;font-size:13px;color:var(--muted)}.month-values summary{min-height:44px;padding:12px 0;cursor:pointer;color:var(--accent)}.month-values .section-line{padding:11px 0;border-bottom:1px solid var(--line)}.month-values strong{color:var(--text);font-weight:500}
 .suggestions button,.filter-chips button{flex-shrink:0}
+
+/* Keep monthly replication discoverable, including when its destination has data. */
+.replicate-link{display:flex;gap:13px;align-items:center;padding:16px;margin:0 0 24px;background:var(--surface);border:1px solid #43425e;border-radius:16px;text-align:left}.replicate-link>span:nth-child(2){flex:1;min-width:0}.replicate-link strong{display:block;font-size:14px;font-weight:600}.replicate-link small{font-size:12px;line-height:1.5;margin-top:4px}.replicate-link>.replicate-icon{display:grid;place-items:center;width:35px;height:40px;border-radius:11px;background:#29253e;flex-shrink:0}.replicate-link>svg{flex-shrink:0}.home-add{margin-bottom:12px}.replicate-info-message{font-size:15px;line-height:1.5;margin:18px 0 9px}
