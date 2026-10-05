@@ -36,5 +36,5 @@ export function fuenteDefaultPorUsuario(usuarioId) {
     usr_vane: "fi_vane",
   };
 
-  return defaults[usuarioId] || "fi_vane";
+  return defaults[usuarioId] || null;
 }

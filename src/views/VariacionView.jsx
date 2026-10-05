@@ -1,4 +1,6 @@
 import React from 'react';
+import MonthComparison from '../components/MonthComparison';
+import { formatPercent } from '../utils/comparisons';
 import { fmtARS, slugKey, normalizarEtiquetaVisual, normalizarTexto } from '../utils/formatters';
 import { getMesKey, MESES } from '../utils/dates';
 import { montoReal } from '../utils/money';
@@ -101,12 +103,13 @@ export default function VariacionView({
   const partial = mes.y === now.getFullYear() && mes.m === now.getMonth();
   return <>
     <div className="section-line" style={{marginBottom:16}}><span className="eyebrow muted">Gastos por mes</span><select className="inf" aria-label="Período de evolución" style={{width:140}} value={mesesAtrasVar} onChange={e=>setMesesAtrasVar(Number(e.target.value))}>{[3,6,12].map(n=><option key={n} value={n}>{n} meses</option>)}</select></div>
-    <section className="report-total"><div className="money">{fmtARS(totalActual)}</div><p className="muted">{!tieneBase?"Sin base del mes anterior para comparar.":diffTotal===0?"Sin cambios respecto al mes anterior.":`${fmtARS(Math.abs(diffTotal))} ${diffTotal>0?"más":"menos"} que el mes anterior (${Math.abs(pctTotal)}%).`}</p></section>
+    <section className="report-total"><span className="eyebrow muted">Gastos del mes seleccionado</span><div className="money">{fmtARS(totalActual)}</div></section>
+    <MonthComparison current={totalActual} previous={totalAnterior} hasPrevious={!!((data.gastos[anteriorKey]||[]).length || (data.ingresos[anteriorKey]||[]).length || data.sueldo[anteriorKey])} hasCurrent={!!((data.gastos[actualKey]||[]).length || (data.ingresos[actualKey]||[]).length || data.sueldo[actualKey])} previousLabel={anteriorKey} partial={partial}/>
     <div className="surface" style={{padding:"14px 18px"}}><div className="monthly-chart" role="img" aria-label={ml.map(m=>`${m.label} ${m.y}: ${fmtARS(totalMes(m.key))}`).join(". ")}>{ml.map(m=><div className="monthly-bar" key={m.key} title={`${MESES[m.m]} ${m.y}: ${fmtARS(totalMes(m.key))}`}><div style={{height:`${totalMes(m.key)/maxTotal*125}px`}}/><strong>{m.label}</strong></div>)}</div><p className="report-caption" style={{margin:"8px 0"}}>{partial?"Mes actual en curso: comparás un mes parcial con meses anteriores.":"Totales de los movimientos registrados en cada mes."} Los meses sin registros se muestran en cero.</p></div>
     <details className="month-values"><summary>Ver importes por mes</summary>{ml.map(m=><div className="section-line" key={m.key}><span>{MESES[m.m]} {m.y}</span><strong className="money">{fmtARS(totalMes(m.key))}</strong></div>)}</details>
     <div className="change-grid">{[[subieron.length,"Conceptos que subieron"],[bajaron.length,"Conceptos que bajaron"],[nuevos.length,"Nuevos este mes"],[sinGasto.length,"Sin gasto este mes"]].map(([value,label])=><div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
     <div className="section-line" style={{margin:"25px 0 10px"}}><h2 style={{fontSize:16,fontWeight:550}}>Cambio por concepto</h2></div>
-    <div className="surface" style={{padding:"0 18px"}}>{conceptos.filter(c=>c.actual>0||c.anterior>0).map(c=><div className="ranking-row" key={c.id}><div className="section-line"><strong style={{fontWeight:550}}>{c.nombre}</strong><strong className="money" style={{whiteSpace:"nowrap",fontWeight:550}}>{fmtARS(c.actual)}</strong></div><div className="section-line" style={{marginTop:7}}><small>Anterior: {fmtARS(c.anterior)}</small><small style={{color:c.diff>0?"#efb9ae":c.diff<0?"var(--mint)":"var(--muted)"}}>{c.anterior===0?"Nuevo":c.actual===0?"Sin gasto":c.diff===0?"Sin cambios":`${c.diff>0?"+":"−"}${fmtARS(Math.abs(c.diff))}`}</small></div></div>)}</div>
+    <div className="surface" style={{padding:"0 18px"}}>{conceptos.filter(c=>c.actual>0||c.anterior>0).map(c=><div className="ranking-row" key={c.id}><div className="section-line"><strong style={{fontWeight:550}}>{c.nombre}</strong><strong className="money" style={{whiteSpace:"nowrap",fontWeight:550}}>{fmtARS(c.actual)}</strong></div><div className="section-line" style={{marginTop:7}}><small>Anterior: {fmtARS(c.anterior)}</small><small style={{color:c.diff>0?"#efb9ae":c.diff<0?"var(--mint)":"var(--muted)"}}>{c.anterior===0?"Sin base para %":c.diff===0?"Sin cambios":`${c.diff>0?"+":"−"}${fmtARS(Math.abs(c.diff))} · ${formatPercent(c.pct)}`}</small></div></div>)}</div>
     {!conceptos.length&&<div className="empty-state"><h3>Tu evolución empieza con el primer mes</h3><p>Los gastos que registres se van a comparar acá.</p></div>}
   </>;
 }

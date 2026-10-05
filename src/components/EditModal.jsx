@@ -11,6 +11,8 @@ export default function EditModal({
   config,
   tc,
   onSave,
+  onDelete,
+  periodo,
   onClose,
   onAbrirSubconceptos,
 }) {
@@ -25,7 +27,7 @@ export default function EditModal({
     return () => { document.body.style.overflow=previousOverflow; previous?.focus?.({preventScroll:true}); };
   }, []);
   const handleKeys = (event) => {
-    if(event.key === "Escape") { event.preventDefault(); onClose(); }
+    if(event.key === "Escape" && !guardandoRef.current) { event.preventDefault(); onClose(); }
     if(event.key !== "Tab") return;
     const controls = [...sheetRef.current.querySelectorAll('button:not(:disabled),input:not(:disabled),select:not(:disabled),[tabindex="0"]')].filter(el=>el.getClientRects().length);
     const first=controls[0],last=controls[controls.length-1];
@@ -144,6 +146,7 @@ export default function EditModal({
       servicio: concepto.nombre || concepto.label || p.servicio,
       medioPagoId: concepto.medioPagoId || p.medioPagoId,
       instrumentoId: concepto.instrumentoId || p.instrumentoId,
+      instrumentoNombre: "", instrumento: "",
       categoriaGastoId: concepto.categoriaGastoId || p.categoriaGastoId,
       etiquetasIds: concepto.etiquetasIds?.length
         ? concepto.etiquetasIds
@@ -279,10 +282,10 @@ export default function EditModal({
     color: active ? "#0a0a0f" : "#94a3b8",
   });
 
-  return <div className="ov" style={{zIndex:950}} onClick={onClose}>
+  return <div className="ov" style={{zIndex:950}} onClick={()=>!guardandoRef.current && onClose()}>
     <section ref={sheetRef} tabIndex={-1} onKeyDown={handleKeys} className="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-title" onClick={e=>e.stopPropagation()}>
-      <header className="modal-header"><h2 id="edit-title">Editar gasto</h2><button className="icon-button" aria-label="Cerrar edición" onClick={onClose}><UiIcon name="close"/></button></header>
-      <ExpenseFields value={f} setValue={setF} config={config} tc={tc} suggestions={config.conceptos || []} onSelectConcept={aplicarConcepto} onBreakdown={()=>onAbrirSubconceptos({...f,moneda})} advanced={advanced} setAdvanced={setAdvanced} isEditing onRemember={()=>setF(p=>({...p,guardarComoConceptoFrecuente:!p.guardarComoConceptoFrecuente}))}/>
+      <header className="modal-header"><h2 id="edit-title">Editar gasto</h2><button className="icon-button" aria-label="Cerrar edición" onClick={()=>!guardandoRef.current && onClose()}><UiIcon name="close"/></button></header>
+      <ExpenseFields value={f} setValue={setF} config={config} tc={tc} maxDay={periodo?new Date(Number(periodo.slice(0,4)),Number(periodo.slice(5,7)),0).getDate():31} suggestions={config.conceptos || []} onSelectConcept={aplicarConcepto} onBreakdown={()=>onAbrirSubconceptos({...f,moneda})} advanced={advanced} setAdvanced={setAdvanced} isEditing onRemember={()=>setF(p=>({...p,guardarComoConceptoFrecuente:!p.guardarComoConceptoFrecuente}))}/>
       {pendienteSinVencimiento&&<p className="error-note">Agregá el vencimiento o marcá Revisar después para guardar.</p>}
       {errorGuardado&&<div className="error-note" role="alert">{errorGuardado}</div>}
       <button className="primary form-submit" disabled={guardando||pendienteSinVencimiento}
@@ -318,12 +321,14 @@ export default function EditModal({
             });
             } catch (error) {
               setErrorGuardado(error.message || "No se pudieron guardar los cambios.");
+              sheetRef.current?.focus({preventScroll:true});
             } finally {
               guardandoRef.current = false;
               setGuardando(false);
             }
           }}
       >{guardando?"Guardando…":"Guardar cambios"}<UiIcon name="check" size={18}/></button>
+      {onDelete && <button className="text-button delete-link full-width" disabled={guardando} onClick={onDelete}><UiIcon name="trash" size={17}/>Eliminar este gasto</button>}
     </section>
   </div>;
 }

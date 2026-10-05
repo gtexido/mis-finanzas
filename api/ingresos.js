@@ -49,7 +49,7 @@ function mapFuenteIngresoId(fuente, usuarioId) {
 }
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
+  if (!["POST", "PUT"].includes(req.method)) {
     return res.status(405).json({
       ok: false,
       error: "Método no permitido",
@@ -81,6 +81,21 @@ export default async function handler(req, res) {
     user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
     const fuenteVisible = fuenteVisibleIngreso(fuente);
     const fuenteIngresoId = mapFuenteIngresoId(fuenteVisible, user.usuarioId);
+
+    if (req.method === "PUT") {
+      if (!body.movimientoId) return res.status(400).json({ ok: false, error: "Falta identificar el ingreso" });
+      const updated = await sql`
+        UPDATE movimientos SET monto = ${Number(monto)}, concepto_manual = ${fuenteVisible},
+          fuente_ingreso_id = ${fuenteIngresoId}, dia = ${Number(dia || 1)},
+          fecha_operacion = ${fechaOperacion}, updated_at = NOW()
+        WHERE movimiento_id = ${body.movimientoId} AND periodo = ${periodo}
+          AND tipo_movimiento = 'INGRESO' AND subtipo_movimiento = 'INGRESO_EXTRA'
+          AND usuario_id = ${user.usuarioId} AND workspace_id = ${workspaceId} AND activo = true
+        RETURNING movimiento_id;
+      `;
+      if (!updated.length) return res.status(404).json({ ok: false, error: "El ingreso ya no está disponible" });
+      return res.status(200).json({ ok: true, data: updated[0] });
+    }
 
     await sql`
       INSERT INTO movimientos (

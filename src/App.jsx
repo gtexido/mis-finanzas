@@ -13,6 +13,8 @@ import {
   actualizarGasto,
   actualizarEstadoGasto,
   crearIngreso,
+  actualizarIngreso,
+  eliminarSueldo,
   eliminarIngreso,
   guardarSueldoNeon,
   getCotizacionPorFecha,
@@ -66,35 +68,20 @@ import EditModal from "./components/EditModal";
 import VencimientosView from "./components/VencimientosView";
 import VariacionView from "./views/VariacionView";
 import AnalisisView from "./views/AnalisisView";
-import IngresosView from "./views/IngresosView";
+import IncomeView from "./views/IncomeView";
+import ConfirmDelete from "./components/ConfirmDelete";
+import { isAutomaticDebit, missingReplicas, expenseAttention } from "./utils/paymentStatus";
 import DetalleViewShell from "./views/DetalleView";
 import UiIcon from "./components/UiIcon";
 import MovementRow from "./components/MovementRow";
 import ReplicateAction from "./components/ReplicateAction";
+import ReplicateModal from "./components/ReplicateModal";
 import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import "./premium.css";
 
-// LEGACY parcial: localStorage queda temporalmente como respaldo de UI.
-const load = () => {
-  try {
-    const c = localStorage.getItem("gcfg_v7");
-    const r = localStorage.getItem("grec_v7");
-
-    return {
-      data: { gastos: {}, ingresos: {}, sueldo: {} },
-      config: c ? JSON.parse(c) : DEFAULT_CONFIG,
-      recurrentes: r ? JSON.parse(r) : [],
-    };
-  } catch {
-    return {
-      data: { gastos: {}, ingresos: {}, sueldo: {} },
-      config: DEFAULT_CONFIG,
-      recurrentes: []
-    };
-  }
-};
-
+// Financial records are fetched for the signed-in user and kept in memory only.
+const load = () => ({data: {gastos:{}, ingresos:{}, sueldo:{}}, config: DEFAULT_CONFIG, recurrentes: []});
 
 // ======================================================
 // 🚀 COMPONENTE PRINCIPAL
@@ -140,13 +127,24 @@ export default function App() {
   const [sueldoInput,setSueldoInput]=useState("");
   const [ingForm,setIngForm]=useState({fuente:"",monto:"",dia:String(now.getDate())});
   const [guardarIngresoLoading, setGuardarIngresoLoading] = useState(false);
+  const guardarIngresoRef = useRef(false);
+  const sueldoRef = useRef(false);
+  const [sueldoBusy, setSueldoBusy] = useState(false);
+  const eliminarRef = useRef(false);
+  const [eliminando, setEliminando] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const estadoRef = useRef(false);
+  const [estadoBusy, setEstadoBusy] = useState(false);
   const guardarGastoRef = useRef(false);
   const [guardandoGasto, setGuardandoGasto] = useState(false);
   const replicandoRef = useRef(false);
   const [replicando, setReplicando] = useState(false);
+  const [replicaCopiados,setReplicaCopiados]=useState(0);
   const [toast,setToast]=useState(null);
   const toastTimerRef = useRef(null);
   const [authUser,setAuthUser]=useState(getSessionUser());
+  const sessionRef = useRef(authUser?.usuarioId);
+  sessionRef.current = authUser?.usuarioId;
   const [cargaEstado,setCargaEstado]=useState("cargando");
   const [cargaError,setCargaError]=useState("");
   const [recarga,setRecarga]=useState(0);
@@ -155,15 +153,15 @@ export default function App() {
 
   useEffect(() => {
     const sesionVencida = () => {
+      resetPrivateState();
       setAuthUser(null);
-      setData({gastos:{},ingresos:{},sueldo:{}});
-      setLoginError("Tu sesión venció. Ingresá nuevamente.");
+      setLoginError("La sesión terminó o el acceso cambió. Ingresá nuevamente.");
     };
     window.addEventListener("mf:session-expired", sesionVencida);
     return () => window.removeEventListener("mf:session-expired", sesionVencida);
   }, []);
 
-  const [loginForm,setLoginForm]=useState({ usuarioId:"usr_gustavo", pin:"" });
+  const [loginForm,setLoginForm]=useState({ usuarioId:"", pin:"" });
   const [loginLoading,setLoginLoading]=useState(false);
   const [loginError,setLoginError]=useState("");
   const [confirmDel,setConfirmDel]=useState(null);
@@ -313,10 +311,18 @@ const abrirSubconceptosConCotizacion = async (gasto) => {
 // 🔄 EFECTOS (Carga inicial / sincronización)
 // ======================================================
 
-  // Guardar en localStorage cada vez que cambian los datos
-  useEffect(()=>{ try{localStorage.setItem("gapp_v7",JSON.stringify(data));}catch{} },[data]);
-  useEffect(()=>{ try{localStorage.setItem("gcfg_v7",JSON.stringify(cfg));}catch{} },[cfg]);
-  useEffect(()=>{ try{localStorage.setItem("grec_v7",JSON.stringify(recurrentes));}catch{} },[recurrentes]);
+  useEffect(() => {
+    if(!authUser || cargaEstado!=="listo")return;
+    try{localStorage.setItem(`mf_preferences_${authUser.usuarioId}`,JSON.stringify({tipoCambio:cfg.tipoCambio,fuentesIngreso:cfg.fuentesIngreso}));}catch{}
+  }, [authUser,cargaEstado,cfg.tipoCambio,cfg.fuentesIngreso]);
+  useEffect(() => {
+    ["gapp_v7", "gcfg_v7", "grec_v7"].forEach(key => {try {localStorage.removeItem(key);} catch {}});
+  }, []);
+  useEffect(() => {
+    setIngForm({fuente:"",monto:"",dia:String(Math.min(new Date().getDate(),new Date(mes.y,mes.m+1,0).getDate()))});
+    setSueldoInput("");
+    setForm(p => ({...p,dia:String(Math.min(Number(p.dia)||1,new Date(mes.y,mes.m+1,0).getDate()))}));
+  }, [mesKey]);
 
 // Carga completa: evolución, vencimientos y exportación comparten el mismo historial.
 useEffect(() => {
@@ -328,7 +334,13 @@ useEffect(() => {
     try {
       const [catalogosApi, movimientosApi] = await Promise.all([getCatalogos(), getMovimientos(null)]);
       if (cancelado) return;
-      setCfg(mapCatalogosDesdeApi(catalogosApi));
+      const nextConfig=mapCatalogosDesdeApi(catalogosApi);
+      try{
+        const prefs=JSON.parse(localStorage.getItem(`mf_preferences_${authUser.usuarioId}`)||'{}');
+        if(Number.isFinite(Number(prefs.tipoCambio))&&Number(prefs.tipoCambio)>0)nextConfig.tipoCambio=Number(prefs.tipoCambio);
+        if(Array.isArray(prefs.fuentesIngreso))nextConfig.fuentesIngreso=prefs.fuentesIngreso.filter(x=>typeof x==='string'&&x.trim()).slice(0,200);
+      }catch{}
+      setCfg(nextConfig);
       setData(mapHistorialDesdeApi(movimientosApi));
       setCargaEstado("listo");
     } catch (error) {
@@ -468,7 +480,7 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
   const [filtroCatInicio,setFiltroCatInicio]=useState(null); // categoría seleccionada desde inicio
   const gastosFiltrados = filtroEstado === "todos"
     ? gastosDelMes
-    : filtroEstado === "revisar"
+    : filtroEstado === "automatico" ? gastosDelMes.filter(g=>isAutomaticDebit(g,cfg)) : filtroEstado === "revisar"
       ? gastosDelMes.filter(g => !!g.requiereRevision)
       : gastosDelMes.filter(g => g.estado === filtroEstado);
   const gastosPorCatF=agruparPorCategoriaReal(gastosFiltrados);
@@ -525,10 +537,10 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
   const hayFiltroActivo = filtroCatInicio || filtroEstado !== "todos" || busqueda.trim();
   const tituloDetalle = filtroCatInicio
     ? cfg.categorias.find(c => c.id === filtroCatInicio)?.label || "Detalle"
-    : filtroEstado === "revisar" ? "Para revisar" : "Detalle";
+    : filtroEstado === "automatico" ? "Débitos automáticos" : filtroEstado === "revisar" ? "Para revisar" : "Detalle";
 
   const todosVenc=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&g.vencimiento);
-  const vencUrgentes=todosVenc.filter(g=>{ const d=diasRestantes(g.vencimiento); return d!==null&&d<=7; }).length;
+  const vencUrgentes=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&["overdue","soon","review"].includes(expenseAttention(g).kind)).length;
 
   const alertasProximas = todosVenc
   .map(g => ({
@@ -710,6 +722,7 @@ const calcularMontoARSParaDuplicado = (mov = {}) => {
 
 const guardarGastoInterno = async (extra = {}) => {
   let f = { ...form, ...extra };
+  const owner=authUser.usuarioId;
 
   const conceptoLimpio = String(f.servicio || "").trim();
   const montoNumero = Number(f.monto || 0);
@@ -832,24 +845,8 @@ const guardarGastoInterno = async (extra = {}) => {
         subconceptos: subconceptosFinales,
       });
 
-      const movimientosApi = await getMovimientos(mesKey);
-      const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
-
-      setData((prev) => ({
-        ...prev,
-        gastos: {
-          ...prev.gastos,
-          [mesKey]: nuevoData.gastos[mesKey] || [],
-        },
-        ingresos: {
-          ...prev.ingresos,
-          [mesKey]: nuevoData.ingresos[mesKey] || [],
-        },
-        sueldo: {
-          ...prev.sueldo,
-          [mesKey]: nuevoData.sueldo[mesKey] || 0,
-        },
-      }));
+      if(sessionRef.current!==owner)return;
+  const synced = await refrescarMes(mesKey,owner);
 
       setForm({
         categoria: "",
@@ -874,7 +871,7 @@ const guardarGastoInterno = async (extra = {}) => {
         crearConceptoPendiente: false,
       });
 
-      toast_("Gasto actualizado");
+      if(synced)toast_("Gasto actualizado");
       return;
     } catch (e) {
       console.error(e);
@@ -995,24 +992,8 @@ try {
     subconceptos: subconceptosPayload,
   });
 
-  const movimientosApi = await getMovimientos(mesKey);
-    const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
-
-    setData((prev) => ({
-      ...prev,
-      gastos: {
-        ...prev.gastos,
-        [mesKey]: nuevoData.gastos[mesKey] || [],
-      },
-      ingresos: {
-        ...prev.ingresos,
-        [mesKey]: nuevoData.ingresos[mesKey] || [],
-      },
-      sueldo: {
-        ...prev.sueldo,
-        [mesKey]: nuevoData.sueldo[mesKey] || 0,
-      },
-    }));
+  if(sessionRef.current!==owner)return;
+  const synced = await refrescarMes(mesKey,owner);
 
     setForm({
       categoria: "",
@@ -1037,10 +1018,10 @@ try {
       crearConceptoPendiente: false,
     });
 
-    toast_("Gasto guardado correctamente");
+    if(synced)toast_("Gasto guardado correctamente");
   } catch (e) {
     console.error(e);
-    toast_("No se pudo guardar", "err");
+    toast_(e.message || "No se pudo guardar", "err");
   }
 };
 
@@ -1082,7 +1063,12 @@ try {
   const handleNuevaNota=()=>{ _guardarNuevo(acumModal.nuevo); setAcumModal(null); };
 
   const handleEditSave = async (gastoEditado) => {
-  const key = editingMesKey || mesKey;
+  const key = editingMesKey || mesKey,owner=authUser.usuarioId;
+  const maxDay=new Date(Number(key.slice(0,4)),Number(key.slice(5,7)),0).getDate();
+  if(!String(gastoEditado.servicio||'').trim())throw new Error("Escribí el concepto del gasto");
+  if(!Number.isInteger(Number(gastoEditado.dia))||Number(gastoEditado.dia)<1||Number(gastoEditado.dia)>maxDay)throw new Error(`Ingresá un día entre 1 y ${maxDay}`);
+  if(!gastoEditado.medioPagoId || gastoEditado.medioPagoId==='mp_sin_definir')throw new Error("Elegí una cuenta o medio de pago");
+  if(!gastoEditado.instrumentoId || gastoEditado.instrumentoId.includes('sin_definir'))throw new Error("Elegí una forma de pago");
 
   const estadoNuevo = String(gastoEditado?.estado || "").toLowerCase();
   const sinVencimiento = !String(gastoEditado?.vencimiento || "").trim();
@@ -1182,31 +1168,15 @@ try {
       subconceptos: gastoParaGuardar.subconceptos || [],
     });
 
-    const movimientosApi = await getMovimientos(key);
-    const nuevoData = mapMovimientosDesdeApi(movimientosApi, key);
-
-    setData((prev) => ({
-      ...prev,
-      gastos: {
-        ...prev.gastos,
-        [key]: nuevoData.gastos[key] || [],
-      },
-      ingresos: {
-        ...prev.ingresos,
-        [key]: nuevoData.ingresos[key] || [],
-      },
-      sueldo: {
-        ...prev.sueldo,
-        [key]: nuevoData.sueldo[key] || 0,
-      },
-    }));
+    if(sessionRef.current!==owner)return;
+    const synced=await refrescarMes(key,owner);
 
     setEditingGasto(null);
     setEditingMesKey(null);
-    toast_(gastoEditado.guardarComoConceptoFrecuente ? "Concepto guardado y gasto actualizado" : "Cambios guardados");
+    if(synced)toast_(gastoEditado.guardarComoConceptoFrecuente ? "Concepto guardado y gasto actualizado" : "Cambios guardados");
   } catch (e) {
     console.error("ERROR EN handleEditSave", e);
-    toast_(e.message || "No se pudieron guardar los cambios", "err");
+    throw e;
   }
 };
 
@@ -1287,232 +1257,98 @@ const handleSubconceptosSave = (items) => {
 
   const openEdit=(g,key=null)=>{ setEditingGasto({...g}); setEditingMesKey(key); };
  const toggleEstado = async (id) => {
+  if(estadoRef.current)return;
+  estadoRef.current=true;setEstadoBusy(true);
+  const periodo=mesKey,owner=authUser.usuarioId;
+  try{
+    const gasto=(data.gastos[periodo]||[]).find(g=>g.id===id);
+    if(!gasto)throw new Error("No se encontró el gasto");
+    const estado=gasto.estado==="pagado"?"pendiente":"pagado";
+    await actualizarEstadoGasto({movimientoId:id,estado});
+    if(sessionRef.current!==owner)return;
+    setData(prev=>({...prev,gastos:{...prev.gastos,[periodo]:(prev.gastos[periodo]||[]).map(g=>g.id===id?{...g,estado,...(estado==='pagado'?{requiereRevision:false,motivoRevision:null}:{})}:g)}}));
+    if(await refrescarMes(periodo,owner))toast_(estado==="pagado"?"Marcado como pagado":"Marcado como pendiente");
+  }catch(e){if(sessionRef.current===owner)toast_(e.message||"No se pudo actualizar el estado","err");}
+  finally{estadoRef.current=false;setEstadoBusy(false);}
+};
+ const resetPrivateState = () => {
+  sessionRef.current = null;
+  setData({gastos:{},ingresos:{},sueldo:{}}); setCfg(DEFAULT_CONFIG); setRecurrentes([]);
+  setForm({servicio:"",monto:"",moneda:"ARS",estado:"pagado",dia:String(new Date().getDate()),subconceptos:[],etiquetasIds:[]});
+  setIngForm({fuente:"",monto:"",dia:String(new Date().getDate())}); setSueldoInput("");
+  setEditingGasto(null); setEditingMesKey(null); setConfirmDel(null); setSubconceptosGasto(null); setAcumModal(null); setReplicarStep(null);
+  setEditConcepto(null); setEditMedio(null); setNuevoMedio({nombre:"",tipo:"banco",color:"#60a5fa",ordenVisual:""});
+  setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null); setDesglosesAbiertos({});
+  setCfgTab("conceptos"); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
+};
+const refrescarMes = async (periodo, owner = authUser?.usuarioId) => {
   try {
-    const gastoActual = (data.gastos[mesKey] || []).find((g) => g.id === id);
-
-    if (!gastoActual) {
-      toast_("No se encontró el gasto", "err");
-      return;
-    }
-
-    const nuevoEstado =
-      gastoActual.estado === "pagado" ? "pendiente" : "pagado";
-
-    if (nuevoEstado === "pendiente" && !String(gastoActual.vencimiento || "").trim()) {
-      const marcarIgual = await pedirConfirmacion({
-        title: "Pendiente sin vencimiento",
-        message: "Este gasto quedará pendiente sin fecha de vencimiento.",
-        note: "Podés marcarlo igual o abrir la edición para agregar una fecha y verlo correctamente en Vence.",
-        icon: "⚠️",
-        variant: "warn",
-        confirmLabel: "Marcar igual",
-        cancelLabel: "Agregar vencimiento",
-      });
-
-      if (!marcarIgual) {
-        setEditingGasto({ ...gastoActual, estado: "pendiente" });
-        setEditingMesKey(mesKey);
-        toast_("Agregá el vencimiento y guardá los cambios.", "warn");
-        return;
-      }
-    }
-
-    await actualizarGasto({
-      id: gastoActual.id,
-      periodo: mesKey,
-      dia: gastoActual.dia,
-      categoria: gastoActual.categoria,
-      formaPago: gastoActual.formaPago,
-      medioPagoId: gastoActual.medioPagoId || medioPagoDesdeCategoriaLegacy(gastoActual.categoria),
-      instrumentoId: gastoActual.instrumentoId || instrumentoDesdeFormaPagoLegacy(gastoActual.formaPago),
-      categoriaGastoId: gastoActual.categoriaGastoId || categoriaGastoDesdeServicio(gastoActual.servicio),
-      etiquetasIds: gastoActual.etiquetasIds || gastoActual.etiquetas?.map(e => e.id || e.etiquetaId) || etiquetasDesdeServicio(gastoActual.servicio),
-      servicio: gastoActual.servicio,
-      monto: Number(gastoActual.monto || 0),
-      moneda: gastoActual.moneda || "ARS",
-      estado: nuevoEstado,
-      observacion: gastoActual.observacion || "",
-      vencimiento: gastoActual.vencimiento || null,
-      esRecurrente: !!gastoActual.esRecurrente,
-      requiereRevision: nuevoEstado === "pagado" ? false : !!gastoActual.requiereRevision,
-      motivoRevision: nuevoEstado === "pagado" ? null : (gastoActual.motivoRevision || null),
-      origenMovimiento: gastoActual.origenMovimiento || null,
-      subconceptos: gastoActual.subconceptos || [],
-    });
-
-    const movimientosApi = await getMovimientos(mesKey);
-    const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
-
-    setData((prev) => ({
-      ...prev,
-      gastos: {
-        ...prev.gastos,
-        [mesKey]: nuevoData.gastos[mesKey] || [],
-      },
-      ingresos: {
-        ...prev.ingresos,
-        [mesKey]: nuevoData.ingresos[mesKey] || [],
-      },
-      sueldo: {
-        ...prev.sueldo,
-        [mesKey]: nuevoData.sueldo[mesKey] || 0,
-      },
-    }));
-
-    toast_(
-      nuevoEstado === "pagado"
-        ? "Marcado como pagado"
-        : "Marcado como pendiente"
-    );
-  } catch (e) {
-    console.error(e);
-    toast_("No se pudo actualizar el estado", "err");
+    const nuevo = mapMovimientosDesdeApi(await getMovimientos(periodo), periodo);
+    if (sessionRef.current !== owner) return false;
+    setData(prev => ({...prev, gastos:{...prev.gastos,[periodo]:nuevo.gastos[periodo]||[]}, ingresos:{...prev.ingresos,[periodo]:nuevo.ingresos[periodo]||[]}, sueldo:{...prev.sueldo,[periodo]:nuevo.sueldo[periodo]||0}}));
+    return true;
+  } catch (error) {
+    if (sessionRef.current === owner) toast_("El cambio se guardó. No pudimos actualizar la lista; volvé a cargarla.","warn");
+    return false;
   }
 };
- const guardarIngreso = async () => {
-  if (guardarIngresoLoading) return;
-
-  if (!ingForm.fuente) {
-    toast_("Seleccioná una fuente", "err");
-    return;
-  }
-
-  if (!ingForm.monto || Number(ingForm.monto) <= 0) {
-    toast_("Ingresá un monto válido", "err");
-    return;
-  }
-
-  if (!ingForm.dia || Number(ingForm.dia) < 1 || Number(ingForm.dia) > 31) {
-    toast_("Ingresá un día válido", "err");
-    return;
-  }
-
-  setGuardarIngresoLoading(true);
-
+const solicitarBorrado = item => {setDeleteError(""); setConfirmDel({...item,periodo:item.periodo || mesKey});};
+const guardarIngreso = async () => {
+  if (guardarIngresoRef.current) return;
+  const maxDay = new Date(mes.y,mes.m+1,0).getDate();
+  if (!ingForm.fuente.trim()) return toast_("Escribí la fuente del ingreso", "err");
+  if (!Number.isFinite(Number(ingForm.monto)) || Number(ingForm.monto)<=0) return toast_("Ingresá un importe válido", "err");
+  if (!Number.isInteger(Number(ingForm.dia)) || Number(ingForm.dia)<1 || Number(ingForm.dia)>maxDay) return toast_("Ingresá un día válido para este mes", "err");
+  guardarIngresoRef.current=true; setGuardarIngresoLoading(true);
+  const periodo=mesKey, owner=authUser.usuarioId, draft={...ingForm};
   try {
-    await crearIngreso({
-      periodo: mesKey,
-      dia: Number(ingForm.dia),
-      fuente: ingForm.fuente,
-      monto: Number(ingForm.monto),
-    });
-
-    const movimientosApi = await getMovimientos(mesKey);
-    const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
-
-    setData((prev) => ({
-      ...prev,
-      gastos: {
-        ...prev.gastos,
-        [mesKey]: nuevoData.gastos[mesKey] || [],
-      },
-      ingresos: {
-        ...prev.ingresos,
-        [mesKey]: nuevoData.ingresos[mesKey] || [],
-      },
-      sueldo: {
-        ...prev.sueldo,
-        [mesKey]: nuevoData.sueldo[mesKey] || 0,
-      },
-    }));
-
-    setIngForm((f) => ({
-      ...f,
-      fuente: "",
-      monto: "",
-      dia: String(now.getDate()),
-    }));
-
-    toast_("¡Ingreso guardado!");
-  } catch (e) {
-    console.error(e);
-    toast_("No se pudo guardar ingreso", "err");
-  } finally {
-    setGuardarIngresoLoading(false);
-  }
+    const saved = await (draft.id ? actualizarIngreso : crearIngreso)({movimientoId:draft.id,periodo,dia:Number(draft.dia),fuente:draft.fuente.trim(),monto:Number(draft.monto)});
+    if (sessionRef.current !== owner) return;
+    setData(prev => ({...prev,ingresos:{...prev.ingresos,[periodo]:draft.id?(prev.ingresos[periodo]||[]).map(i=>i.id===draft.id?{...i,...draft,monto:Number(draft.monto)}:i):[...(prev.ingresos[periodo]||[]),{...draft,id:saved.movimiento_id,monto:Number(draft.monto)}]}}));
+    setIngForm({fuente:"",monto:"",dia:String(Math.min(new Date().getDate(),maxDay))});
+    if (await refrescarMes(periodo,owner)) toast_(draft.id?"Ingreso actualizado":"Ingreso guardado");
+  } catch (e) {if(sessionRef.current===owner) toast_(e.message || "No se pudo guardar el ingreso", "err");}
+  finally {guardarIngresoRef.current=false;setGuardarIngresoLoading(false);}
 };
-
 const guardarSueldo = async () => {
-  if (!sueldoInput || Number(sueldoInput) <= 0) {
-    toast_("Ingresá un sueldo válido", "err");
-    return;
-  }
-
+  if (sueldoRef.current) return;
+  const monto=Number(sueldoInput),periodo=mesKey,owner=authUser.usuarioId;
+  if (!Number.isFinite(monto)||monto<=0) return toast_("Ingresá un sueldo válido", "err");
+  sueldoRef.current=true;setSueldoBusy(true);
   try {
-    await guardarSueldoNeon({
-      periodo: mesKey,
-      monto: Number(sueldoInput),
-    });
-
-    const movimientosApi = await getMovimientos(mesKey);
-    const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
-
-    setData((prev) => ({
-      ...prev,
-      gastos: {
-        ...prev.gastos,
-        [mesKey]: nuevoData.gastos[mesKey] || [],
-      },
-      ingresos: {
-        ...prev.ingresos,
-        [mesKey]: nuevoData.ingresos[mesKey] || [],
-      },
-      sueldo: {
-        ...prev.sueldo,
-        [mesKey]: nuevoData.sueldo[mesKey] || 0,
-      },
-    }));
-
-    setSueldoInput("");
-    toast_("Sueldo guardado");
-  } catch (e) {
-    console.error(e);
-    toast_("No se pudo guardar sueldo", "err");
-  }
+    await guardarSueldoNeon({periodo,monto});
+    if(sessionRef.current!==owner)return;
+    setData(prev=>({...prev,sueldo:{...prev.sueldo,[periodo]:monto}}));setSueldoInput("");
+    if(await refrescarMes(periodo,owner))toast_("Sueldo guardado");
+  } catch(e){if(sessionRef.current===owner)toast_(e.message || "No se pudo guardar el sueldo","err");}
+  finally{sueldoRef.current=false;setSueldoBusy(false);}
 };
-
-const eliminar = async (tipo, id) => {
-  try {
-    if (tipo === "gastos") {
-      await eliminarGasto(id);
-    } else if (tipo === "ingresos") {
-      await eliminarIngreso(id);
-    } else {
-      toast_("Tipo no soportado", "err");
-      setConfirmDel(null);
-      return;
-    }
-
-    const movimientosApi = await getMovimientos(mesKey);
-    const nuevoData = mapMovimientosDesdeApi(movimientosApi, mesKey);
-
-    setData((prev) => ({
-      ...prev,
-      gastos: {
-        ...prev.gastos,
-        [mesKey]: nuevoData.gastos[mesKey] || [],
-      },
-      ingresos: {
-        ...prev.ingresos,
-        [mesKey]: nuevoData.ingresos[mesKey] || [],
-      },
-      sueldo: {
-        ...prev.sueldo,
-        [mesKey]: nuevoData.sueldo[mesKey] || 0,
-      },
-    }));
-
-    setConfirmDel(null);
-    toast_(tipo === "gastos" ? "Gasto eliminado de este mes" : "Ingreso eliminado");
-  } catch (e) {
-    console.error(e);
-    setConfirmDel(null);
-    toast_("No se pudo eliminar", "err");
-  }
+const eliminar = async () => {
+  if(eliminarRef.current || !confirmDel)return;
+  eliminarRef.current=true;setEliminando(true);setDeleteError("");
+  const {tipo,id,periodo}=confirmDel,owner=authUser.usuarioId;
+  try{
+    if(tipo==="gastos")await eliminarGasto(id);
+    else if(tipo==="ingresos")await eliminarIngreso(id);
+    else if(tipo==="sueldo")await eliminarSueldo(periodo);
+    else throw new Error("No se reconoce este movimiento");
+    if(sessionRef.current!==owner)return;
+    setData(prev=>({...prev,[tipo]:{...prev[tipo],[periodo]:tipo==="sueldo"?0:(prev[tipo][periodo]||[]).filter(item=>item.id!==id)}}));
+    setConfirmDel(null); if(editingGasto?.id===id){setEditingGasto(null);setEditingMesKey(null);}
+    if(ingForm.id===id)setIngForm({fuente:"",monto:"",dia:"1"});
+    if(await refrescarMes(periodo,owner))toast_(tipo==="gastos"?"Gasto eliminado":tipo==="sueldo"?"Sueldo eliminado":"Ingreso eliminado");
+  }catch(e){if(sessionRef.current===owner)setDeleteError(e.message || "No se pudo eliminar. Intentá nuevamente.");}
+  finally{eliminarRef.current=false;setEliminando(false);}
 };
   //const eliminar=(tipo,id)=>{ setData(prev=>({...prev,[tipo]:{...prev[tipo],[mesKey]:(prev[tipo][mesKey]||[]).filter(g=>g.id!==id)}})); setConfirmDel(null); toast_("Eliminado","err"); };
   const cambiarMes=(dir)=>setMes(prev=>{ let m=prev.m+dir,y=prev.y; if(m>11){m=0;y++;} if(m<0){m=11;y--;} return{y,m}; });
-  const exportCSV=()=>{ const rows=[["Dia","Categoria","Medio Pago","Concepto","Monto","Moneda","USD Total","Estado","Vencimiento","Obs"]]; gastosDelMes.forEach(g=>{ const usd=montoUSDReal(g); const cat=categoriaRealDesdeGasto(g); rows.push([g.dia,cat.label,g.medioPagoNombre||g.medioPago||"",g.servicio,g.monto,g.moneda,usd||"",g.estado,g.vencimiento||"",g.observacion]); }); const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([rows.map(r=>r.join(",")).join("\n")],{type:"text/csv"})); a.download=`gastos_${mesKey}.csv`; a.click(); toast_("CSV exportado"); };
+  const exportCSV=()=>{
+    const rows=[["Dia","Medio de pago","Concepto","Importe registrado","Moneda","Total ARS","Débito automático","Estado","Vencimiento","Por revisar","Nota"]];
+    gastosDelMes.forEach(g=>rows.push([g.dia,g.medioPagoNombre||g.medioPago||"",g.servicio,Number(g.monto),g.moneda,montoReal(g,tc),isAutomaticDebit(g)?"Sí":"No",g.estado,g.vencimiento||"",g.requiereRevision?"Sí":"No",g.observacion||""]));
+    const cell=value=>{const text=String(value??"");const safe=typeof value==='string'&&/^[=+@\-\t\r]/.test(text)?"'"+text:text;return '"'+safe.replace(/"/g,'""')+'"';};
+    const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
+    const a=document.createElement('a');a.href=url;a.download=`gastos_${mesKey}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast_("CSV exportado");
+  };
 
   const addForma=()=>{if(!newForma.trim()||cfg.formasPago.includes(newForma.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,formasPago:[...p.formasPago,newForma.trim()]}));setNewForma("");toast_("Agregado");};
   const saveForma=()=>{if(!editForma?.val.trim())return;setCfg(p=>{const fp=[...p.formasPago];fp[editForma.idx]=editForma.val.trim();return{...p,formasPago:fp};});setEditForma(null);toast_("Actualizado");};
@@ -1522,7 +1358,7 @@ const eliminar = async (tipo, id) => {
   const addFuente=()=>{if(!newFuente.trim()||cfg.fuentesIngreso.includes(newFuente.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,fuentesIngreso:[...p.fuentesIngreso,newFuente.trim()]}));setNewFuente("");toast_("Agregado");};
   const saveFuente=()=>{if(!editFuente?.val.trim())return;setCfg(p=>{const f=[...p.fuentesIngreso];f[editFuente.idx]=editFuente.val.trim();return{...p,fuentesIngreso:f};});setEditFuente(null);toast_("Actualizado");};
   const delFuente=(idx)=>{setCfg(p=>({...p,fuentesIngreso:p.fuentesIngreso.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
-  const guardarTC=()=>{if(!tcInput)return;setCfg(p=>({...p,tipoCambio:Number(tcInput)}));setTcInput("");toast_("TC actualizado");};
+  const guardarTC=()=>{if(!Number.isFinite(Number(tcInput))||Number(tcInput)<=0){toast_("Ingresá una cotización mayor a cero","err");return;}setCfg(p=>({...p,tipoCambio:Number(tcInput)}));setTcInput("");toast_("TC actualizado");};
 
   const refrescarCatalogos = async () => {
     const catalogosApi = await getCatalogos();
@@ -1845,12 +1681,13 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
   const yaHayMesSiguiente=()=> !!(data.gastos[mesKeySiguiente()]?.length);
+  const gastosFuenteReplicar=missingReplicas(gastosDelMes,data.gastos[mesKeySiguiente()]||[]);
   const abrirReplica = () => {
-    setExcluirReplicar(new Set());
-    setFiltCatReplicar("todos");
-    setReplicarStep(!gastosDelMes.length || yaHayMesSiguiente() ? "informacion" : "modal");
+    const recurrent = gastosFuenteReplicar.filter(g=>g.esRecurrente || isAutomaticDebit(g,cfg));
+    setExcluirReplicar(new Set(recurrent.length?gastosFuenteReplicar.filter(g=>!recurrent.includes(g)).map(g=>g.id):[]));
+    setReplicaCopiados(0);
+    setReplicarStep(!gastosFuenteReplicar.length?"informacion":"modal");
   };
-  const gastosFuenteReplicar= gastosDelMes;
   const gastosIncluidos= gastosFuenteReplicar.filter(g=>!excluirReplicar.has(g.id));
   const toggleExcluir=(id)=>setExcluirReplicar(prev=>{ const n=new Set(prev); n.has(id)?n.delete(id):n.add(id); return n; });
   const confirmarReplica = async () => {
@@ -1867,13 +1704,10 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   let copiados = 0;
   try {
     const destino = mapMovimientosDesdeApi(await getMovimientos(nextKey), nextKey);
-    if (destino.gastos[nextKey]?.length) {
-      setData(prev => ({...prev, gastos: {...prev.gastos, ...destino.gastos}}));
-      setReplicarStep(null);
-      toast_("Ese mes ya tiene gastos. Revisalo antes de volver a copiar.", "err");
-      return;
-    }
-    for (const g of gastosIncluidos) {
+    const availableIds=new Set(missingReplicas(gastosDelMes,destino.gastos[nextKey]||[]).map(g=>g.id));
+    const toCopy=gastosIncluidos.filter(g=>availableIds.has(g.id));
+    if(!toCopy.length){await refrescarMes(nextKey);setReplicarStep("informacion");return;}
+    for (const g of toCopy) {
       const subconceptosReplica = prepararSubconceptosParaReplica(g.subconceptos || []);
       const tieneDetalle = subconceptosReplica.length > 0;
 
@@ -1900,7 +1734,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
         vencimiento: vencimientoReplica || null,
         esRecurrente: !!g.esRecurrente,
         requiereRevision: true,
-        motivoRevision: vencimientoReplica ? "REVISAR_MONTO" : "REVISAR_MONTO_VENCIMIENTO",
+        motivoRevision: "REVISAR_MONTO_VENCIMIENTO",
         origenMovimiento: "REPLICA_MES",
         subconceptos: subconceptosReplica,
       });
@@ -1926,10 +1760,13 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
       },
     }));
 
+    setReplicaCopiados(copiados);
     setReplicarStep("done");
-    toast_(`${gastosIncluidos.length} gastos copiados a ${mesNombreSig()}`);
+    toast_(`${copiados} gastos copiados a ${mesNombreSig()}`);
   } catch (e) {
     console.error("Error replicando mes:", e);
+    if(copiados)await refrescarMes(nextKey);
+    setReplicarStep(null);
     toast_(`${copiados ? `Se copiaron ${copiados} gastos. ` : ""}No se completó la copia. Revisá el mes destino antes de reintentar.`, "err");
   } finally {
     replicandoRef.current = false;
@@ -2021,6 +1858,7 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
     ...f,
     conceptoId: concepto.id,
     servicio: concepto.nombre,
+    ...(isAutomaticDebit({instrumentoId:concepto.instrumentoId},cfg)?{estado:"pendiente"}:{}),
     medioPagoId: concepto.medioPagoId || f.medioPagoId || "mp_sin_definir",
     instrumentoId: concepto.instrumentoId || f.instrumentoId || "",
     categoriaGastoId: concepto.categoriaGastoId || f.categoriaGastoId || "",
@@ -2066,11 +1904,13 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
 
 const handleLogin = async (e) => {
   e.preventDefault();
+  if(loginLoading)return;
   setLoginError("");
   setLoginLoading(true);
 
   try {
     const user = await login(loginForm.usuarioId, loginForm.pin);
+    resetPrivateState();
     setAuthUser(user);
     setLoginForm((prev) => ({ ...prev, pin: "" }));
     toast_(`Bienvenido, ${user.nombre}`);
@@ -2094,9 +1934,8 @@ const handleLogout = async () => {
   if (!confirmar) return;
 
   logout();
+  resetPrivateState();
   setAuthUser(null);
-  setData({ gastos:{}, ingresos:{}, sueldo:{} });
-  setView("home");
 };
 
 if (authUser && cargaEstado !== "listo") {
@@ -2104,7 +1943,7 @@ if (authUser && cargaEstado !== "listo") {
     <h1 style={{fontSize:22,marginBottom:16}}>Mis Finanzas</h1>
     <p role={cargaEstado === "error" ? "alert" : "status"}>{cargaEstado === "error" ? cargaError : "Cargando tus movimientos…"}</p>
     {cargaEstado === "error" && <button style={{margin:16,padding:12}} onClick={()=>setRecarga(n=>n+1)}>Reintentar</button>}
-    <button style={{margin:16,padding:12}} onClick={()=>{logout();setAuthUser(null);setData({gastos:{},ingresos:{},sueldo:{}});}}>Salir</button>
+    <button style={{margin:16,padding:12}} onClick={()=>{logout();resetPrivateState();setAuthUser(null);}}>Salir</button>
   </main>;
 }
 
@@ -2117,12 +1956,13 @@ if (!authUser) {
       <p>Gastos, ingresos y próximos pagos.<br/>Una mirada simple a tus finanzas.</p>
       <form onSubmit={handleLogin}>
         <label htmlFor="login-user">Usuario</label>
-        <select id="login-user" value={loginForm.usuarioId} onChange={e=>setLoginForm(p=>({...p,usuarioId:e.target.value}))}><option value="usr_gustavo">Gustavo</option><option value="usr_vane">Vane</option></select>
-        <label htmlFor="login-pin">PIN</label>
-        <input id="login-pin" type="password" inputMode="numeric" autoComplete="current-password" placeholder="Ingresá tu PIN" value={loginForm.pin} onChange={e=>setLoginForm(p=>({...p,pin:e.target.value}))}/>
+        <input id="login-user" autoComplete="username" autoCapitalize="none" spellCheck="false" required placeholder="Tu usuario" value={loginForm.usuarioId} disabled={loginLoading} onChange={e=>setLoginForm(p=>({...p,usuarioId:e.target.value}))}/>
+        <label htmlFor="login-pin">Clave personal</label>
+        <input id="login-pin" type="password" required disabled={loginLoading} autoComplete="current-password" placeholder="Ingresá tu clave" value={loginForm.pin} onChange={e=>setLoginForm(p=>({...p,pin:e.target.value}))}/>
         {loginError&&<div role="alert" className="error-note">{loginError}</div>}
         <button className="primary" disabled={loginLoading}>{loginLoading?"Validando…":"Ingresar"}<UiIcon name="arrow" size={19}/></button>
       </form>
+      <p className="login-help">¿Necesitás acceso o cambiar tu clave? Contactá a quien administra la app.</p>
     </div>
     <div className="login-footer"><UiIcon name="lock" size={15}/>Un espacio privado para tus movimientos</div>
   </main>;
@@ -2284,6 +2124,8 @@ if (!authUser) {
           gasto={editingGasto}
           config={cfg}
           tc={tc}
+          periodo={editingMesKey || mesKey}
+          onDelete={() => solicitarBorrado({...editingGasto,tipo:"gastos",periodo:editingMesKey || mesKey})}
           onSave={handleEditSave}
           onClose={() => {
             setEditingGasto(null);
@@ -2315,43 +2157,7 @@ if (!authUser) {
         </div>
       )}
 
-      {/* Confirm delete */}
-      {confirmDel&&(
-        <div className="ov" onClick={()=>setConfirmDel(null)}>
-          <div className="ob" onClick={e=>e.stopPropagation()}>
-            <p style={{ fontWeight:600,fontSize:16,marginBottom:8 }}>
-              {confirmDel.tipo === "gastos" ? "¿Eliminar este gasto?" : "¿Eliminar este ingreso?"}
-            </p>
-
-            <p style={{ color:"#e2e8f0",fontSize:14,marginBottom:8 }}>
-              {confirmDel.servicio}
-            </p>
-
-            <p style={{ color:"#94a3b8",fontSize:13,lineHeight:1.45,marginBottom:24 }}>
-              {confirmDel.tipo === "gastos"
-                ? "Vas a eliminar este gasto solo de este mes. No se borra el concepto ni otros meses."
-                : "Vas a eliminar este ingreso solo de este mes. No se borra información de otros meses."}
-            </p>
-
-            <div style={{ display:"flex",gap:10 }}>
-              <button
-                className="pb"
-                style={{ flex:1,background:"#1e1e2e",color:"#94a3b8" }}
-                onClick={()=>setConfirmDel(null)}
-              >
-                Cancelar
-              </button>
-              <button
-                className="pb"
-                style={{ flex:1,background:"#7f1d1d",color:"#fca5a5" }}
-                onClick={()=>eliminar(confirmDel.tipo,confirmDel.id)}
-              >
-                {confirmDel.tipo === "gastos" ? "Eliminar de este mes" : "Eliminar ingreso"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {confirmDel && <ConfirmDelete item={confirmDel} amount={confirmDel.tipo==="gastos"?montoReal(confirmDel,tc):Number(confirmDel.monto)} busy={eliminando} error={deleteError} onClose={()=>setConfirmDel(null)} onConfirm={eliminar}/>}
 
       <div className="page-header">
         <h1>{({home:"Tu mes, en claro.",cargar:"Cargar gasto",resumen:"Movimientos",ingresos:"Ingresos",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",config:"Ajustes"})[view]}</h1>
@@ -2424,7 +2230,7 @@ if (!authUser) {
                       <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{porcentajeGrupo}% del filtro</div>
                     </div>
                   </div>
-                  {cat.items.map(item => (<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} onDelete={g=>setConfirmDel({...g,tipo:"gastos"})}/>))}
+                  {cat.items.map(item => (<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>))}
                 </div>
               );
             })}
@@ -2442,6 +2248,7 @@ if (!authUser) {
     onNextMonth={() => cambiarMes(1)}
     onEdit={(g,key)=>openEdit(g,key)}
     onMarcarPagado={async (id, itemMesKey) => {
+      const owner=authUser.usuarioId;
       try {
         const gastoActual = (data.gastos[itemMesKey] || []).find((g) => g.id === id);
 
@@ -2455,26 +2262,10 @@ if (!authUser) {
           estado: "pagado",
         });
 
-        const movimientosApi = await getMovimientos(itemMesKey);
-        const nuevoData = mapMovimientosDesdeApi(movimientosApi, itemMesKey);
+        if(sessionRef.current!==owner)return;
+        setData(prev=>({...prev,gastos:{...prev.gastos,[itemMesKey]:(prev.gastos[itemMesKey]||[]).map(g=>g.id===id?{...g,estado:'pagado',requiereRevision:false,motivoRevision:null}:g)}}));
+        if(await refrescarMes(itemMesKey,owner))toast_("Marcado como pagado");
 
-        setData((prev) => ({
-          ...prev,
-          gastos: {
-            ...prev.gastos,
-            [itemMesKey]: nuevoData.gastos[itemMesKey] || [],
-          },
-          ingresos: {
-            ...prev.ingresos,
-            [itemMesKey]: nuevoData.ingresos[itemMesKey] || [],
-          },
-          sueldo: {
-            ...prev.sueldo,
-            [itemMesKey]: nuevoData.sueldo[itemMesKey] || 0,
-          },
-        }));
-
-        toast_("Marcado como pagado");
       } catch (e) {
         console.error(e);
         toast_("No se pudo marcar como pagado", "err");
@@ -2488,6 +2279,10 @@ if (!authUser) {
           <AnalisisView
             mes={mes}
             gastosDelMes={gastosDelMes}
+            previousGastos={data.gastos[mesAnteriorKey] || []}
+            hasPrevious={!!((data.gastos[mesAnteriorKey]||[]).length || (data.ingresos[mesAnteriorKey]||[]).length || data.sueldo[mesAnteriorKey])}
+            hasCurrent={!!(gastosDelMes.length || ingresosDelMes.length || sueldoDelMes)}
+            previousLabel={mesAnteriorInfo.label}
             totalGastos={totalGastos}
             tc={tc}
             analisisTab={analisisTab}
@@ -2509,101 +2304,13 @@ if (!authUser) {
           />
         )}
 
-        {/* INGRESOS */}
-        {view==="ingresos"&&(
-          <IngresosView mes={mes} cambiarMes={cambiarMes}>
-
-          <section className="report-total"><span className="eyebrow muted">Ingresos del mes</span><div className="money" style={{color:"var(--mint)"}}>{fmtARS(totalIngresos)}</div><p className="muted">{tieneIngresosMesAnterior?(variacionIngresos===0?"Sin cambios respecto al mes anterior.":`${fmtARS(Math.abs(variacionIngresos))} ${variacionIngresos>0?"más":"menos"} que el mes anterior.`):"Todavía no hay un mes anterior para comparar."}</p></section>
-          <div className="card" style={{ padding:12,border:"1px solid #22c55e33" }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
-              <div><span style={lbl}>SUELDO DEL MES</span><div style={{ fontSize:11,color:"#64748b" }}>Ingreso fijo usado para calcular saldo y margen.</div></div>
-              {sueldoDelMes>0&&<div style={{ fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(sueldoDelMes)}</div>}
-            </div>
-            <div style={{ display:"flex",gap:8 }}>
-              <input className="inf" type="number" placeholder={sueldoDelMes?String(sueldoDelMes):"Monto sueldo"} value={sueldoInput} onChange={e=>setSueldoInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/>
-              <button className="pb" style={{ background:"#7c3aed",color:"#fff",padding:"10px 14px" }} onClick={guardarSueldo}>Guardar</button>
-            </div>
-          </div>
-
-          <div className="card" style={{ padding:12,border:"1px solid #22c55e44",background:"linear-gradient(135deg,#0f1f17,#101827)" }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:9 }}>
-              <div><span style={lbl}>INGRESO VARIABLE</span><div style={{ fontSize:11,color:"#94a3b8" }}>Cargá ventas, extras, cobros o trabajos del día.</div></div><UiIcon name="down" size={19}/>
-            </div>
-            <div style={{ display:"flex",flexWrap:"wrap",gap:7,marginBottom:10 }}>{[...new Set([...(cfg.fuentesIngreso || []), ...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))].map(f=>(<button key={f} className="pb" disabled={guardarIngresoLoading} onClick={()=>setIngForm(i=>({...i,fuente:f}))} style={{ background:ingForm.fuente===f?"#14532d":"#1e1e2e",color:ingForm.fuente===f?"#4ade80":"#94a3b8",fontSize:12,padding:"7px 10px",border:ingForm.fuente===f?"1px solid #22c55e66":"1px solid #2a2a3e",opacity:guardarIngresoLoading?0.6:1 }}>{f}</button>))}</div>
-            <div style={{ display:"grid",gridTemplateColumns:"1fr 86px",gap:8,marginBottom:10 }}>
-              <input
-                className="inf"
-                type="number"
-                placeholder="Monto"
-                value={ingForm.monto}
-                onChange={e=>setIngForm(i=>({...i,monto:e.target.value}))}
-                inputMode="numeric"
-                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-                disabled={guardarIngresoLoading}
-              />
-              <input
-                className="inf"
-                type="number"
-                placeholder="Día"
-                value={ingForm.dia}
-                onChange={e=>setIngForm(i=>({...i,dia:e.target.value}))}
-                inputMode="numeric"
-                onKeyDown={e => { if (e.key === 'Enter') e.preventDefault(); }}
-                disabled={guardarIngresoLoading}
-              />
-            </div>
-            <button
-              type="button"
-              className="pb"
-              disabled={guardarIngresoLoading}
-              style={{
-                width: "100%",
-                background: "linear-gradient(90deg,#15803d,#16a34a)",
-                color: "#dcfce7",
-                fontWeight: 900,
-                padding: "11px 12px",
-                opacity: guardarIngresoLoading ? 0.6 : 1,
-                cursor: guardarIngresoLoading ? "not-allowed" : "pointer"
-              }}
-              onClick={guardarIngreso}
-            >
-              {guardarIngresoLoading ? "Guardando..." : "+ Registrar ingreso variable"}
-            </button>
-          </div>
-
-          {ingresosPorFuente.filter(f=>f.total>0).length>0&&(
-            <div className="card" style={{ padding:12 }}>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10 }}>
-                <div><span style={lbl}>INGRESOS REGISTRADOS</span><div style={{ fontSize:11,color:"#64748b" }}>Agrupados por fuente. Tocá × si necesitás borrar una carga.</div></div>
-                <div style={{ fontSize:11,color:"#94a3b8" }}>{ingresosPorFuente.filter(f=>f.total>0).length} fuente(s)</div>
-              </div>
-              {ingresosPorFuente.filter(f=>f.total>0).map(f=>{ const w = totalIngresosExtras>0 ? Math.min(100,Math.round((f.total/totalIngresosExtras)*100)) : 0; return (
-                <div key={f.fuente} style={{ marginBottom:12,padding:"9px 10px",border:"1px solid #1e293b",borderRadius:14,background:"#0f172a" }}>
-                  <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:10,marginBottom:6 }}>
-                    <div style={{ display:"flex",alignItems:"center",gap:8,minWidth:0 }}><span style={{ width:9,height:9,borderRadius:999,background:f.color,display:"inline-block",flexShrink:0 }} /><span style={{ fontSize:13,fontWeight:900,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{f.fuente}</span><span style={{ fontSize:10,color:"#64748b" }}>{f.items.length}</span></div>
-                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(f.total)}</div>
-                  </div>
-                  <div style={{ height:4,background:"#1e1e2e",borderRadius:999,overflow:"hidden" }}><div style={{ width:`${w}%`,height:"100%",background:f.color,borderRadius:999 }} /></div>
-                  <div style={{ marginTop:8,display:"grid",gap:5 }}>
-                    {[...f.items].sort((a,b)=>Number(b.dia)-Number(a.dia)).map(item=>(
-                      <div key={item.id} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",gap:8,padding:"6px 0",borderTop:"1px solid #1e293b" }}>
-                        <div style={{ fontSize:11,color:"#94a3b8" }}>Día {item.dia}</div>
-                        <div style={{ display:"flex",alignItems:"center",gap:8 }}><div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,color:"#4ade80",fontWeight:900 }}>{fmtARS(item.monto)}</div><button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"3px 8px",cursor:"pointer",fontSize:12 }} onClick={()=>setConfirmDel({...item,tipo:"ingresos",servicio:normalizarFuenteIngreso(item.fuente)})}>×</button></div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );})}
-              <div style={{ borderTop:"1px solid #1e1e2e",paddingTop:10,marginTop:4,display:"flex",justifyContent:"space-between" }}><span style={{ fontSize:13,color:"#64748b" }}>Total ingresos</span><span style={{ fontFamily:"'Space Mono',monospace",fontSize:14,color:"#4ade80",fontWeight:900 }}>{fmtARS(totalIngresos)}</span></div>
-            </div>
-          )}
-          </IngresosView>
-        )}
+        {view==="ingresos" && <IncomeView total={totalIngresos} previous={totalIngresosAnterior} hasPrevious={!!((data.gastos[mesAnteriorKey]||[]).length || (data.ingresos[mesAnteriorKey]||[]).length || data.sueldo[mesAnteriorKey])} hasCurrent={!!(gastosDelMes.length || ingresosDelMes.length || sueldoDelMes)} previousLabel={mesAnteriorInfo.label} partial={mes.y===now.getFullYear()&&mes.m===now.getMonth()} salary={sueldoDelMes} salaryInput={sueldoInput} setSalaryInput={setSueldoInput} saveSalary={guardarSueldo} salaryBusy={sueldoBusy} form={ingForm} setForm={setIngForm} saveIncome={guardarIngreso} incomeBusy={guardarIngresoLoading} sources={[...new Set([...(cfg.fuentesIngreso||[]),...Object.values(data.ingresos).flat().map(i=>i.fuente),...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))]} items={ingresosDelMes} maxDay={new Date(mes.y,mes.m+1,0).getDate()} onEdit={item=>{setIngForm({...item,fuente:normalizarFuenteIngreso(item.fuente),monto:String(item.monto),dia:String(item.dia)});setTimeout(()=>{document.getElementById('income-form')?.scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('income-amount')?.focus({preventScroll:true});},0);}} onDelete={solicitarBorrado}/>}
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
+          <section className="surface account-card"><span className="avatar">{authUser.nombre?.slice(0,1)}</span><div><strong>{authUser.nombre}</strong><p className="small muted">{authUser.workspaceNombre || "Tu espacio"} · Tus movimientos personales</p></div><UiIcon name="lock" size={19}/></section>
           <p className="settings-intro">Administrá tus conceptos frecuentes, medios de pago y copias de tus datos.</p>
-          <div className="settings-tabs">{[["conceptos","Conceptos"],["medios","Medios de pago"],["fuentes","Ingresos"],["tc","Dólar"],["backup","Copias y datos"]].map(([id,label])=><button key={id} aria-pressed={cfgTab===id} onClick={()=>setCfgTab(id)}>{label}</button>)}</div>
+          <div className="settings-tabs">{[["conceptos","Conceptos"],["medios","Medios de pago"],["debitos","Débitos automáticos"],["fuentes","Ingresos"],["tc","Dólar"],["backup","Copias y datos"]].map(([id,label])=><button key={id} aria-pressed={cfgTab===id} onClick={()=>setCfgTab(id)}>{label}</button>)}</div>
           {cfgTab==="conceptos"&&(
             <>
               <div className="card">
@@ -2699,14 +2406,15 @@ if (!authUser) {
               <div className="card">
                 <div style={{ fontSize:14,fontWeight:700,marginBottom:12 }}>Tus registros</div>
                 {[
-                  ["Meses con datos", Object.keys(data.gastos).filter(k=>data.gastos[k]?.length>0).length],
+                  ["Meses con datos", new Set([...Object.keys(data.gastos).filter(k=>data.gastos[k]?.length),...Object.keys(data.ingresos).filter(k=>data.ingresos[k]?.length),...Object.keys(data.sueldo).filter(k=>data.sueldo[k]>0)]).size],
                   ["Total gastos cargados", Object.values(data.gastos).flat().length],
                   ["Medios de pago", (cfg.mediosPago||[]).length],
-                  ["Recurrentes", recurrentes.length],
+                  ["Recurrentes este mes", gastosDelMes.filter(g=>g.esRecurrente).length],
                 ].map(([label,val])=>(<div key={label} style={{ display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:"1px solid #1e1e2e" }}><span style={{ fontSize:13,color:"#94a3b8" }}>{label}</span><span style={{ fontSize:13,fontWeight:700 }}>{val}</span></div>))}
               </div>
             </div>
           )}
+          {cfgTab==="debitos"&&<section className="surface income-card"><div className="section-line"><h2>Servicios con débito automático</h2><UiIcon name="repeat" size={21}/></div><p className="muted small">Registrados en {MESES[mes.m].toLowerCase()} de {mes.y}. Podés cambiar la marca al editar cada gasto.</p>{gastosDelMes.filter(g=>isAutomaticDebit(g,cfg)).map(g=><button className="summary-row" key={g.id} onClick={()=>openEdit(g)}><span className="row-copy"><strong>{g.servicio}</strong><small>{g.medioPagoNombre||g.medioPago} · {g.estado==='pagado'?'Pagado':'Pendiente de confirmar'}</small></span><UiIcon name="chevron" size={18}/></button>)}{!gastosDelMes.some(g=>isAutomaticDebit(g,cfg))&&<p className="quiet-state">Todavía no marcaste gastos con débito automático este mes.</p>}</section>}
           {cfgTab==="fuentes"&&(<>
             <div className="card" style={{ border:"1px solid #14532d55",background:"#0f1f17" }}>
               <div style={{ fontWeight:900,marginBottom:6 }}>Orígenes de ingreso</div>
@@ -2714,129 +2422,15 @@ if (!authUser) {
                 Definí las fuentes que aparecen en la pantalla Ingresos. Usalas para ordenar cargas variables como Hogar, Ventas, Trabajo Diario u Otros.
               </div>
             </div>
-            <div className="card"><span style={lbl}>NUEVO ORIGEN</span><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Ej: Ventas, Extras, Trabajo diario" value={newFuente} onChange={e=>setNewFuente(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#16a34a",color:"#dcfce7" }} onClick={addFuente}>+</button></div><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>Esto solo cambia las opciones disponibles al cargar ingresos; no modifica movimientos históricos.</div></div>
+            <div className="card"><span style={lbl}>NUEVO ORIGEN</span><div style={{ display:"flex",gap:10 }}><input className="inf" placeholder="Ej: Ventas, Extras, Trabajo diario" value={newFuente} onChange={e=>setNewFuente(e.target.value)} style={{ flex:1 }}/><button className="pb" style={{ background:"#16a34a",color:"#dcfce7" }} onClick={addFuente}>+</button></div><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>Estas sugerencias se guardan para tu usuario en este dispositivo. Los ingresos registrados conservan su nombre.</div></div>
             <div className="card"><span style={lbl}>ORÍGENES ACTIVOS</span>{cfg.fuentesIngreso.map((f,idx)=>(<div key={idx}>{editFuente?.idx===idx?(<div style={{ display:"flex",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e",alignItems:"center" }}><input className="ei" value={editFuente.val} onChange={e=>setEditFuente(ef=>({...ef,val:e.target.value}))}/><button style={ib("#14532d","#4ade80")} onClick={saveFuente}>✓</button><button style={ib("#1e1e2e","#94a3b8")} onClick={()=>setEditFuente(null)}>✕</button></div>):(<div style={rowS}><div><div style={{ fontSize:14,fontWeight:800 }}>{normalizarFuenteIngreso(f)}</div><div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{f!==normalizarFuenteIngreso(f)?`Alias anterior: ${f}`:"Disponible en Ingresos"}</div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>setEditFuente({idx,val:f})}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>delFuente(idx)}>✕</button></div></div>)}</div>))}</div>
           </>)}
         </>)}
       {view==="config"&&<button className="logout-button" onClick={handleLogout}>Cerrar sesión</button>}
       </div>
 
-      {/* ── MODAL REPLICAR MES ── */}
-      {replicarStep==="informacion"&&(
-        <div className="ov" style={{zIndex:980}} onClick={()=>setReplicarStep(null)}>
-          <section className="ob" role="dialog" aria-modal="true" aria-labelledby="replicate-info-title" onClick={e=>e.stopPropagation()}>
-            <div className="section-line"><h2 id="replicate-info-title" style={{fontSize:20}}>Replicar gastos</h2><button className="icon-button" aria-label="Cerrar replicación" onClick={()=>setReplicarStep(null)}><UiIcon name="close"/></button></div>
-            <p className="replicate-info-message">{!gastosDelMes.length?`No hay gastos en ${MESES[mes.m].toLowerCase()} para replicar.`:`${mesNombreSig()} ya tiene gastos cargados.`}</p>
-            <p className="muted small" style={{marginBottom:22}}>{!gastosDelMes.length?"Elegí un mes con gastos o cargá el primero para usarlo como base del siguiente.":"La copia actual requiere un mes destino vacío. Podés revisar lo que ya está cargado antes de continuar."}</p>
-            <button className="primary" onClick={()=>{setReplicarStep(null);if(gastosDelMes.length){cambiarMes(1);setView("resumen");}else{setView("cargar");}window.scrollTo({top:0,behavior:"instant"});}}>{gastosDelMes.length?`Ver gastos de ${mesNombreSig().toLowerCase()}`:"Cargar un gasto"}<UiIcon name="arrow" size={19}/></button>
-            <button className="text-button" style={{width:"100%",marginTop:10}} onClick={()=>setReplicarStep(null)}>Volver</button>
-          </section>
-        </div>
-      )}
-      {replicarStep==="modal"&&(
-        <div style={{ position:"fixed",inset:0,background:"#0a0a0f",zIndex:980,overflowY:"auto",paddingBottom:100 }}>
-          {/* Header fijo */}
-          <div style={{ padding:"24px 16px 16px",background:"#0a0a0f",borderBottom:"1px solid #1e1e2e",position:"sticky",top:0,zIndex:10 }}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12 }}>
-              <div>
-                <div style={{ fontWeight:700,fontSize:18 }}>📋 Replicar a {mesNombreSig()}</div>
-                <div style={{ fontSize:12,color:"#94a3b8",marginTop:3 }}>Todos llegan como <span style={{ color:"#fb923c",fontWeight:600 }}>⏳ Pendiente</span></div>
-              </div>
-              <button className="pb" style={{ background:"#1e1e2e",color:"#94a3b8",padding:"8px 12px",fontSize:13 }} onClick={()=>setReplicarStep(null)}>✕</button>
-            </div>
-            {/* Resumen */}
-            <div style={{ display:"flex",gap:8,marginBottom:12 }}>
-              <div style={{ flex:1,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>INCLUIDOS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:700,color:"#4ade80" }}>{gastosIncluidos.length}</div></div>
-              <div style={{ flex:1,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>EXCLUIDOS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:16,fontWeight:700,color:"#f87171" }}>{excluirReplicar.size}</div></div>
-              <div style={{ flex:2,background:"#13131a",borderRadius:12,padding:"10px 12px",border:"1px solid #1e1e2e" }}><div style={{ fontSize:10,color:"#64748b" }}>REF. ARS</div><div style={{ fontFamily:"'Space Mono',monospace",fontSize:13,fontWeight:700,color:"#e2e8f0" }}>{fmtARS(gastosIncluidos.filter(g=>g.moneda==="ARS").reduce((a,g)=>a+montoReal(g,tc),0))}</div></div>
-            </div>
-            {/* Filtro categorías */}
-            <div style={{ display:"flex",gap:6,overflowX:"auto",paddingBottom:4 }}>
-              <button className="pb" onClick={()=>setFiltCatReplicar("todos")} style={{ background:filtCatReplicar==="todos"?"#7c3aed":"#1e1e2e",color:filtCatReplicar==="todos"?"#fff":"#94a3b8",fontSize:12,padding:"6px 12px",flexShrink:0 }}>Todos</button>
-              {cfg.categorias.map(cat=>(<button key={cat.id} className="pb" onClick={()=>setFiltCatReplicar(cat.id)} style={{ background:filtCatReplicar===cat.id?cat.color:"#1e1e2e",color:filtCatReplicar===cat.id?"#0a0a0f":"#94a3b8",fontSize:12,padding:"6px 12px",flexShrink:0 }}>{cat.label}</button>))}
-            </div>
-          </div>
-          {/* Lista */}
-          <div style={{ padding:"12px 16px" }}>
-            <div style={{ fontSize:11,color:"#64748b",marginBottom:12 }}>Destildá los gastos únicos que no se repiten (Pascuas, Farmacia, etc.)</div>
-            {gastosFuenteReplicar.filter(g=>filtCatReplicar==="todos"||g.categoria===filtCatReplicar).map(g=>{
-              const cat=cfg.categorias.find(c=>c.id===g.categoria);
-              const excluido=excluirReplicar.has(g.id);
-              const usd=montoUSDReal(g);
-              return(
-                <div key={g.id} onClick={()=>toggleExcluir(g.id)} style={{ display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:excluido?"#0f0f12":"#13131a",borderRadius:14,marginBottom:8,border:`1px solid ${excluido?"#2a2a3e":((cat?.color||"#fff")+"33")}`,cursor:"pointer",opacity:excluido?0.45:1,transition:"all 0.15s" }}>
-                  <div style={{ width:22,height:22,borderRadius:6,flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",background:excluido?"#1e1e2e":"#14532d",border:`2px solid ${excluido?"#2a2a3e":"#4ade80"}`,fontSize:13,color:"#4ade80" }}>{!excluido&&"✓"}</div>
-                  <div style={{ flex:1 }}>
-                    <div style={{ display:"flex",alignItems:"center",gap:6 }}>
-                      {cat&&<div style={{ width:7,height:7,borderRadius:"50%",background:cat.color }}/>}
-                      <span style={{ fontSize:14,fontWeight:500 }}>{g.servicio}</span>
-                      {g.moneda==="USD"&&<span style={{ fontSize:10,color:"#38bdf8",background:"#1e3a5f",padding:"1px 5px",borderRadius:8 }}>💵</span>}
-                    </div>
-                    <div style={{ fontSize:10,color:"#64748b",marginTop:1 }}>{cat?.label}</div>
-                  </div>
-                  <div style={{ textAlign:"right" }}>
-                    <div style={{ fontFamily:"'Space Mono',monospace",fontSize:12,fontWeight:700,color:montoReal(g,tc)>0?"#e2e8f0":"#64748b" }}>{usd>0?fmtUSD(usd):montoReal(g,tc)>0?fmtARS(montoReal(g,tc)):"$ —"}</div>
-                    <div style={{ fontSize:10,color:"#fb923c",marginTop:1 }}>→ Pendiente</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {/* Botón fijo abajo */}
-          <div style={{ position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,padding:16,background:"#0d0d14",borderTop:"1px solid #1e1e2e" }}>
-            <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }} onClick={()=>setReplicarStep("confirmar")}>
-              Copiar {gastosIncluidos.length} gastos a {mesNombreSig()} →
-            </button>
-          </div>
-        </div>
-      )}
+      {replicarStep && <ReplicateModal step={replicarStep} items={gastosFuenteReplicar} included={gastosIncluidos} excluded={excluirReplicar} copied={replicaCopiados} nextMonth={mesNombreSig()} tc={tc} busy={replicando} hasSource={!!gastosDelMes.length} onClose={()=>setReplicarStep(null)} onToggle={toggleExcluir} onSelectAll={all=>setExcluirReplicar(new Set(all?[]:gastosFuenteReplicar.map(g=>g.id)))} onNext={()=>setReplicarStep("confirmar")} onBack={()=>setReplicarStep("modal")} onConfirm={confirmarReplica} onView={()=>{setReplicarStep(null);cambiarMes(1);setView("resumen");window.scrollTo({top:0});}}/>}
 
-      {/* ── CONFIRMAR REPLICA ── */}
-      {replicarStep==="confirmar"&&(
-        <div style={{ position:"fixed",inset:0,background:"#0a0a0f",zIndex:980,padding:"28px 16px",overflowY:"auto" }}>
-          <div style={{ textAlign:"center",marginBottom:28 }}>
-            <div style={{ fontSize:56,marginBottom:12 }}>📋</div>
-            <div style={{ fontWeight:700,fontSize:20,marginBottom:8 }}>¿Confirmar?</div>
-            <div style={{ fontSize:14,color:"#94a3b8",lineHeight:1.8 }}>
-              Se crean <strong style={{ color:"#e2e8f0" }}>{gastosIncluidos.length} gastos</strong> en {mesNombreSig()} {mes.m+1>10?mes.y:mes.y}<br/>
-              todos en estado <strong style={{ color:"#fb923c" }}>⏳ Pendiente</strong><br/>
-              Referencia: <strong style={{ color:"#e2e8f0",fontFamily:"'Space Mono',monospace" }}>{fmtARS(gastosIncluidos.filter(g=>g.moneda==="ARS").reduce((a,g)=>a+montoReal(g,tc),0))}</strong>
-            </div>
-          </div>
-          <div style={{ background:"#13131a",border:"1px solid #1e1e2e",borderRadius:16,padding:"14px 16px",marginBottom:24 }}>
-            <div style={{ fontSize:12,color:"#64748b",marginBottom:10,fontWeight:700 }}>SE COPIA</div>
-            {["Concepto y medio de pago","Forma de pago","Monto (como referencia)","Subconceptos USD","Observaciones"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#4ade80",fontWeight:700,fontSize:13 }}>✓</span><span style={{ fontSize:13 }}>{i}</span></div>))}
-            <div style={{ borderTop:"1px solid #1e1e2e",marginTop:8,paddingTop:8 }}>
-              {["Estado → Pendiente (marcás cuando pagás)","Marca → Revisar monto y/o vencimiento","Fecha vencimiento → se mueve si existía; si no, la completás"].map(i=>(<div key={i} style={{ display:"flex",gap:8,alignItems:"center",padding:"5px 0" }}><span style={{ color:"#fb923c",fontWeight:700,fontSize:13 }}>↺</span><span style={{ fontSize:13,color:"#94a3b8" }}>{i}</span></div>))}
-            </div>
-          </div>
-          <div style={{ display:"flex",gap:10 }}>
-            <button className="pb" style={{ flex:1,background:"#1e1e2e",color:"#94a3b8" }} onClick={()=>setReplicarStep("modal")}>← Volver</button>
-            <button className="pb" disabled={replicando} style={{ flex:2,background:"#7c3aed",color:"#fff",fontSize:15 }} onClick={confirmarReplica}>{replicando ? "Copiando…" : "Confirmar copia"}</button>
-          </div>
-        </div>
-      )}
-
-      {/* ── DONE REPLICA ── */}
-      {replicarStep==="done"&&(
-        <div style={{ position:"fixed",inset:0,background:"#0a0a0f",zIndex:980,padding:"60px 16px",textAlign:"center",overflowY:"auto" }}>
-          <div style={{ fontSize:64,marginBottom:16 }}>🎉</div>
-          <div style={{ fontWeight:700,fontSize:22,marginBottom:8 }}>¡{mesNombreSig()} listo!</div>
-          <div style={{ fontSize:14,color:"#94a3b8",lineHeight:1.8,marginBottom:32 }}>
-            {gastosIncluidos.length} gastos copiados como Pendiente<br/>
-            Andá a {mesNombreSig()} y ajustá lo que cambió
-          </div>
-          <div style={{ background:"#13131a",border:"1px solid #1e1e2e",borderRadius:16,padding:"14px 16px",marginBottom:24,textAlign:"left" }}>
-            <div style={{ fontSize:12,color:"#64748b",marginBottom:8,fontWeight:700 }}>PRÓXIMOS PASOS</div>
-            {["Andá a "+mesNombreSig()+" con las flechas ‹ ›","En Movimientos, usá el filtro Revisar","Ajustá montos y vencimientos reales","Marcá Pagado a medida que abonás"].map((paso,i)=>(<div key={i} style={{ display:"flex",gap:10,padding:"6px 0",borderBottom:i<3?"1px solid #1e1e2e":"none" }}><div style={{ width:20,height:20,borderRadius:"50%",background:"#7c3aed22",color:"#7c3aed",fontSize:11,fontWeight:700,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>{i+1}</div><span style={{ fontSize:13,color:"#94a3b8" }}>{paso}</span></div>))}
-          </div>
-          <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff",fontSize:16,padding:16 }} onClick={()=>{ setReplicarStep(null); cambiarMes(1); }}>
-            Ir a {mesNombreSig()} →
-          </button>
-        </div>
-      )}
-
-      {/* BOTTOM NAV */}
       <nav className="bottom-nav" aria-label="Navegación principal">
         {[{id:"home",icon:"home",label:"Inicio"},{id:"resumen",icon:"movements",label:"Movimientos"},{id:"cargar",icon:"plus",label:"Cargar"},{id:"vencimientos",icon:"calendar",label:"Vencimientos"},{id:"analisis",icon:"chart",label:"Informes"}].map(nav=>{
           const active=view===nav.id||(nav.id==="resumen"&&view==="ingresos")||(nav.id==="analisis"&&view==="variacion");

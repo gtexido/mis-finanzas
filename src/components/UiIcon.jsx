@@ -1,5 +1,8 @@
 export default function UiIcon({ name, size = 22, ...props }) {
   const paths = {
+    edit: <><path d="m15 4 5 5M4 20l4-1L21 6l-5-5L3 14l-1 8Z"/></>,
+    repeat: <><path d="M20 7H7a4 4 0 0 0-4 4m17-4-4-4m4 4-4 4M4 17h13a4 4 0 0 0 4-4M4 17l4-4m-4 4 4 4"/></>,
+    alert: <><path d="m12 3 10 18H2Z"/><path d="M12 9v5m0 3v1"/></>,
     home: <><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1Z"/><path d="M9 21v-8h6v8"/></>,
     movements: <><path d="M4 7h16M4 12h10M4 17h7m6-3 3 3-3 3m3-3h-6"/></>,
     plus: <path d="M12 5v14M5 12h14"/>,

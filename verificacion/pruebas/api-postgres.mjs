@@ -38,7 +38,7 @@ async function check(id,title,run){
   catch(e){results.push({id,title,status:'fallo',error:String(e.stack)});}
   console.log(id,results.at(-1).status);
 }
-async function harness({failure=null}={}) {
+async function harness({failure=null, userId="usr_gustavo", env={}}={}) {
   const statements=[],batches=[],errors=[];
   const execute=async (client,statement)=>{
     statements.push(statement);
@@ -55,7 +55,7 @@ async function harness({failure=null}={}) {
     return pg.transaction(async tx=>{const rows=[];for(const q of qs)rows.push(await execute(tx,q));return rows;});
   };
   const context=vm.createContext({Buffer,Date,Math,Set,console:{error:(...x)=>errors.push(x.map(String).join(' '))},
-    process:{env:{DATABASE_URL:'postgresql://ficticio:ficticio@localhost/ficticio',MF_AUTH_SECRET:'solo-pruebas-sin-validez-real'}}});
+    process:{env:{DATABASE_URL:'postgresql://ficticio:ficticio@localhost/ficticio',MF_AUTH_SECRET:'solo-pruebas-sin-validez-real',MF_PIN_GUSTAVO:'clave-ficticia-1',MF_PIN_VANE:'clave-ficticia-2',...env}}});
   const modules=new Map();
   function synthetic(key,exports){
     if(!modules.has(key))modules.set(key,new vm.SyntheticModule(Object.keys(exports),function(){
@@ -73,7 +73,7 @@ async function harness({failure=null}={}) {
   }
   async function call(file,body,method='POST',authenticated=true){
     const auth=await load(path.join(project,'api/_auth.js'));await auth.evaluate();
-    const token=auth.namespace.createToken({usuarioId:'usr_gustavo',nombre:'Prueba',workspaceId:'ws_audit'});
+    const token=auth.namespace.createToken({usuarioId:userId,nombre:'Prueba',workspaceId:'ws_audit'});
     const mod=await load(path.join(project,'api',file));await mod.evaluate();
     const req={method,body,headers:authenticated?{authorization:`Bearer ${token}`}:{},query:{}};
     const res={code:200,payload:null,status(c){this.code=c;return this;},json(p){this.payload=p;return this;}};
@@ -131,6 +131,79 @@ await check('CALC-01','Totales ARS, USD y desglose mixto',async()=>{
   assert.equal(m.montoReal({monto:1500,moneda:'ARS'},1000),1500);assert.equal(m.montoReal({monto:10,moneda:'USD'},1000),10000);
   const mixed={monto:999999,moneda:'ARS',subconceptos:[{monto:1500,moneda:'ARS'},{monto:10,moneda:'USD',tipoCambio:1200,montoARSCalculado:12000}]};
   assert.equal(m.montoReal(mixed,2000),13500);assert.equal(m.montoUSDReal(mixed),10);return {cases:4};
+});
+
+await check('API-11','Ingresos: crear, editar y eliminar con persistencia',async()=>{
+  const h=await harness();const payload={periodo:'2026-10',dia:3,monto:250,fuente:'Venta de prueba'};
+  const created=await h.call('ingresos.js',payload);const id=created.payload.data.movimiento_id;
+  const edited=await h.call('ingresos.js',{...payload,movimientoId:id,dia:4,monto:375,fuente:'Trabajo de prueba'},'PUT');
+  assert.equal(edited.code,200,JSON.stringify(edited.payload));const row=(await snapshot()).movimientos[0];assert.equal(Number(row.monto),375);assert.equal(row.dia,4);assert.equal(row.concepto_manual,'Trabajo de prueba');
+  assert.equal((await h.call('ingresos-delete.js',{movimientoId:id},'DELETE')).code,200);assert.equal((await snapshot()).movimientos.length,0);
+});
+await check('API-12','Edición de ingreso rechaza otro usuario, mes, espacio y sueldo',async()=>{
+  const h=await harness(),payload={periodo:'2026-10',dia:3,monto:250,fuente:'Prueba'};
+  const id=(await h.call('ingresos.js',payload)).payload.data.movimiento_id;
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:id,periodo:'2026-11'},'PUT')).code,404);
+  await pg.query("UPDATE movimientos SET usuario_id='otro' WHERE movimiento_id=$1",[id]);
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:id},'PUT')).code,404);
+  assert.equal((await h.call('ingresos-delete.js',{movimientoId:id},'DELETE')).code,404);
+  await pg.query("UPDATE movimientos SET usuario_id='usr_gustavo', workspace_id='otro' WHERE movimiento_id=$1",[id]);
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:id},'PUT')).code,404);
+  const salary=(await h.call('sueldo.js',{periodo:'2026-10',monto:100})).payload.data.movimiento_id;
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:salary},'PUT')).code,404);
+});
+await check('API-13','Eliminar sueldo solo afecta al mes, usuario y espacio propios',async()=>{
+  const h=await harness();for(const periodo of ['2026-09','2026-10'])assert.equal((await h.call('sueldo.js',{periodo,monto:1000})).code,200);
+  await pg.exec("INSERT INTO movimientos(movimiento_id,tipo_movimiento,subtipo_movimiento,periodo,usuario_id,workspace_id,monto,activo) VALUES('salary_other','INGRESO','SUELDO','2026-10','otro','ws_audit',1500,true)");
+  assert.equal((await h.call('sueldo.js',{periodo:'2026-10'},'DELETE')).code,200);const rows=(await snapshot()).movimientos;
+  assert.equal(rows.length,2);assert.ok(rows.some(r=>r.usuario_id==='otro'));assert.ok(rows.some(r=>r.periodo==='2026-09'));
+  assert.equal((await h.call('sueldo.js',{periodo:'2026-10'},'DELETE')).code,404);
+});
+await check('API-14','Login por usuario, credenciales inválidas y sin espacio activo',async()=>{
+  const h=await harness();
+  assert.equal((await h.call('auth-login.js',{usuarioId:'  GUSTAVO ',pin:'clave-ficticia-1'})).code,200);
+  const before=h.statements.length;
+  assert.equal((await h.call('auth-login.js',{usuarioId:'gustavo',pin:'incorrecta'})).code,401);
+  assert.equal((await h.call('auth-login.js',{usuarioId:'desconocido',pin:'incorrecta'})).code,401);
+  assert.equal(h.statements.length,before);
+  assert.equal((await h.call('auth-login.js',{usuarioId:'vane',pin:'clave-ficticia-2'})).code,403);
+});
+await check('API-15','Tercer usuario configurable, acceso propio y fuente sin asignar a Vane',async()=>{
+  await pg.exec("INSERT INTO workspaces VALUES('ws_tercero','Tercero',true); INSERT INTO workspace_usuarios(workspace_id,usuario_id,rol,activo) VALUES('ws_tercero','usr_prueba','owner',true)");
+  try{
+    const h=await harness({userId:'usr_prueba',env:{MF_AUTH_USERS:JSON.stringify([{usuarioId:'usr_prueba',login:'prueba',nombre:'Prueba',pinEnv:'MF_PIN_PRUEBA'}]),MF_PIN_PRUEBA:'clave-ficticia-3'}});
+    const login=await h.call('auth-login.js',{usuarioId:'prueba',pin:'clave-ficticia-3'});assert.equal(login.code,200);assert.equal(login.payload.data.user.workspaceId,'ws_tercero');
+    assert.equal((await h.call('ingresos.js',{periodo:'2026-10',dia:1,fuente:'Trabajo',monto:500})).code,200);
+    const row=(await snapshot()).movimientos[0];assert.equal(row.usuario_id,'usr_prueba');assert.equal(row.workspace_id,'ws_tercero');assert.equal(row.fuente_ingreso_id,null);
+    const original=await harness();assert.equal((await original.call('ingresos-delete.js',{movimientoId:row.movimiento_id},'DELETE')).code,404);
+  }finally{await pg.exec("DELETE FROM workspace_usuarios WHERE usuario_id='usr_prueba';DELETE FROM workspaces WHERE workspace_id='ws_tercero'");}
+});
+await check('API-16','Membresía inactiva rechaza un token todavía válido antes de escribir',async()=>{
+  await pg.exec("UPDATE workspace_usuarios SET activo=false WHERE usuario_id='usr_gustavo'");
+  try{const h=await harness(),r=await h.call('gastos.js',expense);assert.equal(r.code,403);assert.equal((await snapshot()).movimientos.length,0);}
+  finally{await pg.exec("UPDATE workspace_usuarios SET activo=true WHERE usuario_id='usr_gustavo'");}
+});
+await check('API-17','Débito automático se conserva al pagar y al volver a pendiente',async()=>{
+  const h=await harness();const r=await h.call('gastos.js',{...expense,subconceptos:[],instrumentoId:'ins_debito_automatico',formaPago:'Débito automático',estado:'pendiente',vencimiento:'2026-10-02',requiereRevision:true,motivoRevision:'REVISAR_MONTO',esRecurrente:true});
+  assert.equal(r.code,200);const id=r.payload.data.movimiento_id;
+  let row=(await snapshot()).movimientos[0];assert.equal(row.estado,'pendiente');assert.equal(row.instrumento_id,'ins_debito_automatico');
+  for(const estado of ['pagado','pendiente']){assert.equal((await h.call('gastos-estado.js',{movimientoId:id,estado},'PATCH')).code,200);row=(await snapshot()).movimientos[0];assert.equal(row.estado,estado);assert.equal(row.instrumento_id,'ins_debito_automatico');assert.equal(row.es_recurrente,true);}
+});
+await check('API-18','Deshabilitar usuario en configuración rechaza sesiones existentes',async()=>{
+  const h=await harness({env:{MF_AUTH_USERS:JSON.stringify([{usuarioId:'usr_gustavo',login:'gustavo',nombre:'Prueba',pinEnv:'MF_PIN_GUSTAVO',activo:false}])}});
+  assert.equal((await h.call('gastos.js',expense)).code,401);assert.equal(h.statements.length,0);
+});
+await check('CALC-02','Comparaciones con cero, aumento, baja y período anual',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/comparisons.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.compareAmounts(120,100).percent,20);assert.equal(m.compareAmounts(75,100).percent,-25);assert.equal(m.compareAmounts(100,0).percent,null);assert.equal(m.compareAmounts(0,100).percent,-100);assert.equal(m.previousPeriod({y:2026,m:0}),'2025-12');
+});
+await check('CALC-03','Alertas manuales, automáticas, revisión y réplica parcial sin duplicar',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/paymentStatus.js'));await mod.evaluate();const m=mod.namespace;
+  const manual={estado:'pendiente',vencimiento:'2026-10-01'},auto={...manual,instrumentoId:'ins_debito_automatico'};
+  assert.equal(m.expenseAttention(manual,-1).kind,'overdue');assert.equal(m.expenseAttention(manual,2).kind,'soon');assert.equal(m.expenseAttention(auto,-1).label,'Verificar débito');assert.equal(m.expenseAttention({...auto,estado:'pagado'},-1).kind,'paid');
+  assert.equal(m.expenseAttention({...manual,requiereRevision:true,origenMovimiento:'REPLICA_MES'},-1).kind,'review');
+  const source=[{id:'1',servicio:'Internet'},{id:'2',servicio:'Internet'},{id:'3',servicio:'Luz'}];
+  const missing=m.missingReplicas(source,[{servicio:'Internet'}]);assert.equal(missing.length,2);assert.equal(missing[0].id,'2');
 });
 await fs.writeFile(path.join(out,'resultados-api-postgres.json'),JSON.stringify(results,null,2));await pg.close();
 if(results.some(r=>r.status==='fallo'))process.exitCode=1;
