@@ -70,7 +70,8 @@ import VariacionView from "./views/VariacionView";
 import AnalisisView from "./views/AnalisisView";
 import IncomeView from "./views/IncomeView";
 import ConfirmDelete from "./components/ConfirmDelete";
-import { isAutomaticDebit, missingReplicas, expenseAttention } from "./utils/paymentStatus";
+import { isAutomaticDebit, missingReplicas } from "./utils/paymentStatus";
+import { allExpenses, buildOverview } from "./utils/overview";
 import DetalleViewShell from "./views/DetalleView";
 import UiIcon from "./components/UiIcon";
 import MovementRow from "./components/MovementRow";
@@ -96,6 +97,21 @@ export default function App() {
   const now=new Date();
   const stored=load();
   const [view,setView]=useState("home");
+  const [dueSelection,setDueSelection]=useState({filter:"all",scope:"all"});
+  const [today,setToday]=useState(() => new Date());
+  useEffect(() => {
+    const refreshDay = () => setToday(previous => {
+      const current = new Date();
+      return previous.toDateString() === current.toDateString() ? previous : current;
+    });
+    const timer = window.setInterval(refreshDay, 60000);
+    window.addEventListener("focus", refreshDay);
+    document.addEventListener("visibilitychange", refreshDay);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refreshDay); document.removeEventListener("visibilitychange", refreshDay); };
+  }, []);
+  const openAttention = (filter="all",scope="all") => {
+    setDueSelection({filter,scope}); setView("vencimientos"); window.scrollTo({top:0,behavior:"instant"});
+  };
   const [analisisTab,setAnalisisTab]=useState("concepto");
   const [data,setData]=useState(stored.data);
   const [cfg,setCfg]=useState(stored.config);
@@ -540,7 +556,8 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
     : filtroEstado === "automatico" ? "Débitos automáticos" : filtroEstado === "revisar" ? "Para revisar" : "Detalle";
 
   const todosVenc=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&g.vencimiento);
-  const vencUrgentes=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&["overdue","soon","review"].includes(expenseAttention(g).kind)).length;
+  const overview = buildOverview(allExpenses(data),tc,today);
+  const vencUrgentes = overview.attentionCount;
 
   const alertasProximas = todosVenc
   .map(g => ({
@@ -1273,6 +1290,7 @@ const handleSubconceptosSave = (items) => {
 };
  const resetPrivateState = () => {
   sessionRef.current = null;
+  setDueSelection({filter:"all",scope:"all"});
   setData({gastos:{},ingresos:{},sueldo:{}}); setCfg(DEFAULT_CONFIG); setRecurrentes([]);
   setForm({servicio:"",monto:"",moneda:"ARS",estado:"pagado",dia:String(new Date().getDate()),subconceptos:[],etiquetasIds:[]});
   setIngForm({fuente:"",monto:"",dia:String(new Date().getDate())}); setSueldoInput("");
@@ -2159,7 +2177,7 @@ if (!authUser) {
 
       {confirmDel && <ConfirmDelete item={confirmDel} amount={confirmDel.tipo==="gastos"?montoReal(confirmDel,tc):Number(confirmDel.monto)} busy={eliminando} error={deleteError} onClose={()=>setConfirmDel(null)} onConfirm={eliminar}/>}
 
-      <div className="page-header">
+      <div className={`page-header ${view==="home"?"home-header":""}`}>
         <h1>{({home:"Tu mes, en claro.",cargar:"Cargar gasto",resumen:"Movimientos",ingresos:"Ingresos",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",config:"Ajustes"})[view]}</h1>
         <p>{({home:`Hola, ${authUser.nombre}. Este es tu resumen.`,cargar:"Lo esencial, sin vueltas.",resumen:"Cada gasto, a mano.",ingresos:"Todo lo que entra en el mes.",vencimientos:"Tus pagos, a tiempo.",analisis:"Entendé en qué se va tu plata.",variacion:"Una mirada a lo que cambia.",config:"Tu app, a tu manera."})[view]}</p>
         {view!=="config"&&<div className="period-picker"><span>{MESES[mes.m]} {mes.y}</span><div className="period-controls"><button className="icon-button" aria-label="Mes anterior" onClick={()=>cambiarMes(-1)}><UiIcon name="chevron" size={17} style={{transform:"rotate(180deg)"}}/></button><button className="icon-button" aria-label="Mes siguiente" onClick={()=>cambiarMes(1)}><UiIcon name="chevron" size={17}/></button></div></div>}
@@ -2169,7 +2187,7 @@ if (!authUser) {
         {["analisis","variacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button></div>}
 
         {/* HOME */}
-        {view==="home"&&<PremiumHome gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} onNavigate={setView} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
+        {view==="home"&&<PremiumHome gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
 
         {/* CARGAR */}
         {view==="cargar"&&<>
@@ -2242,6 +2260,9 @@ if (!authUser) {
   <VencimientosView
     data={data}
     config={cfg}
+    today={today}
+    selection={dueSelection}
+    onSelectionChange={setDueSelection}
     mesActual={mes}
     tc={tc}
     onPrevMonth={() => cambiarMes(-1)}
@@ -2434,7 +2455,7 @@ if (!authUser) {
       <nav className="bottom-nav" aria-label="Navegación principal">
         {[{id:"home",icon:"home",label:"Inicio"},{id:"resumen",icon:"movements",label:"Movimientos"},{id:"cargar",icon:"plus",label:"Cargar"},{id:"vencimientos",icon:"calendar",label:"Vencimientos"},{id:"analisis",icon:"chart",label:"Informes"}].map(nav=>{
           const active=view===nav.id||(nav.id==="resumen"&&view==="ingresos")||(nav.id==="analisis"&&view==="variacion");
-          return <button key={nav.id} className={`ni ${nav.id==="cargar"?"nav-add":""}`} aria-current={active?"page":undefined} onClick={()=>{setView(nav.id);window.scrollTo({top:0,behavior:"instant"});}}><UiIcon name={nav.icon}/><span>{nav.label}</span>{nav.id==="vencimientos"&&vencUrgentes>0&&<span className="nav-dot" aria-label={`${vencUrgentes} pagos urgentes`}/>}</button>;
+          return <button key={nav.id} className={`ni ${nav.id==="cargar"?"nav-add":""}`} aria-current={active?"page":undefined} onClick={()=>{if(nav.id==="vencimientos")setDueSelection({filter:"all",scope:"all"});setView(nav.id);window.scrollTo({top:0,behavior:"instant"});}}><UiIcon name={nav.icon}/><span>{nav.label}</span>{nav.id==="vencimientos"&&vencUrgentes>0&&<span className="nav-dot" aria-label={`${vencUrgentes} registros requieren atención`}/>}</button>;
         })}
       </nav>
     </div>

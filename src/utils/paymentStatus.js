@@ -1,4 +1,4 @@
-import { diasRestantes } from './dates';
+import { diasRestantes, fechaValida } from './dates';
 
 export const normalizedPayment = value => String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -9,7 +9,7 @@ export function isAutomaticDebit(item = {}, config = {}) {
 }
 
 export function hasUnconfirmedDue(item = {}) {
-  return !item.vencimiento || (!!item.requiereRevision &&
+  return !fechaValida(item.vencimiento) || (!!item.requiereRevision &&
     (item.origenMovimiento === 'REPLICA_MES' || String(item.motivoRevision || '').includes('VENCIMIENTO')));
 }
 

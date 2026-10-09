@@ -71,3 +71,24 @@ No hacen falta columnas nuevas para edición, comparación o débito automático
 Las pruebas locales no sustituyen una prueba contra el esquema y las variables reales de Preview. No se han inspeccionado secretos, verificado claves reales ni comprobado que `DATABASE_URL` de Preview apunte a una rama de pruebas. Antes de hacer cargas o borrados de prueba desde esa Preview, el administrador debe comprobar esa configuración.
 
 La copia reconsulta el destino y omite coincidencias antes de guardar. No es una transacción de lote entre dispositivos: si dos personas/sesiones copian a la vez, puede haber una carrera. Si se interrumpe la conexión, se informa el avance conocido y se vuelve a consultar al reintentar. La eliminación es definitiva, con confirmación previa; no hay papelera. Los avisos son visuales dentro de la app, no notificaciones push. Los informes comparan lo registrado y no verifican por sí mismos que un mes esté completo.
+
+
+## Panorama al abrir la app · 9 de octubre de 2026
+
+El inicio muestra primero el balance del mes, ingresos y gastos, con una barra de proporción gastada. Si faltan ingresos, propone cargarlos; si los gastos los superan, explica la diferencia. El pendiente del mes ya está incluido en el gasto total y no se resta por segunda vez.
+
+Debajo aparecen cuatro accesos con cantidad, importe, texto e ícono: **Vencidos y hoy**, **Próximos 3 días**, **Verificar débitos** y **Por revisar**. Estos avisos recorren todos los meses, aunque el usuario consulte un balance histórico. Cada tarjeta abre su filtro exacto en Vencimientos; el pendiente mensual abre el alcance del mes elegido. El próximo pago con fecha confirmada puede abrirse y editarse incluso si pertenece a otro mes.
+
+Los avisos cuentan cada registro una sola vez. Se priorizan vencimiento y débito alcanzado, luego los próximos tres días, luego revisión de importe. Una fecha ausente, inválida o estimada siempre pide revisión. Los pagados por revisar son accesibles sin sumarse al total de deuda ni mostrar una acción para volver a pagarlos. Vencimientos permite ver todos los registros, cambiar el alcance y limpiar un filtro vacío.
+
+Los avisos se actualizan al cambiar el día y al volver a la app. Esto recalcula fechas sobre los registros cargados; no incorpora sincronización en vivo entre dispositivos ni notificaciones fuera de la app.
+
+Validación de esta actualización:
+
+- Build de producción correcto.
+- 8 escenarios de cálculos: períodos cruzados, prioridad sin duplicados, débitos, pagados por revisar, ARS/USD/desglose, fechas inválidas, cambio de mes y vacíos.
+- 24 escenarios de navegador con API simulada, incluidos los 17 recorridos de la entrega anterior. Ocho vistas a 320, 390 y 1280 px, sin desbordes ni errores. Los cuatro avisos quedan completos antes de la navegación inferior a 390 × 844; el espacio visible varía según pantalla y tamaño de texto.
+- 32 escenarios aprobados en esta ejecución. Los 21 escenarios de API de la entrega anterior permanecen documentados arriba y no se volvieron a ejecutar: no cambian endpoints ni consultas.
+- Estado de pruebas en `verificacion/panorama/resultados.json`; capturas locales no publicadas.
+
+Para los cálculos: `node verificacion/pruebas/overview.mjs`. Para navegador se mantiene el comando y las opciones de `release.cjs`. No requiere cambios de esquema ni de variables del entorno.
