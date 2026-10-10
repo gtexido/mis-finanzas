@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
+import savingsHandler from "./_savings.js";
 
 export default async function handler(req, res) {
   try {
@@ -11,6 +12,9 @@ export default async function handler(req, res) {
     const workspaceId = userWorkspace.workspaceId || "ws_default";
     user.workspaceId = workspaceId;
     user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
+
+    if (req.query.recurso === "ahorros") return await savingsHandler(req, res, sql, user, workspaceId);
+    if (req.method !== "GET") return res.status(405).json({ok:false,error:"Método no permitido"});
 
     let movimientos;
 

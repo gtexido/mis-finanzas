@@ -18,6 +18,16 @@ export default function VencimientosView({ data, mesActual, tc, today, selection
   const visible = selected ? overview.groups[filter] : Object.values(overview.groups).flat();
   const paidReview = overview.groups.review.filter(g => g.estado === 'pagado').length;
   const amount = selected ? overview.summaries[filter].amount : overview.pendingTotal;
+  const reason = g => {
+    if(String(g.motivoRevision||'').includes('MONTO'))return hasUnconfirmedDue(g)&&g.estado!=='pagado'?'Confirmar importe y fecha':'Confirmar importe';
+    return hasUnconfirmedDue(g)&&g.estado!=='pagado'?'Confirmar fecha de vencimiento':'Revisar los datos del gasto';
+  };
+  const dueLabel = g => {
+    if(hasUnconfirmedDue(g))return reason(g);
+    const days=g.daysRemaining;
+    if(isAutomaticDebit(g))return days<=0?'Cobro por verificar':days===1?'Débito mañana':`Débito en ${days} días`;
+    return days<0?`Vencido hace ${-days} ${days===-1?'día':'días'}`:days===0?'Vence hoy':days===1?'Vence mañana':`Vence en ${days} días`;
+  };
   async function pay(g) {
     if (savingRef.current) return;
     savingRef.current = true; setSaving(g.id);
@@ -26,7 +36,7 @@ export default function VencimientosView({ data, mesActual, tc, today, selection
   }
   const group = (title, items, tone = '') => items.length > 0 && <section className={`due-section ${tone}`}><h2>{title} <span className="muted">· {items.length}</span></h2>{items.map(g => <article className={`due-item ${tone}`} key={`${g.mesKey}_${g.id}`}>
     <button className="summary-row" onClick={() => onEdit(g,g.mesKey)} aria-label={`Editar ${g.servicio}`}><span className="row-icon"><UiIcon name={isAutomaticDebit(g)?'repeat':'calendar'} size={19}/></span><span className="row-copy"><strong>{g.servicio || 'Sin concepto'}</strong><small>{hasUnconfirmedDue(g)?'Fecha por confirmar':fmtFecha(g.vencimiento)} · {g.mesKey}</small></span><span className="money">{fmtARS(montoReal(g,tc))}</span></button>
-    <div className="due-badges"><ExpenseBadges item={g}/></div>
+    <div className="due-context"><span className="due-relative">{tone==='review'?reason(g):dueLabel(g)}</span>{g.estado==='pagado'&&<span className="due-paid"><UiIcon name="check" size={14}/>Pagado</span>}{isAutomaticDebit(g)&&<span className="due-auto"><UiIcon name="repeat" size={14}/>Débito automático</span>}</div>
     <footer><button className="text-button" onClick={()=>onEdit(g,g.mesKey)}><UiIcon name="edit" size={16}/>Revisar</button>{g.estado === 'pendiente' ? <button disabled={saving!==null} onClick={() => pay(g)}>{saving===g.id?'Guardando…':isAutomaticDebit(g)?'Confirmar débito':'Marcar como pagado'}</button> : <span>Pagado · revisá los datos</span>}</footer>
   </article>)}</section>;
   return <div className="dues-view">

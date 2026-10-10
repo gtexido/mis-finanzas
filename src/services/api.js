@@ -372,3 +372,15 @@ export async function eliminarSueldo(periodo) {
   const res = await fetch("/api/sueldo", { method: "DELETE", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ periodo }) });
   return (await readResponse(res)).data;
 }
+
+export async function getSavings() {
+  const res = await fetch('/api/movimientos?recurso=ahorros', {headers:authHeaders()});
+  const data = (await readResponse(res)).data;
+  if (!Array.isArray(data?.records)) throw new Error('No se pudo leer el ahorro. Actualizá para reintentar.');
+  return data.records;
+}
+
+export async function saveSavings(method, payload) {
+  const res = await fetch('/api/movimientos?recurso=ahorros', {method, headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
+  return (await readResponse(res)).data;
+}

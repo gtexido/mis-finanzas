@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import MonthComparison from '../components/MonthComparison';
 import { formatPercent } from '../utils/comparisons';
 import { fmtARS, slugKey, normalizarEtiquetaVisual, normalizarTexto } from '../utils/formatters';
@@ -13,6 +13,7 @@ export default function VariacionView({
   tc,
   categoriaRealDesdeGasto
 }) {
+  const [changeFilter,setChangeFilter] = useState("all");
   const toARS__ = (g, t) => montoReal(g, t);
   
   const pct_ = (actual, anterior) => {
@@ -90,14 +91,18 @@ export default function VariacionView({
       const vals = item.vals || {};
       const actual = vals[actualKey] || 0;
       const anterior = anteriorKey ? (vals[anteriorKey] || 0) : 0;
-      return { ...item, vals, actual, anterior, diff: actual - anterior, pct: pct_(actual, anterior) };
+      const appearedBefore = Object.entries(data.gastos).some(([key,rows])=>key<actualKey && rows.some(g=>claveVariacionGasto(g)===item.id));
+      return { ...item, vals, actual, anterior, appearedBefore, diff: actual - anterior, pct: pct_(actual, anterior) };
     })
     .sort((a, b) => b.actual - a.actual || Math.abs(b.diff) - Math.abs(a.diff));
 
   const subieron = conceptos.filter(x => x.actual > 0 && x.anterior > 0 && x.diff > 0);
   const bajaron = conceptos.filter(x => x.actual > 0 && x.anterior > 0 && x.diff < 0);
-  const nuevos = conceptos.filter(x => x.actual > 0 && x.anterior === 0);
+  const nuevos = conceptos.filter(x => x.actual > 0 && x.anterior === 0 && !x.appearedBefore);
+  const reaparecen = conceptos.filter(x => x.actual > 0 && x.anterior === 0 && x.appearedBefore);
   const sinGasto = conceptos.filter(x => x.actual === 0 && x.anterior > 0);
+  const changeGroups={up:subieron,down:bajaron,new:nuevos,returning:reaparecen,missing:sinGasto};
+  const visibleConcepts=changeFilter==="all"?conceptos.filter(c=>c.actual>0||c.anterior>0):changeGroups[changeFilter];
   const maxTotal = Math.max(...ml.map(m=>totalMes(m.key)),1);
   const now = new Date();
   const partial = mes.y === now.getFullYear() && mes.m === now.getMonth();
@@ -107,9 +112,10 @@ export default function VariacionView({
     <MonthComparison current={totalActual} previous={totalAnterior} hasPrevious={!!((data.gastos[anteriorKey]||[]).length || (data.ingresos[anteriorKey]||[]).length || data.sueldo[anteriorKey])} hasCurrent={!!((data.gastos[actualKey]||[]).length || (data.ingresos[actualKey]||[]).length || data.sueldo[actualKey])} previousLabel={anteriorKey} partial={partial}/>
     <div className="surface" style={{padding:"14px 18px"}}><div className="monthly-chart" role="img" aria-label={ml.map(m=>`${m.label} ${m.y}: ${fmtARS(totalMes(m.key))}`).join(". ")}>{ml.map(m=><div className="monthly-bar" key={m.key} title={`${MESES[m.m]} ${m.y}: ${fmtARS(totalMes(m.key))}`}><div style={{height:`${totalMes(m.key)/maxTotal*125}px`}}/><strong>{m.label}</strong></div>)}</div><p className="report-caption" style={{margin:"8px 0"}}>{partial?"Mes actual en curso: comparás un mes parcial con meses anteriores.":"Totales de los movimientos registrados en cada mes."} Los meses sin registros se muestran en cero.</p></div>
     <details className="month-values"><summary>Ver importes por mes</summary>{ml.map(m=><div className="section-line" key={m.key}><span>{MESES[m.m]} {m.y}</span><strong className="money">{fmtARS(totalMes(m.key))}</strong></div>)}</details>
-    <div className="change-grid">{[[subieron.length,"Conceptos que subieron"],[bajaron.length,"Conceptos que bajaron"],[nuevos.length,"Nuevos este mes"],[sinGasto.length,"Sin gasto este mes"]].map(([value,label])=><div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
-    <div className="section-line" style={{margin:"25px 0 10px"}}><h2 style={{fontSize:16,fontWeight:550}}>Cambio por concepto</h2></div>
-    <div className="surface" style={{padding:"0 18px"}}>{conceptos.filter(c=>c.actual>0||c.anterior>0).map(c=><div className="ranking-row" key={c.id}><div className="section-line"><strong style={{fontWeight:550}}>{c.nombre}</strong><strong className="money" style={{whiteSpace:"nowrap",fontWeight:550}}>{fmtARS(c.actual)}</strong></div><div className="section-line" style={{marginTop:7}}><small>Anterior: {fmtARS(c.anterior)}</small><small style={{color:c.diff>0?"#efb9ae":c.diff<0?"var(--mint)":"var(--muted)"}}>{c.anterior===0?"Sin base para %":c.diff===0?"Sin cambios":`${c.diff>0?"+":"−"}${fmtARS(Math.abs(c.diff))} · ${formatPercent(c.pct)}`}</small></div></div>)}</div>
+    <div className="change-grid change-selectors">{[["up",subieron.length,"Subieron"],["down",bajaron.length,"Bajaron"],["new",nuevos.length,"Primera carga"],["returning",reaparecen.length,"Reaparecen"],["missing",sinGasto.length,"Sin registro"]].map(([key,value,label])=><button key={key} className={key} aria-pressed={changeFilter===key} onClick={()=>setChangeFilter(changeFilter===key?"all":key)}><strong>{value}</strong><span>{label}</span></button>)}</div>
+    <div className="section-line" style={{margin:"25px 0 10px"}}><h2 style={{fontSize:16,fontWeight:550}}>Cambio por concepto</h2>{changeFilter!=="all"&&<button className="text-button" onClick={()=>setChangeFilter("all")}>Ver todos</button>}</div>
+    <div className="surface evolution-list">{visibleConcepts.map(c=><details className="evolution-item" key={c.id}><summary><span><strong>{c.nombre}</strong><small>{c.actual===0?'Sin registro este mes':c.anterior===0?c.appearedBefore?'Reaparece · sin registro el mes anterior':'Primera carga en tu historial':c.diff===0?'Sin cambios':`${c.diff>0?'+':'−'}${fmtARS(Math.abs(c.diff))} · ${formatPercent(c.pct)}`}</small></span><strong className={`money ${c.anterior>0&&c.actual>0?(c.diff>0?'increase':c.diff<0?'decrease':''):''}`}>{fmtARS(c.actual)}</strong></summary><div className="concept-months">{ml.map(m=><div key={m.key} className={m.key===actualKey?'current':''}><span>{m.label} {m.y}</span><strong className="money">{Object.hasOwn(c.vals,m.key)?fmtARS(c.vals[m.key]):'Sin registro'}</strong></div>)}</div><p className="small muted">Importes registrados por mes. Una ausencia de carga no confirma que hayas dejado de gastar.</p></details>)}</div>
+    {!!conceptos.length&&!visibleConcepts.length&&<p className="quiet-state">No hay conceptos en este grupo.</p>}
     {!conceptos.length&&<div className="empty-state"><h3>Tu evolución empieza con el primer mes</h3><p>Los gastos que registres se van a comparar acá.</p></div>}
   </>;
 }

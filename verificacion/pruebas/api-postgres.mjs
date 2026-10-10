@@ -32,7 +32,7 @@ CREATE TABLE cotizaciones(fecha date,moneda_origen text,moneda_destino text,tipo
 CREATE TABLE parametros(clave text,valor numeric);INSERT INTO parametros VALUES('tipo_cambio_default',1000);
 `);
 async function snapshot(){return Object.fromEntries(await Promise.all(['movimientos','detalle_movimiento','movimiento_etiquetas'].map(async t=>[t,(await pg.query(`SELECT * FROM ${t} ORDER BY 1,2`)).rows])));}
-async function reset(){await pg.exec('TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos;');}
+async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos;');}
 async function check(id,title,run){
   await reset();try{results.push({id,title,status:'correcto',...await run()});}
   catch(e){results.push({id,title,status:'fallo',error:String(e.stack)});}
@@ -71,11 +71,11 @@ async function harness({failure=null, userId="usr_gustavo", env={}}={}) {
       let resolved=path.resolve(path.dirname(ref.identifier),specifier);if(!path.extname(resolved))resolved+='.js';return load(resolved);
     });return mod;
   }
-  async function call(file,body,method='POST',authenticated=true){
+  async function call(file,body,method='POST',authenticated=true,query={}){
     const auth=await load(path.join(project,'api/_auth.js'));await auth.evaluate();
     const token=auth.namespace.createToken({usuarioId:userId,nombre:'Prueba',workspaceId:'ws_audit'});
     const mod=await load(path.join(project,'api',file));await mod.evaluate();
-    const req={method,body,headers:authenticated?{authorization:`Bearer ${token}`}:{},query:{}};
+    const req={method,body,headers:authenticated?{authorization:`Bearer ${token}`}:{},query};
     const res={code:200,payload:null,status(c){this.code=c;return this;},json(p){this.payload=p;return this;}};
     await mod.namespace.default(req,res);return res;
   }
@@ -205,5 +205,92 @@ await check('CALC-03','Alertas manuales, automáticas, revisión y réplica parc
   const source=[{id:'1',servicio:'Internet'},{id:'2',servicio:'Internet'},{id:'3',servicio:'Luz'}];
   const missing=m.missingReplicas(source,[{servicio:'Internet'}]);assert.equal(missing.length,2);assert.equal(missing[0].id,'2');
 });
+
+const savingsPayload = (extra={})=>({requestId:crypto.randomUUID().replaceAll('-',''),kind:'aporte',amount:100,currency:'ARS',date:'2026-10-03',destination:'Cuenta de prueba',goal:'Reserva',...extra});
+const savingCall=(h,body={},method='POST',authenticated=true)=>h.call('movimientos.js',body,method,authenticated,{recurso:'ahorros'});
+const savedRows=async h=>(await savingCall(h,{},'GET')).payload.data.records;
+await check('SAVE-01','Inicialización aditiva e idempotente; aportes separados de gastos e ingresos',async()=>{
+ const h=await harness();assert.equal((await savingCall(h,{},'GET')).code,200);assert.equal((await savingCall(h,{},'GET')).code,200);
+ const r=await savingCall(h,savingsPayload());assert.equal(r.code,200,JSON.stringify(r.payload));assert.equal(r.payload.data.records.length,1);assert.equal(r.payload.data.record.impactARS,100);assert.equal((await snapshot()).movimientos.length,0);
+});
+await check('SAVE-02','Saldo inicial y dólar conservan moneda; el equivalente queda fijo por operación',async()=>{
+ const h=await harness();assert.equal((await savingCall(h,savingsPayload({kind:'inicial',amount:50,currency:'USD',date:'2026-09-01'}))).code,200);
+ assert.equal((await savingCall(h,savingsPayload({amount:10,currency:'USD',rate:1200}))).code,200);
+ assert.equal((await savingCall(h,savingsPayload({kind:'retiro',amount:5,currency:'USD',rate:1300,date:'2026-10-04'}))).code,200);
+ const rows=await savedRows(h);assert.equal(rows[0].impactARS,0);assert.equal(rows[1].impactARS,12000);assert.equal(rows[2].impactARS,-6500);
+ const mod=await h.load(path.join(project,'src/utils/savings.js'));await mod.evaluate();const sum=mod.namespace.savingsSummary(rows,'2026-10','2026-10-31');assert.equal(sum.usd,55);assert.equal(sum.ars,0);assert.equal(sum.net,5500);
+});
+await check('SAVE-03','Retiro excedido, moneda o destino incorrectos se rechazan sin cambiar el saldo',async()=>{
+ const h=await harness();await savingCall(h,savingsPayload());const before=await savedRows(h);
+ for(const extra of [{amount:101},{currency:'USD',amount:1,rate:1000},{destination:'Otra cuenta',amount:10},{goal:'Otro objetivo',amount:10}])assert.equal((await savingCall(h,savingsPayload({kind:'retiro',...extra}))).code,409);
+ assert.deepEqual(await savedRows(h),before);
+});
+await check('SAVE-04','Editar o eliminar un aporte usado no permite saldos negativos ni retiros anteriores',async()=>{
+ const h=await harness();const entry=(await savingCall(h,savingsPayload())).payload.data.record;
+ await savingCall(h,savingsPayload({kind:'retiro',amount:80,date:'2026-10-04'}));
+ assert.equal((await savingCall(h,{...entry,amount:50},'PUT')).code,409);assert.equal((await savingCall(h,{id:entry.id,revision:1},'DELETE')).code,409);
+ assert.equal((await savingCall(h,savingsPayload({kind:'retiro',amount:1,date:'2026-10-01'}))).code,409);assert.equal((await savedRows(h)).length,2);
+});
+await check('SAVE-05','Edición y eliminación con versión; los cambios de otro dispositivo no se pisan',async()=>{
+ const h=await harness();const entry=(await savingCall(h,savingsPayload())).payload.data.record;
+ const edit=await savingCall(h,{...entry,amount:125.25},'PUT');assert.equal(edit.code,200,JSON.stringify(edit.payload));assert.equal(edit.payload.data.record.revision,2);
+ assert.equal((await savingCall(h,{...entry,amount:300},'PUT')).code,409);assert.equal((await savingCall(h,{id:entry.id,revision:1},'DELETE')).code,409);
+ assert.equal((await savingCall(h,{id:entry.id,revision:2},'DELETE')).code,200);assert.equal((await savedRows(h)).length,0);
+});
+await check('SAVE-06','Reintentar la misma solicitud no duplica; un contenido distinto con la misma clave se rechaza',async()=>{
+ const h=await harness(),payload=savingsPayload();const a=await savingCall(h,payload),b=await savingCall(h,payload);assert.equal(a.code,200);assert.equal(b.code,200);assert.equal(b.payload.data.replayed,true);assert.equal((await savedRows(h)).length,1);
+ assert.equal((await savingCall(h,{...payload,amount:500})).code,409);
+});
+await check('SAVE-07','Ahorros aislados por usuario y espacio; sin sesión no se crea el registro',async()=>{
+ const h=await harness();assert.equal((await savingCall(h,savingsPayload(),'POST',false)).code,401);
+ const entry=(await savingCall(h,savingsPayload())).payload.data.record;
+ await pg.exec("INSERT INTO workspace_usuarios(workspace_id,usuario_id,rol,activo) VALUES('ws_audit','usr_vane','owner',true)");
+ try {const other=await harness({userId:'usr_vane'});assert.equal((await savedRows(other)).length,0);assert.equal((await savingCall(other,{...entry,amount:200},'PUT')).code,404);assert.equal((await savingCall(other,{id:entry.id,revision:1},'DELETE')).code,404);assert.equal((await savedRows(h)).length,1);}
+ finally{await pg.exec("DELETE FROM workspace_usuarios WHERE usuario_id='usr_vane'");}
+});
+await check('SAVE-08','Conversión explícita y atómica mantiene el importe y archiva el gasto original',async()=>{
+ const h=await harness(),id=await seed();const payload=savingsPayload({sourceId:id,sourceTitle:'Antes era gasto',date:'2026-10-01'});
+ const r=await savingCall(h,payload);assert.equal(r.code,200,JSON.stringify(r.payload));assert.equal(r.payload.data.converted,true);assert.equal((await snapshot()).movimientos[0].activo,false);assert.equal((await savedRows(h))[0].convertedFrom,id);
+ const retry=await savingCall(h,payload);assert.equal(retry.code,200);assert.equal(retry.payload.data.converted,true);assert.equal((await savedRows(h)).length,1);
+});
+await check('SAVE-09','Fallo real de conversión revierte tanto el ahorro como el cambio de gasto',async()=>{
+ const h=await harness(),id=await seed();await savingCall(h,{},'GET');
+ await pg.exec("CREATE FUNCTION qa_reject_archive() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'fallo provocado'; END; $$ LANGUAGE plpgsql; CREATE TRIGGER qa_archive BEFORE UPDATE ON movimientos FOR EACH ROW WHEN (NEW.activo=false) EXECUTE FUNCTION qa_reject_archive();");
+ try{assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,500);assert.equal((await savedRows(h)).length,0);assert.equal((await snapshot()).movimientos[0].activo,true);}
+ finally{await pg.exec('DROP TRIGGER qa_archive ON movimientos; DROP FUNCTION qa_reject_archive();');}
+});
+await check('SAVE-10','Conversión rechaza pendiente, revisión, gasto ajeno, importe cambiado y mezcla de monedas',async()=>{
+ const h=await harness(),id=await seed();
+ assert.equal((await savingCall(h,savingsPayload({sourceId:id,amount:200,date:'2026-10-01'}))).code,409);
+ await pg.query("UPDATE movimientos SET estado='pendiente' WHERE movimiento_id=$1",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,400);
+ await pg.query("UPDATE movimientos SET estado='pagado',requiere_revision=true WHERE movimiento_id=$1",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,400);
+ await pg.query("UPDATE movimientos SET requiere_revision=false,usuario_id='otra' WHERE movimiento_id=$1",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,404);
+ await pg.query("UPDATE movimientos SET usuario_id='usr_gustavo' WHERE movimiento_id=$1",[id]);await pg.query("INSERT INTO detalle_movimiento(detalle_id,movimiento_id,monto,moneda,activo) VALUES('usd_mix',$1,10,'USD',true)",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,400);
+ assert.equal((await savedRows(h)).length,0);assert.equal((await snapshot()).movimientos[0].activo,true);
+});
+await check('SAVE-11','Validación de importes, centavos, cotización, fechas y saldo inicial repetido',async()=>{
+ const h=await harness();
+ for(const extra of [{amount:-1},{amount:0},{amount:1.234},{currency:'EUR'},{currency:'USD',rate:null},{currency:'USD',rate:0},{date:'2026-02-31'},{date:'2099-01-01'},{destination:''}])assert.equal((await savingCall(h,savingsPayload(extra))).code,400,JSON.stringify(extra));
+ assert.equal((await savingCall(h,savingsPayload({kind:'inicial'}))).code,200);assert.equal((await savingCall(h,savingsPayload({kind:'inicial',destination:' CUENTA DE PRUEBA '}))).code,409);
+});
+await check('SAVE-12','Dos retiros concurrentes no pueden gastar el mismo ahorro',async()=>{
+ const h=await harness();await savingCall(h,savingsPayload());const a=await harness(),b=await harness();
+ const results=await Promise.all([savingCall(a,savingsPayload({kind:'retiro',amount:80})),savingCall(b,savingsPayload({kind:'retiro',amount:80}))]);
+ assert.equal(results.filter(r=>r.code===200).length,1);assert.equal(results.filter(r=>r.code===409).length,1);const rows=await savedRows(h);assert.equal(rows.filter(r=>r.kind==='retiro').length,1);
+});
+await check('SAVE-13','Saldo histórico, monedas y retiros no alteran ingresos ni consumo',async()=>{
+ const h=await harness(),mod=await h.load(path.join(project,'src/utils/savings.js'));await mod.evaluate();const m=mod.namespace;
+ const rows=[{kind:'inicial',amount:100,currency:'ARS',date:'2026-09-01',destination:'Banco',goal:'',impactARS:0},{kind:'aporte',amount:50,currency:'ARS',date:'2026-10-01',destination:'Banco',goal:'',impactARS:50},{kind:'retiro',amount:20,currency:'ARS',date:'2026-10-02',destination:'Banco',goal:'',impactARS:-20},{kind:'inicial',amount:10,currency:'USD',date:'2026-09-01',destination:'Banco',goal:'',impactARS:0}];
+ const september=m.savingsSummary(rows,'2026-09','2026-09-30'),october=m.savingsSummary(rows,'2026-10','2026-10-31');assert.equal(september.ars,100);assert.equal(september.net,0);assert.equal(october.ars,130);assert.equal(october.usd,10);assert.equal(october.net,30);assert.equal(1000-600-october.net,370);
+});
+
+await check('SAVE-14','Un gasto convertido conserva su auditoría y rechaza edición, pago o borrado desde una vista antigua',async()=>{
+ const h=await harness(),id=await seed();assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,200);const before=await snapshot();
+ assert.equal((await h.call('gastos-update.js',{...expense,id,monto:999},'PUT')).code,404);
+ assert.equal((await h.call('gastos-delete.js',{movimientoId:id},'DELETE')).code,404);
+ assert.equal((await h.call('gastos-estado.js',{movimientoId:id,estado:'pendiente'},'PATCH')).code,404);
+ assert.deepEqual(await snapshot(),before);assert.equal((await savedRows(h)).length,1);
+});
+
 await fs.writeFile(path.join(out,'resultados-api-postgres.json'),JSON.stringify(results,null,2));await pg.close();
 if(results.some(r=>r.status==='fallo'))process.exitCode=1;

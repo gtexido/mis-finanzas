@@ -1,5 +1,6 @@
 export default function UiIcon({ name, size = 22, ...props }) {
   const paths = {
+    savings: <><path d="M8 7h8a5 5 0 0 1 5 5v4h-3l-1 4h-3v-3h-4v3H7l-1-4H3v-5l3-1 1-5 4 2M10 10h4"/><circle cx="17" cy="11" r=".6"/><path d="M3 11C0 11 1 7 3 8"/></>,
     eye: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>,
     'eye-off': <><path d="m3 3 18 18M10 5a12 12 0 0 1 2 0c6.5 0 10 7 10 7a18 18 0 0 1-3 4M6 6a18 18 0 0 0-4 6s3.5 7 10 7a12 12 0 0 0 5-1M10 10a3 3 0 0 0 4 4"/></>,
     edit: <><path d="m15 4 5 5M4 20l4-1L21 6l-5-5L3 14l-1 8Z"/></>,

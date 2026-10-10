@@ -8,6 +8,8 @@ import { useState, useEffect, useRef } from "react";
 import {
   getCatalogos,
   getMovimientos,
+  getSavings,
+  saveSavings,
   crearGasto,
   eliminarGasto,
   actualizarGasto,
@@ -72,7 +74,9 @@ import IncomeView from "./views/IncomeView";
 import ConfirmDelete from "./components/ConfirmDelete";
 import { isAutomaticDebit, missingReplicas } from "./utils/paymentStatus";
 import { allExpenses, buildOverview } from "./utils/overview";
-import { findPossibleDuplicate, recurringIncreases } from "./utils/smartHints";
+import { findPossibleDuplicate, recurringIncreases, nativeAmounts } from "./utils/smartHints";
+import { savingsSummary, localDate } from "./utils/savings";
+import SavingsView from "./views/SavingsView";
 import DuplicateReview from "./components/DuplicateReview";
 import DetalleViewShell from "./views/DetalleView";
 import UiIcon from "./components/UiIcon";
@@ -116,6 +120,11 @@ export default function App() {
   };
   const [analisisTab,setAnalisisTab]=useState("concepto");
   const [data,setData]=useState(stored.data);
+  const [savingsRecords,setSavingsRecords]=useState([]);
+  const [savingsStatus,setSavingsStatus]=useState("loading");
+  const [savingsError,setSavingsError]=useState("");
+  const [savingsSeed,setSavingsSeed]=useState(null);
+  const savingsFetchRef=useRef(0);
   const [cfg,setCfg]=useState(stored.config);
   const [recurrentes,setRecurrentes]=useState(stored.recurrentes);
   const [mes,setMes]=useState(getMesActual);
@@ -342,6 +351,7 @@ const abrirSubconceptosConCotizacion = async (gasto) => {
   }, []);
   useEffect(() => {
     setIngForm({fuente:"",monto:"",dia:String(Math.min(new Date().getDate(),new Date(mes.y,mes.m+1,0).getDate()))});
+    setSavingsSeed(null);
     setSueldoInput("");
     setForm(p => ({...p,dia:String(Math.min(Number(p.dia)||1,new Date(mes.y,mes.m+1,0).getDate()))}));
   }, [mesKey]);
@@ -374,6 +384,39 @@ useEffect(() => {
   cargar();
   return () => { cancelado = true; };
 }, [authUser?.usuarioId, recarga]);
+
+const refreshSavings = async () => {
+  const owner=authUser?.usuarioId, ticket=++savingsFetchRef.current;
+  if(!owner)return;
+  setSavingsStatus("loading");setSavingsError("");
+  try {
+    const records=await getSavings();
+    if(sessionRef.current!==owner || ticket!==savingsFetchRef.current)return;
+    setSavingsRecords(records);setSavingsStatus("ready");
+  } catch(error) {
+    if(sessionRef.current!==owner || ticket!==savingsFetchRef.current)return;
+    setSavingsStatus("error");setSavingsError(error.message || "No se pudieron cargar los ahorros.");
+  }
+};
+useEffect(()=>{refreshSavings();},[authUser?.usuarioId,recarga]);
+const openSavings = (seed=null) => {setSavingsSeed(seed);setView("ahorros");window.scrollTo({top:0,behavior:"instant"});};
+const convertToSavings = item => {
+  const amounts=nativeAmounts(item), currencies=amounts ? Object.keys(amounts) : [];
+  if(item.estado!=="pagado" || item.requiereRevision)return toast_("Confirmá el pago y los datos antes de convertir el gasto.","warn");
+  if(currencies.length!==1)return toast_("El gasto combina monedas. Separá sus importes antes de convertirlo.","warn");
+  openSavings({kind:"aporte",sourceId:item.id,sourceTitle:item.servicio,amount:String(amounts[currencies[0]]),currency:currencies[0],date:`${mesKey}-${String(item.dia).padStart(2,'0')}`,destination:item.medioPagoNombre || item.medioPago || "",goal:""});
+};
+const persistSavings = async (method,payload) => {
+  const owner=authUser?.usuarioId;
+  if(!owner)throw new Error("La sesión terminó. Ingresá nuevamente.");
+  const result=await saveSavings(method,payload);
+  if(sessionRef.current!==owner)throw new Error("La sesión terminó.");
+  ++savingsFetchRef.current;
+  setSavingsRecords(result.records);setSavingsStatus("ready");setSavingsError("");
+  if(result.converted && payload.sourceId)setData(previous=>({...previous,gastos:Object.fromEntries(Object.entries(previous.gastos).map(([key,rows])=>[key,rows.filter(row=>row.id!==payload.sourceId)]))}));
+  setSavingsSeed(null);
+  toast_(method==="DELETE"?"Movimiento de ahorro eliminado":result.converted?"El gasto pasó a Ahorros":"Ahorro actualizado");
+};
 
   const toast_=(msg,type="ok")=>{
     const normalizedType = type === "error" ? "err" : (type || "ok");
@@ -1260,6 +1303,7 @@ const handleSubconceptosSave = (items) => {
  const resetPrivateState = () => {
   sessionRef.current = null;
   resolverDuplicado("cancel");
+  ++savingsFetchRef.current;setSavingsRecords([]);setSavingsSeed(null);setSavingsError("");setSavingsStatus("loading");
   setDueSelection({filter:"all",scope:"all"});
   setData({gastos:{},ingresos:{},sueldo:{}}); setCfg(DEFAULT_CONFIG); setRecurrentes([]);
   setForm({servicio:"",monto:"",moneda:"ARS",estado:"pagado",dia:String(new Date().getDate()),subconceptos:[],etiquetasIds:[]});
@@ -1772,9 +1816,11 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
     exportandoBackupRef.current = true;
     setExportandoBackup(true);
     try {
-      const [movimientos, catalogos] = await Promise.all([getMovimientos(null), getCatalogos()]);
+      const owner=authUser.usuarioId;
+      const [movimientos, catalogos, ahorros] = await Promise.all([getMovimientos(null), getCatalogos(), getSavings()]);
+      if(sessionRef.current!==owner)return;
       const historial = mapHistorialDesdeApi(movimientos);
-      const backup = { data: historial, config: mapCatalogosDesdeApi(catalogos), version: "v2",
+      const backup = { data: {...historial, ahorros}, config: mapCatalogosDesdeApi(catalogos), version: "v3",
         alcance: "Movimientos del usuario actual; no incluye toda la base de datos",
         usuarioId: authUser.usuarioId, workspaceId: authUser.workspaceId,
         fecha: new Date().toISOString() };
@@ -2150,20 +2196,20 @@ if (!authUser) {
       {confirmDel && <ConfirmDelete item={confirmDel} amount={confirmDel.tipo==="gastos"?montoReal(confirmDel,tc):Number(confirmDel.monto)} busy={eliminando} error={deleteError} onClose={()=>setConfirmDel(null)} onConfirm={eliminar}/>}
 
       <div className={`page-header ${view==="home"?"home-header":""}`}>
-        <h1>{({home:"Tu mes, en claro.",cargar:"Cargar gasto",resumen:"Movimientos",ingresos:"Ingresos",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",config:"Ajustes"})[view]}</h1>
-        <p>{({home:`Hola, ${authUser.nombre}. Este es tu resumen.`,cargar:"Lo esencial, sin vueltas.",resumen:"Cada gasto, a mano.",ingresos:"Todo lo que entra en el mes.",vencimientos:"Tus pagos, a tiempo.",analisis:"Entendé en qué se va tu plata.",variacion:"Una mirada a lo que cambia.",config:"Tu app, a tu manera."})[view]}</p>
+        <h1>{({home:"Tu mes, en claro.",cargar:"Cargar gasto",resumen:"Movimientos",ingresos:"Ingresos",ahorros:"Ahorros",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",config:"Ajustes"})[view]}</h1>
+        <p>{({home:`Hola, ${authUser.nombre}. Este es tu resumen.`,cargar:"Lo esencial, sin vueltas.",resumen:"Cada gasto, a mano.",ingresos:"Todo lo que entra en el mes.",ahorros:"Lo que reservás para vos.",vencimientos:"Tus pagos, a tiempo.",analisis:"Entendé en qué se va tu plata.",variacion:"Una mirada a lo que cambia.",config:"Tu app, a tu manera."})[view]}</p>
         {view!=="config"&&<div className="period-picker"><span>{MESES[mes.m]} {mes.y}</span><div className="period-controls"><button className="icon-button" aria-label="Mes anterior" onClick={()=>cambiarMes(-1)}><UiIcon name="chevron" size={17} style={{transform:"rotate(180deg)"}}/></button><button className="icon-button" aria-label="Mes siguiente" onClick={()=>cambiarMes(1)}><UiIcon name="chevron" size={17}/></button></div></div>}
       </div>
       <div className="app-content">
-        {["resumen","ingresos"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="resumen"} onClick={()=>setView("resumen")}>Gastos</button><button aria-pressed={view==="ingresos"} onClick={()=>setView("ingresos")}>Ingresos</button></div>}
+        {["resumen","ingresos","ahorros"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="resumen"} onClick={()=>setView("resumen")}>Gastos</button><button aria-pressed={view==="ingresos"} onClick={()=>setView("ingresos")}>Ingresos</button><button aria-pressed={view==="ahorros"} onClick={()=>openSavings()}>Ahorros</button></div>}
         {["analisis","variacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button></div>}
 
         {/* HOME */}
-        {view==="home"&&<PremiumHome key={authUser.usuarioId} userId={authUser.usuarioId} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
+        {view==="home"&&<PremiumHome key={authUser.usuarioId} userId={authUser.usuarioId} savingsStatus={savingsStatus} savings={savingsSummary(savingsRecords,mesKey,[localDate(today),localDate(new Date(mes.y,mes.m+1,0))].sort()[0])} onSavings={()=>openSavings()} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
 
         {/* CARGAR */}
         {view==="cargar"&&<>
-          <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button></div>
+          <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button><button aria-pressed="false" onClick={()=>openSavings({kind:"aporte"})}>Ahorro</button></div>
           <fieldset className="expense-form-fields" disabled={guardandoGasto}><ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
           <button className="primary form-submit" disabled={guardandoGasto} onClick={async()=>{
@@ -2220,7 +2266,7 @@ if (!authUser) {
                       <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{porcentajeGrupo}% del filtro</div>
                     </div>
                   </div>
-                  {cat.items.map(item => (<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>))}
+                  {cat.items.map(item => (<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>))}
                 </div>
               );
             })}
@@ -2297,6 +2343,7 @@ if (!authUser) {
           />
         )}
 
+        {view==="ahorros" && <SavingsView key={`${authUser.usuarioId}_${mesKey}`} records={savingsRecords} status={savingsStatus} error={savingsError} onRetry={refreshSavings} period={mesKey} seed={savingsSeed} accounts={(cfg.mediosPago||[]).map(item=>item.nombre).filter(Boolean)} onSave={persistSavings}/> }
         {view==="ingresos" && <IncomeView total={totalIngresos} previous={totalIngresosAnterior} hasPrevious={!!((data.gastos[mesAnteriorKey]||[]).length || (data.ingresos[mesAnteriorKey]||[]).length || data.sueldo[mesAnteriorKey])} hasCurrent={!!(gastosDelMes.length || ingresosDelMes.length || sueldoDelMes)} previousLabel={mesAnteriorInfo.label} partial={mes.y===now.getFullYear()&&mes.m===now.getMonth()} salary={sueldoDelMes} salaryInput={sueldoInput} setSalaryInput={setSueldoInput} saveSalary={guardarSueldo} salaryBusy={sueldoBusy} form={ingForm} setForm={setIngForm} saveIncome={guardarIngreso} incomeBusy={guardarIngresoLoading} sources={[...new Set([...(cfg.fuentesIngreso||[]),...Object.values(data.ingresos).flat().map(i=>i.fuente),...FUENTES_INGRESO_GENERICAS].map(normalizarFuenteIngreso))]} items={ingresosDelMes} maxDay={new Date(mes.y,mes.m+1,0).getDate()} onEdit={item=>{setIngForm({...item,fuente:normalizarFuenteIngreso(item.fuente),monto:String(item.monto),dia:String(item.dia)});setTimeout(()=>{document.getElementById('income-form')?.scrollIntoView({behavior:'smooth',block:'center'});document.getElementById('income-amount')?.focus({preventScroll:true});},0);}} onDelete={solicitarBorrado}/>}
 
         {/* CONFIGURACIÓN */}
@@ -2426,7 +2473,7 @@ if (!authUser) {
 
       <nav className="bottom-nav" aria-label="Navegación principal">
         {[{id:"home",icon:"home",label:"Inicio"},{id:"resumen",icon:"movements",label:"Movimientos"},{id:"cargar",icon:"plus",label:"Cargar"},{id:"vencimientos",icon:"calendar",label:"Vencimientos"},{id:"analisis",icon:"chart",label:"Informes"}].map(nav=>{
-          const active=view===nav.id||(nav.id==="resumen"&&view==="ingresos")||(nav.id==="analisis"&&view==="variacion");
+          const active=view===nav.id||(nav.id==="resumen"&&["ingresos","ahorros"].includes(view))||(nav.id==="analisis"&&view==="variacion");
           return <button key={nav.id} className={`ni ${nav.id==="cargar"?"nav-add":""}`} aria-current={active?"page":undefined} onClick={()=>{if(nav.id==="vencimientos")setDueSelection({filter:"all",scope:"all"});setView(nav.id);window.scrollTo({top:0,behavior:"instant"});}}><UiIcon name={nav.icon}/><span>{nav.label}</span>{nav.id==="vencimientos"&&vencUrgentes>0&&<span className="nav-dot" aria-label={`${vencUrgentes} registros requieren atención`}/>}</button>;
         })}
       </nav>

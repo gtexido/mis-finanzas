@@ -1,6 +1,6 @@
-# Versión premium: edición, informes y acceso personal
+# Versión premium: ahorros, panorama y acceso personal
 
-Versión preparada el 5 de octubre de 2026 en la rama `design/premium-sin-categoria-tipo`, PR #2. La rama principal no se reemplaza con esta entrega.
+Entrega iniciada el 5 de octubre y actualizada el 10 de octubre de 2026 en la rama `design/premium-sin-categoria-tipo`, PR #2. La rama principal no se reemplaza con esta entrega.
 
 ## Qué cambia
 
@@ -115,3 +115,49 @@ Validación de esta actualización:
 - Estado de pruebas en `verificacion/avisos/resultados.json`; capturas locales no publicadas en el repositorio.
 
 Para los nuevos cálculos: `node verificacion/pruebas/smart-hints.mjs`. Se conservan los comandos anteriores para panorama, navegador y compilación.
+
+
+## Ahorros y claridad visual · 10 de octubre de 2026
+
+Acceso desde **Cargar → Ahorro**, **Movimientos → Ahorros** o la tarjeta **Tu ahorro** en Inicio. Se conservan los cinco destinos de navegación y no se reincorporan campos de categoría o tipo.
+
+| Registro | Disponible del mes | Ahorro acumulado | Ingresos y gastos |
+| --- | --- | --- | --- |
+| Apartar ahorro | Disminuye | Aumenta | No cambia |
+| Retirar ahorro | Aumenta | Disminuye | No cambia |
+| Ahorro que ya tenía | No cambia | Aumenta | No cambia |
+
+El disponible muestra ingresos menos gastos registrados, menos aportes y más retiros del período elegido. Los pendientes ya están incluidos en gastos. Es un cálculo mensual sobre lo registrado, no el saldo bancario. El ahorro acumulado incluye meses anteriores hasta el cierre del período elegido o hasta hoy, lo que ocurra primero.
+
+Pesos y dólares se conservan por separado. Para aportes y retiros en USD se pide la cotización usada en esa operación y se guarda su equivalente en pesos. No se recalculan por la cotización global de tarjetas. El saldo inicial no requiere cotización y no genera ingresos artificiales. Cada registro permite indicar dónde se guarda el dinero y un objetivo opcional. Registrar una operación no ejecuta una transferencia bancaria.
+
+Para corregir un ahorro cargado como gasto: abrir **Movimientos → Más opciones → Convertir en ahorro**. Requiere un gasto pagado, confirmado y en una sola moneda; solicita destino y confirmación explícita. Archiva el gasto original conservando su detalle y crea el aporte en una sola operación atómica. El importe y la fecha del origen no se cambian durante la conversión. En USD se usa la cotización confirmada para el nuevo aporte. La eliminación posterior del ahorro no reactiva automáticamente el gasto.
+
+Los ahorros se pueden editar y eliminar con confirmación. No se permiten retiros sin fondos ni modificaciones o borrados que dejen un retiro histórico sin respaldo. Se validan importes, centavos, moneda, fecha real no futura y un saldo inicial por destino/objetivo/moneda. Cada registro tiene versión para detectar modificaciones simultáneas; el libro del usuario se guarda con control de revisión. Los reintentos de creación usan la misma clave y no duplican operaciones. Los errores conservan el formulario.
+
+El acceso requiere sesión válida y membresía activa; todos los libros están delimitados por usuario y espacio. Al cerrar sesión se descartan saldos y borradores. La copia JSON incluye los ahorros activos de todos los meses. La preferencia para ocultar importes del Inicio también cubre Ahorros.
+
+### Base y despliegue
+
+Se añade únicamente la tabla independiente `ahorro_libros` (JSONB, una fila versionada por usuario y espacio). Se inicializa de forma idempotente en el primer acceso autenticado a Ahorros. No se cambia la estructura ni los valores admitidos por la tabla existente de movimientos. El rol de base necesita permiso para crear la nueva tabla; si el rol está restringido, el administrador debe provisionarla usando la definición de `api/_savings.js`.
+
+La función se publica dentro de `/api/movimientos?recurso=ahorros` con GET, POST, PUT y DELETE, conservando las doce funciones públicas de Vercel. Las consultas previas de movimientos mantienen su funcionamiento. Las ediciones y eliminaciones de gastos bloquean y verifican el origen activo, para preservar gastos archivados por una conversión aunque haya una pantalla antigua abierta.
+
+No se conectó la prueba a Neon real ni se usaron claves personales. La inicialización y las restricciones de la base real deben verificarse al acceder desde una cuenta autorizada. El despliegue de código no confirma por sí solo esos permisos.
+
+### Diseño e informes
+
+- Disponible e ingresos en verde; pendiente en ámbar; vencidos en coral; acciones en violeta. Siempre acompañados de texto o ícono.
+- Tarjeta de ahorro acumulado en Inicio, con acceso a sus movimientos. Los tres mayores conceptos quedan desplegables para mantener el resumen corto.
+- Vencimientos con una indicación concreta: vencido, vence mañana, débito por verificar o dato que falta confirmar. Se elimina la repetición de insignias de revisión.
+- Evolución diferencia **Primera carga** de **Reaparece**, consultando el historial cargado. Cada concepto expande sus importes mensuales sin repetir tarjetas de antes/actual. Las ausencias son «Sin registro» y no se califican automáticamente como ahorro.
+- Una variación de cero se muestra neutral; el aviso de mes parcial queda visible.
+
+### Validación de Ahorros
+
+Resultados de la ejecución en `verificacion/ahorros/resultados.json`. Las capturas se revisan localmente y no se suben al repositorio. Las pruebas usan registros ficticios; no acreditan operaciones sobre cuentas reales.
+
+- Compilación de producción correcta.
+- **90 escenarios aprobados**: 35 de API y cálculos con PostgreSQL embebido, 39 de navegador con API simulada y 16 de cálculos de panorama/avisos.
+- Incluye inicialización, aislamiento entre usuarios, retiros concurrentes, versiones, reintentos, conversión atómica con rollback real y protección del origen archivado; además de los recorridos anteriores de gastos, ingresos, réplica y login.
+- Nueve vistas a 320, 390 y 1280 px sin desbordes; formulario en dólares comprobado a 320 px. Capturas de Inicio, Ahorros y Evolución revisadas.
