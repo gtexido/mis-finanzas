@@ -92,3 +92,26 @@ Validación de esta actualización:
 - Estado de pruebas en `verificacion/panorama/resultados.json`; capturas locales no publicadas.
 
 Para los cálculos: `node verificacion/pruebas/overview.mjs`. Para navegador se mantiene el comando y las opciones de `release.cjs`. No requiere cambios de esquema ni de variables del entorno.
+
+## Próxima acción, aumentos y duplicados · 10 de octubre de 2026
+
+El inicio propone la próxima acción según los registros: primero pagos vencidos o de hoy y débitos por verificar, luego los próximos tres días y después las revisiones pendientes. Cada propuesta abre el filtro correspondiente. Si no hay tareas, no se muestra una urgencia ficticia.
+
+La sección de aumentos compara gastos habituales del mes con el anterior. Muestra diferencia de importe, porcentaje y ambos valores, y permite abrir el gasto. Solo compara una carga confirmada de cada mes para el mismo concepto, cuenta y moneda original; excluye importes por revisar, múltiples cargos ambiguos, desgloses mixtos y bases cero. Una variación de cotización no se presenta como aumento del servicio. El aviso describe lo registrado, no confirma un cambio de tarifa.
+
+Antes de guardar un gasto, se vuelven a consultar los registros del mes. Una coincidencia de concepto, cuenta, importes en sus monedas originales y día de carga o vencimiento confirmado abre una revisión: ver el gasto existente, volver al formulario o guardar otro gasto. Cancelar conserva el borrador. Un fallo de lectura impide la escritura y permite reintentar. Cerrar la sesión cancela una revisión pendiente. La opción predeterminada es crear un movimiento nuevo; sumar al anterior requiere elegirlo expresamente y esa elección se reinicia al cambiar de concepto.
+
+Este control advierte sobre posibles duplicados y permite cargas repetidas legítimas. No garantiza unicidad entre dos guardados simultáneos desde distintos dispositivos: no incorpora bloqueo ni transacción distribuida.
+
+El botón del ojo permite ocultar importes, porcentajes y proporciones **solo en Inicio**, incluidos los textos accesibles de los avisos. Conserva cantidades de tareas y recuerda la preferencia por usuario en este navegador. La preferencia es un booleano local; no guarda movimientos ni importes. Las demás pantallas y los diálogos siguen mostrando sus valores.
+
+Validación de esta actualización:
+
+- Build de producción correcto.
+- 31 escenarios de navegador con API simulada, incluidos los 24 anteriores y siete nuevos para próxima acción, aumentos, privacidad por usuario, duplicados, reconsulta antes de guardar, carga separada y cierre de sesión durante una revisión.
+- 16 escenarios de cálculos: ocho del panorama anterior y ocho nuevos para coincidencias, monedas originales, aumentos y prioridad de acciones.
+- **47 escenarios aprobados en esta ejecución**, con datos ficticios y sin escrituras en cuentas reales.
+- No se modifican endpoints, consultas del backend ni esquema. Los 21 escenarios de API de la entrega inicial no se volvieron a ejecutar.
+- Estado de pruebas en `verificacion/avisos/resultados.json`; capturas locales no publicadas en el repositorio.
+
+Para los nuevos cálculos: `node verificacion/pruebas/smart-hints.mjs`. Se conservan los comandos anteriores para panorama, navegador y compilación.

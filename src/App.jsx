@@ -72,6 +72,8 @@ import IncomeView from "./views/IncomeView";
 import ConfirmDelete from "./components/ConfirmDelete";
 import { isAutomaticDebit, missingReplicas } from "./utils/paymentStatus";
 import { allExpenses, buildOverview } from "./utils/overview";
+import { findPossibleDuplicate, recurringIncreases } from "./utils/smartHints";
+import DuplicateReview from "./components/DuplicateReview";
 import DetalleViewShell from "./views/DetalleView";
 import UiIcon from "./components/UiIcon";
 import MovementRow from "./components/MovementRow";
@@ -182,6 +184,8 @@ export default function App() {
   const [loginError,setLoginError]=useState("");
   const [confirmDel,setConfirmDel]=useState(null);
   const [confirmAction,setConfirmAction]=useState(null);
+  const [duplicateReview,setDuplicateReview]=useState(null);
+  const duplicateResolverRef=useRef(null);
   const confirmActionResolverRef = useRef(null);
   const [editingGasto,setEditingGasto]=useState(null);
   const [editingMesKey,setEditingMesKey]=useState(null);
@@ -216,6 +220,8 @@ export default function App() {
   const [newFuente,setNewFuente]=useState(""); const [editFuente,setEditFuente]=useState(null);
 
   const mesKey=getMesKey(mes.y,mes.m);
+  const saveScopeRef=useRef(null);
+  saveScopeRef.current={owner:authUser?.usuarioId,period:mesKey,view};
   const mesAnteriorInfo = (() => {
     let m = mes.m - 1;
     let y = mes.y;
@@ -411,16 +417,16 @@ useEffect(() => {
     setConfirmAction(null);
   };
 
-  const confirmarDuplicadoVisual = (duplicado) => pedirConfirmacion({
-    title: "Posible gasto duplicado",
-    message: "Ya existe un gasto parecido este mes.",
-    detail: `${duplicado.servicio} · ${duplicado.medioPagoNombre || duplicado.medioPago || "Mismo medio"} · ${fmtARS(toARS_(duplicado))}`,
-    note: "Si guardás igual, se va a crear un nuevo movimiento separado. No se va a sumar al gasto existente.",
-    icon: "⚠️",
-    variant: "warn",
-    confirmLabel: "Guardar igual",
-    cancelLabel: "Cancelar",
+  const confirmarDuplicadoVisual = (item, period) => new Promise(resolve => {
+    duplicateResolverRef.current = resolve;
+    setDuplicateReview({item,period});
   });
+  const resolverDuplicado = action => {
+    const resolve = duplicateResolverRef.current;
+    duplicateResolverRef.current = null;
+    setDuplicateReview(null);
+    resolve?.(action);
+  };
 
   const gastosDelMes=data.gastos[mesKey]||[];
 const ingresosDelMes=data.ingresos[mesKey]||[];
@@ -635,21 +641,6 @@ const contarRepeticionesServicio = (servicio) => {
 
 const gastoCompuestoExistente = buscarGastoSimilar(form);
 
-const buscarGastoDuplicadoExacto = (formActual = {}, montoARS = 0) => {
-  const conceptoNormalizado = normalizarTexto(formActual.servicio);
-  if (!conceptoNormalizado) return null;
-
-  const medioActual = formActual.medioPagoId || medioPagoDesdeCategoriaLegacy(formActual.categoria || "");
-  const montoActual = Number(montoARS || 0);
-  if (!medioActual || !Number.isFinite(montoActual) || montoActual <= 0) return null;
-
-  return gastosDelMesActual.find((g) => {
-    const mismoConcepto = normalizarTexto(g.servicio) === conceptoNormalizado;
-    const mismoMedio = obtenerMedioPagoComparable(g) === medioActual;
-    const mismoMonto = Math.abs(Number(toARS_(g) || 0) - montoActual) < 0.01;
-    return mismoConcepto && mismoMedio && mismoMonto;
-  }) || null;
-};
 
 const esServicioCompuesto = (nombre) => {
   if (!nombre) return false;
@@ -669,7 +660,7 @@ const esServicioCompuesto = (nombre) => {
 
 const sugerenciaCarga = {
   candidatoExistente: gastoCompuestoExistente,
-  accionSugerida: gastoCompuestoExistente ? "existente" : "nuevo",
+  accionSugerida: "nuevo",
   tipoSugerido:
   gastoCompuestoExistente
     ? (gastoTieneDesglose(gastoCompuestoExistente) ? "detalle" : "simple")
@@ -722,24 +713,10 @@ const calcularTotalARSDetalle = (items = []) => {
 };
 
 
-const calcularMontoARSParaDuplicado = (mov = {}) => {
-  if (tieneSubconceptosValidos(mov.subconceptos)) {
-    return calcularTotalARSDetalle(mov.subconceptos);
-  }
-
-  const monto = Number(mov.monto || 0);
-  const moneda = String(mov.moneda || "ARS").trim().toUpperCase();
-
-  if (moneda === "USD") {
-    return monto * Number(tc || 1);
-  }
-
-  return monto;
-};
-
 const guardarGastoInterno = async (extra = {}) => {
   let f = { ...form, ...extra };
   const owner=authUser.usuarioId;
+  const isCurrentDraft = () => sessionRef.current===owner && saveScopeRef.current.period===mesKey && saveScopeRef.current.view==="cargar";
 
   const conceptoLimpio = String(f.servicio || "").trim();
   const montoNumero = Number(f.monto || 0);
@@ -806,20 +783,22 @@ const guardarGastoInterno = async (extra = {}) => {
     return;
   }
 
-  const subconceptosPayloadParaDuplicado = f.subconceptos || [];
-  const montoCabeceraParaDuplicado = calcularMontoARSParaDuplicado({
-    ...f,
-    subconceptos: subconceptosPayloadParaDuplicado,
-  });
-
-  const duplicadoExactoAntesDeAcumular = buscarGastoDuplicadoExacto(f, montoCabeceraParaDuplicado);
-  if (duplicadoExactoAntesDeAcumular) {
-    const guardarIgual = await confirmarDuplicadoVisual(duplicadoExactoAntesDeAcumular);
-    if (!guardarIgual) return;
-
-    // Si el usuario decide guardar igual, NO acumulamos sobre el gasto existente.
-    // Creamos un movimiento nuevo para que la acción sea explícita y no modifique importes sin aviso.
-    f = { ...f, accionCompuesto:"nuevo", decisionManual:true, __duplicadoConfirmado:true };
+  // Refresh this month before writing: a second device may have registered the charge.
+  let latest;
+  try {
+    latest = mapMovimientosDesdeApi(await getMovimientos(mesKey), mesKey).gastos[mesKey] || [];
+  } catch (error) {
+    if(sessionRef.current===owner)toast_("No pudimos comprobar si el gasto ya existe. Tu borrador sigue acá; intentá otra vez.","err");
+    return;
+  }
+  if(!isCurrentDraft())return;
+  const duplicate = findPossibleDuplicate(f, latest);
+  if (duplicate) {
+    const action = await confirmarDuplicadoVisual(duplicate, mesKey);
+    if(!isCurrentDraft())return;
+    if (action === 'view') { openEdit(duplicate, mesKey); return; }
+    if (action !== 'save') return;
+    f = { ...f, accionCompuesto:"nuevo", decisionManual:true };
   }
 
   const usarExistente =
@@ -975,16 +954,6 @@ try {
     ? calcularTotalARSDetalle(subconceptosPayload)
     : Number(f.monto || 0);
 
-  const montoParaDuplicado = calcularMontoARSParaDuplicado({
-    ...f,
-    subconceptos: subconceptosPayload,
-  });
-
-  const duplicadoExacto = f.__duplicadoConfirmado ? null : buscarGastoDuplicadoExacto(f, montoParaDuplicado);
-  if (duplicadoExacto) {
-    const guardarIgual = await confirmarDuplicadoVisual(duplicadoExacto);
-    if (!guardarIgual) return;
-  }
 
   await crearGasto({
     periodo: mesKey,
@@ -1290,6 +1259,7 @@ const handleSubconceptosSave = (items) => {
 };
  const resetPrivateState = () => {
   sessionRef.current = null;
+  resolverDuplicado("cancel");
   setDueSelection({filter:"all",scope:"all"});
   setData({gastos:{},ingresos:{},sueldo:{}}); setCfg(DEFAULT_CONFIG); setRecurrentes([]);
   setForm({servicio:"",monto:"",moneda:"ARS",estado:"pagado",dia:String(new Date().getDate()),subconceptos:[],etiquetasIds:[]});
@@ -2084,6 +2054,8 @@ if (!authUser) {
         );
       })()}
 
+      {duplicateReview && <DuplicateReview item={duplicateReview.item} period={duplicateReview.period} onResolve={resolverDuplicado}/>}
+
       {/* Modal subconceptos USD */}
       {subconceptosGasto&&<SubconceptosModal gasto={subconceptosGasto} tc={subconceptosGasto.tcConversion || tc} onSave={handleSubconceptosSave} onClose={()=>setSubconceptosGasto(null)}/>}
 
@@ -2187,18 +2159,18 @@ if (!authUser) {
         {["analisis","variacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button></div>}
 
         {/* HOME */}
-        {view==="home"&&<PremiumHome gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
+        {view==="home"&&<PremiumHome key={authUser.usuarioId} userId={authUser.usuarioId} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
 
         {/* CARGAR */}
         {view==="cargar"&&<>
           <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button></div>
-          <ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>
+          <fieldset className="expense-form-fields" disabled={guardandoGasto}><ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
           <button className="primary form-submit" disabled={guardandoGasto} onClick={async()=>{
             if(form.estado==="pendiente"&&!form.vencimiento&&!form.requiereRevision){toast_("Agregá una fecha de vencimiento o marcá Revisar después.","err");return;}
             if(form.tipoGasto==="detalle"&&!form.subconceptos.length){toast_("Agregá los ítems y guardá el desglose.","err");abrirSubconceptosConCotizacion({...form,id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:[]});return;}
             await guardarGasto();
-          }}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button>
+          }}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button></fieldset>
           <p className="form-note">Se guardará en {MESES[mes.m].toLowerCase()} de {mes.y}.</p>
           <button className="text-button" onClick={()=>setShowCotizador(!showCotizador)}>{showCotizador?"Ocultar cotización":"Consultar cotización del dólar"}</button>
           {showCotizador&&<CotizadorWidget onSelectTC={(valor,tipo)=>{setCfg(p=>({...p,tipoCambio:valor}));toast_(`Cotización ${tipo}: ${fmtARS(valor)}`);setShowCotizador(false);}}/>}

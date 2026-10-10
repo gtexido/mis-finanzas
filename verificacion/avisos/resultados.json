@@ -1,0 +1,252 @@
+{
+  "fecha": "2026-10-10",
+  "actualizacion": "Próxima acción, aumentos, revisión de duplicados y privacidad del inicio",
+  "compilacion": "correcta",
+  "escenarios": 47,
+  "aprobados": 47,
+  "datos": "Ficticios; navegador con API simulada",
+  "escrituras_en_cuentas_reales": false,
+  "backend_modificado": false,
+  "api_postgres_re_ejecutada": false,
+  "calculos_panorama": [
+    {
+      "id": "PAN-01",
+      "title": "Pendientes de otros meses mantienen su período y no se pierden",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-02",
+      "title": "Avisos sin duplicación: urgencia primero, fechas estimadas a revisión",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-03",
+      "title": "Débitos alcanzados requieren verificar; pagados no vuelven a vencer",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-04",
+      "title": "Pagados por revisar visibles sin aumentar la deuda pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-05",
+      "title": "Importes ARS, USD y desgloses respetan la conversión existente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-06",
+      "title": "Fechas ausentes o imposibles piden revisión y nunca generan NaN",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-07",
+      "title": "Ventana de tres días y próximo pago cruzan meses correctamente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-08",
+      "title": "Sin registros o todo pagado: cero tareas sin importes ficticios",
+      "status": "correcto"
+    }
+  ],
+  "calculos_avisos": [
+    {
+      "id": "SMART-01",
+      "title": "Duplicado por día o vencimiento y moneda original, con alias normalizados",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-02",
+      "title": "Cuentas, conceptos, fechas o monedas distintas no se confunden",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-03",
+      "title": "Detalle mixto compara totales por moneda y no solo su equivalente en pesos",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-04",
+      "title": "Aumento habitual compara una carga confirmada de cada mes",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-05",
+      "title": "Cotización distinta no se presenta como aumento del servicio",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-06",
+      "title": "No hay aumentos ficticios con revisiones, múltiples cargos, mezclas o base cero",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-07",
+      "title": "Próxima acción prioriza vencidos y débitos; después próximos y revisión",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-08",
+      "title": "Sin tareas o todo pagado no se inventa una próxima acción",
+      "status": "correcto"
+    }
+  ],
+  "navegador": [
+    {
+      "id": "UI-01",
+      "title": "Login individual con error claro y recuperación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-02",
+      "title": "Pantallas de 320, 390 y 1280 px sin desbordes ni errores",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-03",
+      "title": "Gasto automático: alta pendiente, edición, cancelar borrado y eliminación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-04",
+      "title": "Ingreso: guardar, editar y borrar con reintento tras error",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-05",
+      "title": "Sueldo: actualizar y eliminar sin tocar otros meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-06",
+      "title": "Informes: diferencia y porcentaje total y por concepto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-07",
+      "title": "Débito vencido pide verificar y se conserva al pagar/deshacer",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-08",
+      "title": "Réplica hacia un mes parcialmente cargado sin repetir existentes",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-09",
+      "title": "Guardar gasto con fallo conserva formulario y permite reintentar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-10",
+      "title": "Fallo al refrescar después de guardar no invita a duplicar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-11",
+      "title": "Edición fallida conserva valores y muestra error en el diálogo",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-12",
+      "title": "Cerrar sesión limpia datos y borradores antes de otro usuario",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-13",
+      "title": "Sin mes anterior o sin mes actual: comparación sin porcentajes ficticios",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-14",
+      "title": "Réplica entre enero y febrero ajusta día y fecha al mes corto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-15",
+      "title": "Exportación completa del usuario mantiene todos sus meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-16",
+      "title": "Validación de importe, fecha pendiente y día evita escrituras incompletas",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-17",
+      "title": "Débito automático elegido por forma o concepto inicia pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-18",
+      "title": "Inicio: balance y cuatro avisos completos antes de la navegación inferior",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-19",
+      "title": "Avisos incluyen meses anteriores, filtran y actualizan el período correcto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-20",
+      "title": "Próximo pago de otro mes abre y guarda el gasto en su mes original",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-21",
+      "title": "Revisión de pagados accesible sin sumarlos como deuda ni volver a pagarlos",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-22",
+      "title": "Mes vacío, sin ingresos y saldo negativo dan contexto sin NaN",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-23",
+      "title": "Al volver otro día se actualizan los avisos sin recargar la app",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-24",
+      "title": "Pendiente mensual mantiene alcance; avisos globales permanecen al cambiar de mes",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-25",
+      "title": "Próxima acción explica lo urgente y abre pagos y débitos a resolver",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-26",
+      "title": "Aumentos habituales muestran importe y porcentaje y abren el gasto correcto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-27",
+      "title": "Ocultar importes del inicio cubre avisos y accesibilidad y recuerda solo esa cuenta",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-28",
+      "title": "Duplicados: cancelar, ver el existente y guardar otro sin sumar ni duplicar por doble toque",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-29",
+      "title": "Reconsulta detecta una carga posterior y un fallo previo al guardado conserva el borrador",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-30",
+      "title": "Mismo concepto e importe en otro día guarda separado y no acumula automáticamente",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-31",
+      "title": "Cerrar una sesión durante la revisión de duplicados cancela la escritura pendiente",
+      "status": "correcto"
+    }
+  ]
+}

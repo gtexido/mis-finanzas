@@ -18,7 +18,7 @@ export default function ExpenseFields({ value: f, setValue, config, tc, maxDay =
   return <div className="expense-fields">
     <div className="field">
       <label htmlFor="expense-concept">¿Qué gasto querés registrar?</label>
-      <input id="expense-concept" className="inf" placeholder="Ej: Alquiler, supermercado, internet" value={f.servicio || ''} onFocus={() => setSearching(true)} onChange={e => { setSearching(true); setValue(p => ({ ...p, servicio: e.target.value, conceptoId: '', crearConceptoPendiente: false, guardarComoConceptoFrecuente: false, ...(!isEditing ? { categoriaGastoId: '', etiquetasIds: [] } : {}) })); }} />
+      <input id="expense-concept" className="inf" placeholder="Ej: Alquiler, supermercado, internet" value={f.servicio || ''} onFocus={() => setSearching(true)} onChange={e => { setSearching(true); setValue(p => ({ ...p, servicio: e.target.value, conceptoId: '', crearConceptoPendiente: false, guardarComoConceptoFrecuente: false, ...(!isEditing ? { categoriaGastoId: '', etiquetasIds: [], accionCompuesto: 'nuevo', decisionManual: false } : {}) })); }} />
       {(!isEditing || searching) && !f.conceptoId && candidates.length > 0 && <div className="suggestions" aria-label="Conceptos sugeridos">{candidates.map(c => <button type="button" key={c.id} onClick={() => { onSelectConcept(c); setSearching(false); }}>{c.nombre}</button>)}</div>}
       {f.servicio?.trim() && !f.conceptoId && onRemember && <label className="check-line"><input type="checkbox" checked={!!(f.crearConceptoPendiente || f.guardarComoConceptoFrecuente)} onChange={onRemember}/>Recordar este concepto</label>}
     </div>
