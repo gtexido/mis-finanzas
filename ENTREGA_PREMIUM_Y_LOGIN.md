@@ -161,3 +161,10 @@ Resultados de la ejecución en `verificacion/ahorros/resultados.json`. Las captu
 - **90 escenarios aprobados**: 35 de API y cálculos con PostgreSQL embebido, 39 de navegador con API simulada y 16 de cálculos de panorama/avisos.
 - Incluye inicialización, aislamiento entre usuarios, retiros concurrentes, versiones, reintentos, conversión atómica con rollback real y protección del origen archivado; además de los recorridos anteriores de gastos, ingresos, réplica y login.
 - Nueve vistas a 320, 390 y 1280 px sin desbordes; formulario en dólares comprobado a 320 px. Capturas de Inicio, Ahorros y Evolución revisadas.
+
+
+## Campo de importe en Ingresos · 10 de octubre de 2026
+
+Se corrige el campo de nuevo importe del sueldo, que podía quedar comprimido por el ancho del botón Actualizar. El importe ocupa ahora toda la tarjeta y el botón queda debajo. Los importes de sueldo y de otros ingresos tienen mayor altura y tipografía para facilitar la carga desde el celular. La corrección es de presentación y no cambia cálculos ni guardado.
+
+Validación: build correcto; recorridos existentes UI-02, UI-04 y UI-05 aprobados con API simulada. Campos revisados visualmente a 320 y 390 px, y distribución comprobada también a 1280 px.
