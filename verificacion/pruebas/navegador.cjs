@@ -80,7 +80,12 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
   await page.waitForLoadState('networkidle');
   return {context,page,requests,db,pageErrors};
 }
-const nav=(page,text)=>page.locator('.ni').filter({hasText:text}).click();
+const nav=async(page,text)=>{
+ if(text==='Ajustes')return page.getByRole('button',{name:'Ajustes',exact:true}).click();
+ if(text==='Evol.'){await page.locator('.ni').filter({hasText:'Informes'}).click();return page.getByRole('button',{name:'Evolución',exact:true}).click();}
+ if(text==='Ingresos'){await page.locator('.ni').filter({hasText:'Movimientos'}).click();return page.getByRole('button',{name:'Ingresos',exact:true}).click();}
+ return page.locator('.ni').filter({hasText:({'Detalle':'Movimientos','Analizar':'Informes','Vence':'Vencimientos'})[text]||text}).click();
+};
 const data=page=>page.evaluate(()=>JSON.parse(localStorage.getItem('gapp_v7')));
 async function capture(page,name){await page.screenshot({path:path.join(out,name),fullPage:true});}
 async function probe(id,title,run){
@@ -97,10 +102,9 @@ async function cargar(s) {
 }
 async function desglose(s,moneda='ARS') {
   await cargar(s);
-  await s.page.getByRole('button',{name:'Más opciones avanzadas',exact:true}).click();
+  await s.page.getByRole('button',{name:'Más opciones',exact:true}).click();
+  if(moneda==='USD')await s.page.getByRole('button',{name:'USD',exact:true}).click();
   await s.page.getByRole('button',{name:'Agregar desglose',exact:true}).click();
-  if(moneda==='USD')await s.page.getByRole('button',{name:'💵 USD',exact:true}).click();
-  await s.page.getByRole('button',{name:/Agregar ítems al desglose/}).click();
   await s.page.getByPlaceholder('Nombre del ítem...', {exact:true}).fill('Ítem ficticio');
   await s.page.getByPlaceholder('0.00',{exact:true}).fill(moneda==='USD'?'10':'2500');
   await s.page.getByRole('button',{name:'+',exact:true}).click();
@@ -142,7 +146,7 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
       const loaded=await data(s.page);assert.equal(Object.keys(loaded.gastos).length,6);
       await capture(s.page,'02-historico.png');
       await nav(s.page,'Vence');await capture(s.page,'03-vencimientos.png');
-      await nav(s.page,'Ajustes');await s.page.getByRole('button',{name:/Backup y datos/}).click();
+      await nav(s.page,'Ajustes');await s.page.getByRole('button',{name:/Copias y datos/}).click();
       const downloaded=s.page.waitForEvent('download');downloaded.catch(()=>{});
       await s.page.getByRole('button',{name:/Descargar movimientos/}).click();
       const download=await downloaded, saved=path.join(out,'exportacion-ficticia.json');await download.saveAs(saved);
@@ -185,8 +189,8 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
     const s=await setup({emptyCurrent:true});try{
       await desglose(s,moneda);
       await s.page.getByRole('button',{name:'Guardar desglose y volver',exact:true}).click();
-      await s.page.getByRole('button',{name:'Ocultar opciones avanzadas',exact:true}).click();
-      assert(await s.page.getByText('Ítem ficticio',{exact:true}).isVisible());
+      await s.page.getByRole('button',{name:'Más opciones',exact:true}).click();
+      assert(await s.page.getByRole('button',{name:'Editar desglose',exact:true}).isVisible());
       const response=s.page.waitForResponse(r=>r.url().includes('/api/gastos'));
       await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).click();await response;
       const b=writes(s)[0].body;assert.equal(b.subconceptos.length,1);
@@ -198,7 +202,7 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
   await probe('UI-07','La copia verifica el mes destino antes de escribir',async()=>{
     const s=await setup({emptyNext:true});try{
       s.db['2026-11']=[movimiento('2026-11',123)];
-      await s.page.getByRole('button',{name:'Replicar gastos',exact:true}).click();
+      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
       await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().click();
       await s.page.getByRole('button',{name:/Confirmar copia/}).click();
       await s.page.getByText('Ese mes ya tiene gastos. Revisalo antes de volver a copiar.',{exact:true}).waitFor();
@@ -210,7 +214,7 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
     const s=await setup({delayWrites:true});try{
       await nav(s.page,'Detalle');
       await s.page.getByText('Servicio de prueba',{exact:true}).first().click();
-      const input=s.page.getByLabel('Importe del gasto');await input.fill('');assert.equal(await input.inputValue(),'');
+      const input=s.page.getByLabel('Importe',{exact:true});await input.fill('');assert.equal(await input.inputValue(),'');
       await s.page.getByRole('button',{name:'Guardar cambios',exact:true}).click();
       assert.equal(s.requests.filter(r=>r.path==='/api/gastos-update').length,0);
       await input.pressSequentially('75.25');assert.equal(await input.inputValue(),'75.25');
@@ -222,12 +226,92 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
   });
   await probe('UI-09','Copia válida y doble toque',async()=>{
     const s=await setup({emptyNext:true,delayWrites:true});try{
-      await s.page.getByRole('button',{name:'Replicar gastos',exact:true}).click();
+      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
       await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().click();
       await s.page.getByRole('button',{name:/Confirmar copia/}).evaluate(b=>{b.click();b.click();});
       await s.page.waitForFunction(()=>JSON.parse(localStorage.getItem('gapp_v7')).gastos['2026-11']?.length===1);
       assert.equal(writes(s).length,1);assert.equal(writes(s)[0].body.conceptoId,'con_audit');
       return {posts:1,conceptPreserved:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-10','Carga libre sin categoría ni tipo, con decimales',async()=>{
+    const s=await setup({emptyCurrent:true});try{
+      await nav(s.page,'Cargar');
+      assert.equal(await s.page.getByText('TIPO / ETIQUETAS',{exact:true}).count(),0);
+      assert.equal(await s.page.getByText('Categoría',{exact:true}).count(),0);
+      await s.page.getByLabel('¿Qué pagaste?',{exact:true}).fill('Panadería nueva');
+      await s.page.getByLabel('Importe',{exact:true}).fill('1500.75');
+      await s.page.getByLabel('Medio de pago',{exact:true}).selectOption('mp_bancon');
+      await s.page.getByLabel('Cómo pagaste',{exact:true}).selectOption('ins_manual');
+      const response=s.page.waitForResponse(r=>r.url().includes('/api/gastos'));
+      await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).click();await response;
+      assert.equal(writes(s).length,1);const b=writes(s)[0].body;
+      assert.equal(b.monto,1500.75);assert.equal(b.categoria,'bancon');assert.equal(b.formaPago,'Manual');assert.deepEqual(b.etiquetasIds,[]);
+      return {noCategoryRequired:true,amount:b.monto,paymentPreserved:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-11','Edición conserva clasificación histórica y datos del pago',async()=>{
+    const s=await setup();try{
+      await nav(s.page,'Detalle');await s.page.getByRole('button',{name:'Editar Servicio de prueba',exact:true}).first().click();
+      await s.page.getByLabel('Importe',{exact:true}).fill('215.75');
+      const response=s.page.waitForResponse(r=>r.url().includes('/api/gastos-update'));
+      await s.page.getByRole('button',{name:'Guardar cambios',exact:true}).click();await response;
+      const b=s.requests.find(r=>r.path==='/api/gastos-update').body;
+      assert.equal(b.categoriaGastoId,'cg_servicios');assert.equal(b.conceptoId,'con_audit');assert.equal(b.medioPagoId,'mp_bancon');assert.equal(b.instrumentoId,'ins_manual');
+      return {historicalMetadataPreserved:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-12','Evolución cuenta más de cuatro conceptos y vencimiento futuro',async()=>{
+    const s=await setup();try{
+      for(const period of ['2026-09','2026-10'])s.db[period]=Array.from({length:8},(_,i)=>({...movimiento(period,period==='2026-10'?200:100,`${period}_${i}`),concepto_id:`con_count_${i}`,concepto_nombre:`Concepto ${i}`}));
+      await s.page.reload();await s.page.waitForLoadState('networkidle');await nav(s.page,'Evol.');
+      const count=s.page.locator('.change-grid>div').filter({hasText:'Conceptos que subieron'}).locator('strong');assert.equal(await count.innerText(),'8');
+      await nav(s.page,'Vence');const next=s.page.locator('.due-summary>div').filter({hasText:'Próximo pago'});assert.match(await next.innerText(),/En 14 días/);assert.doesNotMatch(await next.innerText(),/En -/);
+      return {increasedConcepts:8,nextDueDays:14};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-13','Navegación y diseño sin desbordes en móvil pequeño y escritorio',async()=>{
+    const s=await setup();try{
+      for(const width of [320,390,1024]){
+        await s.page.setViewportSize({width,height:844});
+        for(const name of ['Inicio','Cargar','Detalle','Analizar','Vence','Evol.','Ingresos','Ajustes']){
+          await nav(s.page,name);
+          const sizes=await s.page.evaluate(()=>({page:document.documentElement.scrollWidth,view:innerWidth}));assert(sizes.page<=sizes.view,`${name}: overflow ${width}`);
+          assert.equal(await s.page.locator('nav.bottom-nav>.ni').count(),5);
+        }
+      }
+      assert.equal(s.pageErrors.length,0);return {widths:[320,390,1024],screens:8,consoleErrors:0};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-14','Replicar sigue visible con destino ocupado y no duplica datos',async()=>{
+    const s=await setup();try{
+      const action=s.page.getByRole('button',{name:/Replicar gastos/});assert(await action.isVisible());
+      const rect=await action.boundingBox();assert(rect.y+rect.height<766,'Acceso visible antes del menú inferior');
+      await action.click();const dialog=s.page.getByRole('dialog');
+      assert(await dialog.getByText('Noviembre ya tiene gastos cargados.',{exact:true}).isVisible());
+      assert.equal(writes(s).length,0);
+      await dialog.getByRole('button',{name:'Ver gastos de noviembre',exact:true}).click();
+      assert.equal(await s.page.locator('.period-picker>span').innerText(),'Noviembre 2026');
+      assert(await s.page.getByRole('button',{name:/Replicar gastos/}).isVisible());
+      return {actionVisible:true,destinationOpened:true,posts:0};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-15','Mes vacío explica qué necesita la copia y permite cargar',async()=>{
+    const s=await setup({emptyCurrent:true});try{
+      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
+      const dialog=s.page.getByRole('dialog');
+      assert(await dialog.getByText('No hay gastos en octubre para replicar.',{exact:true}).isVisible());
+      await dialog.getByRole('button',{name:'Cargar un gasto',exact:true}).click();
+      assert(await s.page.getByLabel('¿Qué pagaste?',{exact:true}).isVisible());assert.equal(writes(s).length,0);
+      return {emptyMonthExplained:true,canLoadExpense:true,posts:0};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-16','Replicar desde Movimientos permite elegir los gastos',async()=>{
+    const s=await setup({emptyNext:true});try{
+      await nav(s.page,'Detalle');await s.page.getByRole('button',{name:/Replicar gastos/}).click();
+      assert(await s.page.getByText('Replicar a Noviembre',{exact:false}).isVisible());
+      assert(await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().isVisible());assert.equal(writes(s).length,0);
+      return {selectionAvailable:true,postsBeforeConfirmation:0};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

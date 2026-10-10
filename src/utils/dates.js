@@ -1,9 +1,14 @@
-export const diasRestantes = (fechaStr) => {
-  if (!fechaStr) return null;
-  const hoy = new Date();
-  hoy.setHours(0, 0, 0, 0);
-  const venc = new Date(fechaStr + "T00:00:00");
-  return Math.ceil((venc - hoy) / (1000 * 60 * 60 * 24));
+export const fechaValida = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
+};
+
+export const diasRestantes = (fechaStr, today = new Date()) => {
+  if (!fechaValida(fechaStr)) return null;
+  // Calendar days remain stable across daylight-saving transitions.
+  const current = Date.UTC(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((Date.parse(`${fechaStr}T00:00:00Z`) - current) / 86400000);
 };
 
 export const getGrupoVencimiento = (fechaStr) => {

@@ -4,7 +4,8 @@ export const fmtARS = (n) =>
   new Intl.NumberFormat("es-AR", {
     style: "currency",
     currency: "ARS",
-    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(n || 0);
 
 export const fmtUSD = (n) =>
@@ -54,7 +55,7 @@ export const normalizarEtiquetaVisual = (valor, fallback = "") => {
 export const normalizarFuenteIngreso = (fuente = "") => {
   const nombre = String(fuente || "").trim();
   if (!nombre) return "Otros";
-  return MAPA_FUENTES_INGRESO_LEGACY[nombre] || (FUENTES_INGRESO_GENERICAS.includes(nombre) ? nombre : "Otros");
+  return MAPA_FUENTES_INGRESO_LEGACY[nombre] || nombre;
 };
 
 export const slug = (s) => s.toLowerCase().replace(/\s+/g,"_").replace(/[^a-z0-9_]/g,"")+"_"+Date.now();

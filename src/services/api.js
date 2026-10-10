@@ -1,8 +1,8 @@
 const TOKEN_KEY = "mf_auth_token";
 const USER_KEY = "mf_auth_user";
 
-async function readResponse(res) {
-  if (res.status === 401) {
+async function readResponse(res, session = true) {
+  if (session && (res.status === 401 || res.status === 403)) {
     logout();
     window.dispatchEvent(new Event("mf:session-expired"));
   }
@@ -46,6 +46,7 @@ export function logout() {
   try {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    ["gapp_v7", "gcfg_v7", "grec_v7"].forEach(key => localStorage.removeItem(key));
   } catch {}
 }
 
@@ -56,7 +57,7 @@ export async function login(usuarioId, pin) {
     body: JSON.stringify({ usuarioId, pin }),
   });
 
-  const json = await readResponse(res);
+  const json = await readResponse(res, false);
 
   if (!json.ok) {
     throw new Error(json.error || "No se pudo iniciar sesión");
@@ -360,4 +361,26 @@ export async function desactivarEtiqueta(etiquetaId) {
     recurso: "etiqueta",
     etiquetaId,
   });
+}
+
+export async function actualizarIngreso(payload) {
+  const res = await fetch("/api/ingresos", { method: "PUT", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify(payload) });
+  return (await readResponse(res)).data;
+}
+
+export async function eliminarSueldo(periodo) {
+  const res = await fetch("/api/sueldo", { method: "DELETE", headers: authHeaders({ "Content-Type": "application/json" }), body: JSON.stringify({ periodo }) });
+  return (await readResponse(res)).data;
+}
+
+export async function getSavings() {
+  const res = await fetch('/api/movimientos?recurso=ahorros', {headers:authHeaders()});
+  const data = (await readResponse(res)).data;
+  if (!Array.isArray(data?.records)) throw new Error('No se pudo leer el ahorro. Actualizá para reintentar.');
+  return data.records;
+}
+
+export async function saveSavings(method, payload) {
+  const res = await fetch('/api/movimientos?recurso=ahorros', {method, headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify(payload)});
+  return (await readResponse(res)).data;
 }

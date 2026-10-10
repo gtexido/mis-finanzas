@@ -1,0 +1,27 @@
+[
+  {
+    "id": "UI-07",
+    "title": "La copia verifica el mes destino antes de escribir",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-09",
+    "title": "Copia válida y doble toque",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-14",
+    "title": "Replicar sigue visible con destino ocupado y no duplica datos",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-15",
+    "title": "Mes vacío explica qué necesita la copia y permite cargar",
+    "status": "correcto"
+  },
+  {
+    "id": "UI-16",
+    "title": "Replicar desde Movimientos permite elegir los gastos",
+    "status": "correcto"
+  }
+]

@@ -1,0 +1,173 @@
+{
+  "fecha": "2026-10-09",
+  "alcance": "Panorama de inicio y vencimientos. Datos ficticios, sin escrituras en Neon real.",
+  "build": "correcto",
+  "calculos": [
+    {
+      "id": "PAN-01",
+      "title": "Pendientes de otros meses mantienen su período y no se pierden",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-02",
+      "title": "Avisos sin duplicación: urgencia primero, fechas estimadas a revisión",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-03",
+      "title": "Débitos alcanzados requieren verificar; pagados no vuelven a vencer",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-04",
+      "title": "Pagados por revisar visibles sin aumentar la deuda pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-05",
+      "title": "Importes ARS, USD y desgloses respetan la conversión existente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-06",
+      "title": "Fechas ausentes o imposibles piden revisión y nunca generan NaN",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-07",
+      "title": "Ventana de tres días y próximo pago cruzan meses correctamente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-08",
+      "title": "Sin registros o todo pagado: cero tareas sin importes ficticios",
+      "status": "correcto"
+    }
+  ],
+  "navegador": [
+    {
+      "id": "UI-01",
+      "title": "Login individual con error claro y recuperación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-02",
+      "title": "Pantallas de 320, 390 y 1280 px sin desbordes ni errores",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-03",
+      "title": "Gasto automático: alta pendiente, edición, cancelar borrado y eliminación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-04",
+      "title": "Ingreso: guardar, editar y borrar con reintento tras error",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-05",
+      "title": "Sueldo: actualizar y eliminar sin tocar otros meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-06",
+      "title": "Informes: diferencia y porcentaje total y por concepto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-07",
+      "title": "Débito vencido pide verificar y se conserva al pagar/deshacer",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-08",
+      "title": "Réplica hacia un mes parcialmente cargado sin repetir existentes",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-09",
+      "title": "Guardar gasto con fallo conserva formulario y permite reintentar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-10",
+      "title": "Fallo al refrescar después de guardar no invita a duplicar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-11",
+      "title": "Edición fallida conserva valores y muestra error en el diálogo",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-12",
+      "title": "Cerrar sesión limpia datos y borradores antes de otro usuario",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-13",
+      "title": "Sin mes anterior o sin mes actual: comparación sin porcentajes ficticios",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-14",
+      "title": "Réplica entre enero y febrero ajusta día y fecha al mes corto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-15",
+      "title": "Exportación completa del usuario mantiene todos sus meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-16",
+      "title": "Validación de importe, fecha pendiente y día evita escrituras incompletas",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-17",
+      "title": "Débito automático elegido por forma o concepto inicia pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-18",
+      "title": "Inicio: balance y cuatro avisos completos antes de la navegación inferior",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-19",
+      "title": "Avisos incluyen meses anteriores, filtran y actualizan el período correcto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-20",
+      "title": "Próximo pago de otro mes abre y guarda el gasto en su mes original",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-21",
+      "title": "Revisión de pagados accesible sin sumarlos como deuda ni volver a pagarlos",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-22",
+      "title": "Mes vacío, sin ingresos y saldo negativo dan contexto sin NaN",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-23",
+      "title": "Al volver otro día se actualizan los avisos sin recargar la app",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-24",
+      "title": "Pendiente mensual mantiene alcance; avisos globales permanecen al cambiar de mes",
+      "status": "correcto"
+    }
+  ],
+  "total": 32,
+  "aprobados": 32,
+  "pantallas": "Ocho vistas a 320, 390 y 1280 px. Avisos completos antes de la navegación inferior a 390 × 844.",
+  "limites": "La geometría varía según la pantalla y el tamaño de texto. No se probaron credenciales ni base real."
+}

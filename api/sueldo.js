@@ -4,7 +4,7 @@ import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { fuenteDefaultPorUsuario, generarId } from "./_db.js";
 
 export default async function handler(req, res) {
-  if (req.method !== "POST") {
+  if (!["POST", "DELETE"].includes(req.method)) {
     return res.status(405).json({
       ok: false,
       error: "Método no permitido",
@@ -17,11 +17,11 @@ export default async function handler(req, res) {
     if (!user) return;
     const body = req.body || {};
     validarPeriodoDia(body.periodo, body.dia ?? 1);
-    validarImporte(body.monto);
+    if (req.method !== "DELETE") validarImporte(body.monto);
 
     const { periodo, monto } = body;
 
-    if (!periodo || !monto) {
+    if (!periodo || (req.method !== "DELETE" && !monto)) {
       return res.status(400).json({
         ok: false,
         error: "Faltan datos obligatorios",
@@ -33,6 +33,17 @@ export default async function handler(req, res) {
     user.workspaceId = workspaceId;
     user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
     const fuenteIngresoId = fuenteDefaultPorUsuario(user.usuarioId);
+
+    if (req.method === "DELETE") {
+      const removed = await sql`
+        DELETE FROM movimientos WHERE periodo = ${periodo}
+          AND tipo_movimiento = 'INGRESO' AND subtipo_movimiento = 'SUELDO'
+          AND usuario_id = ${user.usuarioId} AND workspace_id = ${workspaceId}
+        RETURNING movimiento_id;
+      `;
+      if (!removed.length) return res.status(404).json({ ok: false, error: "El sueldo ya no está disponible" });
+      return res.status(200).json({ ok: true, data: { deleted: true } });
+    }
 
     // Ver si ya existe sueldo para ese período, usuario y workspace.
     const existente = await sql`

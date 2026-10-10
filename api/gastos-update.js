@@ -271,7 +271,7 @@ export default async function handler(req, res) {
       WHERE movimiento_id = ${id}
         AND usuario_id = ${usuarioId}
         AND workspace_id = ${workspaceId}
-        AND tipo_movimiento = 'GASTO'
+        AND tipo_movimiento = 'GASTO' AND activo = true
       LIMIT 1;
     `;
 
@@ -377,6 +377,13 @@ export default async function handler(req, res) {
           )
         : toNumber(monto, 0);
     const queries = [];
+    // Keep the source locked while replacing its details, including during conversion.
+    queries.push(sql`
+      SELECT movimiento_id FROM movimientos
+      WHERE movimiento_id = ${id} AND usuario_id = ${usuarioId}
+        AND workspace_id = ${workspaceId} AND tipo_movimiento = 'GASTO' AND activo = true
+      FOR UPDATE;
+    `);
     queries.push(sql`
       UPDATE movimientos
       SET
@@ -409,7 +416,7 @@ export default async function handler(req, res) {
       WHERE movimiento_id = ${id}
         AND usuario_id = ${usuarioId}
         AND workspace_id = ${workspaceId}
-        AND tipo_movimiento = 'GASTO';
+        AND tipo_movimiento = 'GASTO' AND activo = true;
     `);
 
     queries.push(sql`
@@ -420,7 +427,7 @@ export default async function handler(req, res) {
           FROM movimientos
           WHERE usuario_id = ${usuarioId}
             AND workspace_id = ${workspaceId}
-            AND tipo_movimiento = 'GASTO'
+            AND tipo_movimiento = 'GASTO' AND activo = true
         );
     `);
 
@@ -430,9 +437,11 @@ export default async function handler(req, res) {
           INSERT INTO movimiento_etiquetas (
             movimiento_id,
             etiqueta_id
-          ) VALUES (
-            ${id},
-            ${etiquetaId}
+          ) SELECT ${id}, ${etiquetaId}
+          WHERE EXISTS (
+            SELECT 1 FROM movimientos WHERE movimiento_id = ${id}
+              AND usuario_id = ${usuarioId} AND workspace_id = ${workspaceId}
+              AND tipo_movimiento = 'GASTO' AND activo = true
           )
           ON CONFLICT (movimiento_id, etiqueta_id) DO NOTHING;
         `);
@@ -447,7 +456,7 @@ export default async function handler(req, res) {
           FROM movimientos
           WHERE usuario_id = ${usuarioId}
             AND workspace_id = ${workspaceId}
-            AND tipo_movimiento = 'GASTO'
+            AND tipo_movimiento = 'GASTO' AND activo = true
         );
     `);
 
@@ -469,7 +478,7 @@ export default async function handler(req, res) {
             orden,
             observacion,
             activo
-          ) VALUES (
+          ) SELECT
             ${detalleId},
             ${id},
             ${sub.nombre || sub.nombreItem || "Item"},
@@ -480,6 +489,10 @@ export default async function handler(req, res) {
             ${orden},
             ${sub.observacion || null},
             true
+          WHERE EXISTS (
+            SELECT 1 FROM movimientos WHERE movimiento_id = ${id}
+              AND usuario_id = ${usuarioId} AND workspace_id = ${workspaceId}
+              AND tipo_movimiento = 'GASTO' AND activo = true
           );
         `);
 
@@ -487,7 +500,8 @@ export default async function handler(req, res) {
       }
     }
 
-    await sql.transaction(queries);
+    const results = await sql.transaction(queries);
+    if (!results[0].length) return res.status(404).json({ok:false,error:"El gasto ya no está disponible. Actualizá los movimientos."});
 
     return res.status(200).json({
       ok: true,

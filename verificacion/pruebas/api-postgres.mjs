@@ -32,13 +32,13 @@ CREATE TABLE cotizaciones(fecha date,moneda_origen text,moneda_destino text,tipo
 CREATE TABLE parametros(clave text,valor numeric);INSERT INTO parametros VALUES('tipo_cambio_default',1000);
 `);
 async function snapshot(){return Object.fromEntries(await Promise.all(['movimientos','detalle_movimiento','movimiento_etiquetas'].map(async t=>[t,(await pg.query(`SELECT * FROM ${t} ORDER BY 1,2`)).rows])));}
-async function reset(){await pg.exec('TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos;');}
+async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos;');}
 async function check(id,title,run){
   await reset();try{results.push({id,title,status:'correcto',...await run()});}
   catch(e){results.push({id,title,status:'fallo',error:String(e.stack)});}
   console.log(id,results.at(-1).status);
 }
-async function harness({failure=null}={}) {
+async function harness({failure=null, userId="usr_gustavo", env={}}={}) {
   const statements=[],batches=[],errors=[];
   const execute=async (client,statement)=>{
     statements.push(statement);
@@ -55,7 +55,7 @@ async function harness({failure=null}={}) {
     return pg.transaction(async tx=>{const rows=[];for(const q of qs)rows.push(await execute(tx,q));return rows;});
   };
   const context=vm.createContext({Buffer,Date,Math,Set,console:{error:(...x)=>errors.push(x.map(String).join(' '))},
-    process:{env:{DATABASE_URL:'postgresql://ficticio:ficticio@localhost/ficticio',MF_AUTH_SECRET:'solo-pruebas-sin-validez-real'}}});
+    process:{env:{DATABASE_URL:'postgresql://ficticio:ficticio@localhost/ficticio',MF_AUTH_SECRET:'solo-pruebas-sin-validez-real',MF_PIN_GUSTAVO:'clave-ficticia-1',MF_PIN_VANE:'clave-ficticia-2',...env}}});
   const modules=new Map();
   function synthetic(key,exports){
     if(!modules.has(key))modules.set(key,new vm.SyntheticModule(Object.keys(exports),function(){
@@ -71,11 +71,11 @@ async function harness({failure=null}={}) {
       let resolved=path.resolve(path.dirname(ref.identifier),specifier);if(!path.extname(resolved))resolved+='.js';return load(resolved);
     });return mod;
   }
-  async function call(file,body,method='POST',authenticated=true){
+  async function call(file,body,method='POST',authenticated=true,query={}){
     const auth=await load(path.join(project,'api/_auth.js'));await auth.evaluate();
-    const token=auth.namespace.createToken({usuarioId:'usr_gustavo',nombre:'Prueba',workspaceId:'ws_audit'});
+    const token=auth.namespace.createToken({usuarioId:userId,nombre:'Prueba',workspaceId:'ws_audit'});
     const mod=await load(path.join(project,'api',file));await mod.evaluate();
-    const req={method,body,headers:authenticated?{authorization:`Bearer ${token}`}:{},query:{}};
+    const req={method,body,headers:authenticated?{authorization:`Bearer ${token}`}:{},query};
     const res={code:200,payload:null,status(c){this.code=c;return this;},json(p){this.payload=p;return this;}};
     await mod.namespace.default(req,res);return res;
   }
@@ -132,5 +132,165 @@ await check('CALC-01','Totales ARS, USD y desglose mixto',async()=>{
   const mixed={monto:999999,moneda:'ARS',subconceptos:[{monto:1500,moneda:'ARS'},{monto:10,moneda:'USD',tipoCambio:1200,montoARSCalculado:12000}]};
   assert.equal(m.montoReal(mixed,2000),13500);assert.equal(m.montoUSDReal(mixed),10);return {cases:4};
 });
+
+await check('API-11','Ingresos: crear, editar y eliminar con persistencia',async()=>{
+  const h=await harness();const payload={periodo:'2026-10',dia:3,monto:250,fuente:'Venta de prueba'};
+  const created=await h.call('ingresos.js',payload);const id=created.payload.data.movimiento_id;
+  const edited=await h.call('ingresos.js',{...payload,movimientoId:id,dia:4,monto:375,fuente:'Trabajo de prueba'},'PUT');
+  assert.equal(edited.code,200,JSON.stringify(edited.payload));const row=(await snapshot()).movimientos[0];assert.equal(Number(row.monto),375);assert.equal(row.dia,4);assert.equal(row.concepto_manual,'Trabajo de prueba');
+  assert.equal((await h.call('ingresos-delete.js',{movimientoId:id},'DELETE')).code,200);assert.equal((await snapshot()).movimientos.length,0);
+});
+await check('API-12','Edición de ingreso rechaza otro usuario, mes, espacio y sueldo',async()=>{
+  const h=await harness(),payload={periodo:'2026-10',dia:3,monto:250,fuente:'Prueba'};
+  const id=(await h.call('ingresos.js',payload)).payload.data.movimiento_id;
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:id,periodo:'2026-11'},'PUT')).code,404);
+  await pg.query("UPDATE movimientos SET usuario_id='otro' WHERE movimiento_id=$1",[id]);
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:id},'PUT')).code,404);
+  assert.equal((await h.call('ingresos-delete.js',{movimientoId:id},'DELETE')).code,404);
+  await pg.query("UPDATE movimientos SET usuario_id='usr_gustavo', workspace_id='otro' WHERE movimiento_id=$1",[id]);
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:id},'PUT')).code,404);
+  const salary=(await h.call('sueldo.js',{periodo:'2026-10',monto:100})).payload.data.movimiento_id;
+  assert.equal((await h.call('ingresos.js',{...payload,movimientoId:salary},'PUT')).code,404);
+});
+await check('API-13','Eliminar sueldo solo afecta al mes, usuario y espacio propios',async()=>{
+  const h=await harness();for(const periodo of ['2026-09','2026-10'])assert.equal((await h.call('sueldo.js',{periodo,monto:1000})).code,200);
+  await pg.exec("INSERT INTO movimientos(movimiento_id,tipo_movimiento,subtipo_movimiento,periodo,usuario_id,workspace_id,monto,activo) VALUES('salary_other','INGRESO','SUELDO','2026-10','otro','ws_audit',1500,true)");
+  assert.equal((await h.call('sueldo.js',{periodo:'2026-10'},'DELETE')).code,200);const rows=(await snapshot()).movimientos;
+  assert.equal(rows.length,2);assert.ok(rows.some(r=>r.usuario_id==='otro'));assert.ok(rows.some(r=>r.periodo==='2026-09'));
+  assert.equal((await h.call('sueldo.js',{periodo:'2026-10'},'DELETE')).code,404);
+});
+await check('API-14','Login por usuario, credenciales inválidas y sin espacio activo',async()=>{
+  const h=await harness();
+  assert.equal((await h.call('auth-login.js',{usuarioId:'  GUSTAVO ',pin:'clave-ficticia-1'})).code,200);
+  const before=h.statements.length;
+  assert.equal((await h.call('auth-login.js',{usuarioId:'gustavo',pin:'incorrecta'})).code,401);
+  assert.equal((await h.call('auth-login.js',{usuarioId:'desconocido',pin:'incorrecta'})).code,401);
+  assert.equal(h.statements.length,before);
+  assert.equal((await h.call('auth-login.js',{usuarioId:'vane',pin:'clave-ficticia-2'})).code,403);
+});
+await check('API-15','Tercer usuario configurable, acceso propio y fuente sin asignar a Vane',async()=>{
+  await pg.exec("INSERT INTO workspaces VALUES('ws_tercero','Tercero',true); INSERT INTO workspace_usuarios(workspace_id,usuario_id,rol,activo) VALUES('ws_tercero','usr_prueba','owner',true)");
+  try{
+    const h=await harness({userId:'usr_prueba',env:{MF_AUTH_USERS:JSON.stringify([{usuarioId:'usr_prueba',login:'prueba',nombre:'Prueba',pinEnv:'MF_PIN_PRUEBA'}]),MF_PIN_PRUEBA:'clave-ficticia-3'}});
+    const login=await h.call('auth-login.js',{usuarioId:'prueba',pin:'clave-ficticia-3'});assert.equal(login.code,200);assert.equal(login.payload.data.user.workspaceId,'ws_tercero');
+    assert.equal((await h.call('ingresos.js',{periodo:'2026-10',dia:1,fuente:'Trabajo',monto:500})).code,200);
+    const row=(await snapshot()).movimientos[0];assert.equal(row.usuario_id,'usr_prueba');assert.equal(row.workspace_id,'ws_tercero');assert.equal(row.fuente_ingreso_id,null);
+    const original=await harness();assert.equal((await original.call('ingresos-delete.js',{movimientoId:row.movimiento_id},'DELETE')).code,404);
+  }finally{await pg.exec("DELETE FROM workspace_usuarios WHERE usuario_id='usr_prueba';DELETE FROM workspaces WHERE workspace_id='ws_tercero'");}
+});
+await check('API-16','Membresía inactiva rechaza un token todavía válido antes de escribir',async()=>{
+  await pg.exec("UPDATE workspace_usuarios SET activo=false WHERE usuario_id='usr_gustavo'");
+  try{const h=await harness(),r=await h.call('gastos.js',expense);assert.equal(r.code,403);assert.equal((await snapshot()).movimientos.length,0);}
+  finally{await pg.exec("UPDATE workspace_usuarios SET activo=true WHERE usuario_id='usr_gustavo'");}
+});
+await check('API-17','Débito automático se conserva al pagar y al volver a pendiente',async()=>{
+  const h=await harness();const r=await h.call('gastos.js',{...expense,subconceptos:[],instrumentoId:'ins_debito_automatico',formaPago:'Débito automático',estado:'pendiente',vencimiento:'2026-10-02',requiereRevision:true,motivoRevision:'REVISAR_MONTO',esRecurrente:true});
+  assert.equal(r.code,200);const id=r.payload.data.movimiento_id;
+  let row=(await snapshot()).movimientos[0];assert.equal(row.estado,'pendiente');assert.equal(row.instrumento_id,'ins_debito_automatico');
+  for(const estado of ['pagado','pendiente']){assert.equal((await h.call('gastos-estado.js',{movimientoId:id,estado},'PATCH')).code,200);row=(await snapshot()).movimientos[0];assert.equal(row.estado,estado);assert.equal(row.instrumento_id,'ins_debito_automatico');assert.equal(row.es_recurrente,true);}
+});
+await check('API-18','Deshabilitar usuario en configuración rechaza sesiones existentes',async()=>{
+  const h=await harness({env:{MF_AUTH_USERS:JSON.stringify([{usuarioId:'usr_gustavo',login:'gustavo',nombre:'Prueba',pinEnv:'MF_PIN_GUSTAVO',activo:false}])}});
+  assert.equal((await h.call('gastos.js',expense)).code,401);assert.equal(h.statements.length,0);
+});
+await check('CALC-02','Comparaciones con cero, aumento, baja y período anual',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/comparisons.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.compareAmounts(120,100).percent,20);assert.equal(m.compareAmounts(75,100).percent,-25);assert.equal(m.compareAmounts(100,0).percent,null);assert.equal(m.compareAmounts(0,100).percent,-100);assert.equal(m.previousPeriod({y:2026,m:0}),'2025-12');
+});
+await check('CALC-03','Alertas manuales, automáticas, revisión y réplica parcial sin duplicar',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/paymentStatus.js'));await mod.evaluate();const m=mod.namespace;
+  const manual={estado:'pendiente',vencimiento:'2026-10-01'},auto={...manual,instrumentoId:'ins_debito_automatico'};
+  assert.equal(m.expenseAttention(manual,-1).kind,'overdue');assert.equal(m.expenseAttention(manual,2).kind,'soon');assert.equal(m.expenseAttention(auto,-1).label,'Verificar débito');assert.equal(m.expenseAttention({...auto,estado:'pagado'},-1).kind,'paid');
+  assert.equal(m.expenseAttention({...manual,requiereRevision:true,origenMovimiento:'REPLICA_MES'},-1).kind,'review');
+  const source=[{id:'1',servicio:'Internet'},{id:'2',servicio:'Internet'},{id:'3',servicio:'Luz'}];
+  const missing=m.missingReplicas(source,[{servicio:'Internet'}]);assert.equal(missing.length,2);assert.equal(missing[0].id,'2');
+});
+
+const savingsPayload = (extra={})=>({requestId:crypto.randomUUID().replaceAll('-',''),kind:'aporte',amount:100,currency:'ARS',date:'2026-10-03',destination:'Cuenta de prueba',goal:'Reserva',...extra});
+const savingCall=(h,body={},method='POST',authenticated=true)=>h.call('movimientos.js',body,method,authenticated,{recurso:'ahorros'});
+const savedRows=async h=>(await savingCall(h,{},'GET')).payload.data.records;
+await check('SAVE-01','Inicialización aditiva e idempotente; aportes separados de gastos e ingresos',async()=>{
+ const h=await harness();assert.equal((await savingCall(h,{},'GET')).code,200);assert.equal((await savingCall(h,{},'GET')).code,200);
+ const r=await savingCall(h,savingsPayload());assert.equal(r.code,200,JSON.stringify(r.payload));assert.equal(r.payload.data.records.length,1);assert.equal(r.payload.data.record.impactARS,100);assert.equal((await snapshot()).movimientos.length,0);
+});
+await check('SAVE-02','Saldo inicial y dólar conservan moneda; el equivalente queda fijo por operación',async()=>{
+ const h=await harness();assert.equal((await savingCall(h,savingsPayload({kind:'inicial',amount:50,currency:'USD',date:'2026-09-01'}))).code,200);
+ assert.equal((await savingCall(h,savingsPayload({amount:10,currency:'USD',rate:1200}))).code,200);
+ assert.equal((await savingCall(h,savingsPayload({kind:'retiro',amount:5,currency:'USD',rate:1300,date:'2026-10-04'}))).code,200);
+ const rows=await savedRows(h);assert.equal(rows[0].impactARS,0);assert.equal(rows[1].impactARS,12000);assert.equal(rows[2].impactARS,-6500);
+ const mod=await h.load(path.join(project,'src/utils/savings.js'));await mod.evaluate();const sum=mod.namespace.savingsSummary(rows,'2026-10','2026-10-31');assert.equal(sum.usd,55);assert.equal(sum.ars,0);assert.equal(sum.net,5500);
+});
+await check('SAVE-03','Retiro excedido, moneda o destino incorrectos se rechazan sin cambiar el saldo',async()=>{
+ const h=await harness();await savingCall(h,savingsPayload());const before=await savedRows(h);
+ for(const extra of [{amount:101},{currency:'USD',amount:1,rate:1000},{destination:'Otra cuenta',amount:10},{goal:'Otro objetivo',amount:10}])assert.equal((await savingCall(h,savingsPayload({kind:'retiro',...extra}))).code,409);
+ assert.deepEqual(await savedRows(h),before);
+});
+await check('SAVE-04','Editar o eliminar un aporte usado no permite saldos negativos ni retiros anteriores',async()=>{
+ const h=await harness();const entry=(await savingCall(h,savingsPayload())).payload.data.record;
+ await savingCall(h,savingsPayload({kind:'retiro',amount:80,date:'2026-10-04'}));
+ assert.equal((await savingCall(h,{...entry,amount:50},'PUT')).code,409);assert.equal((await savingCall(h,{id:entry.id,revision:1},'DELETE')).code,409);
+ assert.equal((await savingCall(h,savingsPayload({kind:'retiro',amount:1,date:'2026-10-01'}))).code,409);assert.equal((await savedRows(h)).length,2);
+});
+await check('SAVE-05','Edición y eliminación con versión; los cambios de otro dispositivo no se pisan',async()=>{
+ const h=await harness();const entry=(await savingCall(h,savingsPayload())).payload.data.record;
+ const edit=await savingCall(h,{...entry,amount:125.25},'PUT');assert.equal(edit.code,200,JSON.stringify(edit.payload));assert.equal(edit.payload.data.record.revision,2);
+ assert.equal((await savingCall(h,{...entry,amount:300},'PUT')).code,409);assert.equal((await savingCall(h,{id:entry.id,revision:1},'DELETE')).code,409);
+ assert.equal((await savingCall(h,{id:entry.id,revision:2},'DELETE')).code,200);assert.equal((await savedRows(h)).length,0);
+});
+await check('SAVE-06','Reintentar la misma solicitud no duplica; un contenido distinto con la misma clave se rechaza',async()=>{
+ const h=await harness(),payload=savingsPayload();const a=await savingCall(h,payload),b=await savingCall(h,payload);assert.equal(a.code,200);assert.equal(b.code,200);assert.equal(b.payload.data.replayed,true);assert.equal((await savedRows(h)).length,1);
+ assert.equal((await savingCall(h,{...payload,amount:500})).code,409);
+});
+await check('SAVE-07','Ahorros aislados por usuario y espacio; sin sesión no se crea el registro',async()=>{
+ const h=await harness();assert.equal((await savingCall(h,savingsPayload(),'POST',false)).code,401);
+ const entry=(await savingCall(h,savingsPayload())).payload.data.record;
+ await pg.exec("INSERT INTO workspace_usuarios(workspace_id,usuario_id,rol,activo) VALUES('ws_audit','usr_vane','owner',true)");
+ try {const other=await harness({userId:'usr_vane'});assert.equal((await savedRows(other)).length,0);assert.equal((await savingCall(other,{...entry,amount:200},'PUT')).code,404);assert.equal((await savingCall(other,{id:entry.id,revision:1},'DELETE')).code,404);assert.equal((await savedRows(h)).length,1);}
+ finally{await pg.exec("DELETE FROM workspace_usuarios WHERE usuario_id='usr_vane'");}
+});
+await check('SAVE-08','Conversión explícita y atómica mantiene el importe y archiva el gasto original',async()=>{
+ const h=await harness(),id=await seed();const payload=savingsPayload({sourceId:id,sourceTitle:'Antes era gasto',date:'2026-10-01'});
+ const r=await savingCall(h,payload);assert.equal(r.code,200,JSON.stringify(r.payload));assert.equal(r.payload.data.converted,true);assert.equal((await snapshot()).movimientos[0].activo,false);assert.equal((await savedRows(h))[0].convertedFrom,id);
+ const retry=await savingCall(h,payload);assert.equal(retry.code,200);assert.equal(retry.payload.data.converted,true);assert.equal((await savedRows(h)).length,1);
+});
+await check('SAVE-09','Fallo real de conversión revierte tanto el ahorro como el cambio de gasto',async()=>{
+ const h=await harness(),id=await seed();await savingCall(h,{},'GET');
+ await pg.exec("CREATE FUNCTION qa_reject_archive() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'fallo provocado'; END; $$ LANGUAGE plpgsql; CREATE TRIGGER qa_archive BEFORE UPDATE ON movimientos FOR EACH ROW WHEN (NEW.activo=false) EXECUTE FUNCTION qa_reject_archive();");
+ try{assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,500);assert.equal((await savedRows(h)).length,0);assert.equal((await snapshot()).movimientos[0].activo,true);}
+ finally{await pg.exec('DROP TRIGGER qa_archive ON movimientos; DROP FUNCTION qa_reject_archive();');}
+});
+await check('SAVE-10','Conversión rechaza pendiente, revisión, gasto ajeno, importe cambiado y mezcla de monedas',async()=>{
+ const h=await harness(),id=await seed();
+ assert.equal((await savingCall(h,savingsPayload({sourceId:id,amount:200,date:'2026-10-01'}))).code,409);
+ await pg.query("UPDATE movimientos SET estado='pendiente' WHERE movimiento_id=$1",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,400);
+ await pg.query("UPDATE movimientos SET estado='pagado',requiere_revision=true WHERE movimiento_id=$1",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,400);
+ await pg.query("UPDATE movimientos SET requiere_revision=false,usuario_id='otra' WHERE movimiento_id=$1",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,404);
+ await pg.query("UPDATE movimientos SET usuario_id='usr_gustavo' WHERE movimiento_id=$1",[id]);await pg.query("INSERT INTO detalle_movimiento(detalle_id,movimiento_id,monto,moneda,activo) VALUES('usd_mix',$1,10,'USD',true)",[id]);assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,400);
+ assert.equal((await savedRows(h)).length,0);assert.equal((await snapshot()).movimientos[0].activo,true);
+});
+await check('SAVE-11','Validación de importes, centavos, cotización, fechas y saldo inicial repetido',async()=>{
+ const h=await harness();
+ for(const extra of [{amount:-1},{amount:0},{amount:1.234},{currency:'EUR'},{currency:'USD',rate:null},{currency:'USD',rate:0},{date:'2026-02-31'},{date:'2099-01-01'},{destination:''}])assert.equal((await savingCall(h,savingsPayload(extra))).code,400,JSON.stringify(extra));
+ assert.equal((await savingCall(h,savingsPayload({kind:'inicial'}))).code,200);assert.equal((await savingCall(h,savingsPayload({kind:'inicial',destination:' CUENTA DE PRUEBA '}))).code,409);
+});
+await check('SAVE-12','Dos retiros concurrentes no pueden gastar el mismo ahorro',async()=>{
+ const h=await harness();await savingCall(h,savingsPayload());const a=await harness(),b=await harness();
+ const results=await Promise.all([savingCall(a,savingsPayload({kind:'retiro',amount:80})),savingCall(b,savingsPayload({kind:'retiro',amount:80}))]);
+ assert.equal(results.filter(r=>r.code===200).length,1);assert.equal(results.filter(r=>r.code===409).length,1);const rows=await savedRows(h);assert.equal(rows.filter(r=>r.kind==='retiro').length,1);
+});
+await check('SAVE-13','Saldo histórico, monedas y retiros no alteran ingresos ni consumo',async()=>{
+ const h=await harness(),mod=await h.load(path.join(project,'src/utils/savings.js'));await mod.evaluate();const m=mod.namespace;
+ const rows=[{kind:'inicial',amount:100,currency:'ARS',date:'2026-09-01',destination:'Banco',goal:'',impactARS:0},{kind:'aporte',amount:50,currency:'ARS',date:'2026-10-01',destination:'Banco',goal:'',impactARS:50},{kind:'retiro',amount:20,currency:'ARS',date:'2026-10-02',destination:'Banco',goal:'',impactARS:-20},{kind:'inicial',amount:10,currency:'USD',date:'2026-09-01',destination:'Banco',goal:'',impactARS:0}];
+ const september=m.savingsSummary(rows,'2026-09','2026-09-30'),october=m.savingsSummary(rows,'2026-10','2026-10-31');assert.equal(september.ars,100);assert.equal(september.net,0);assert.equal(october.ars,130);assert.equal(october.usd,10);assert.equal(october.net,30);assert.equal(1000-600-october.net,370);
+});
+
+await check('SAVE-14','Un gasto convertido conserva su auditoría y rechaza edición, pago o borrado desde una vista antigua',async()=>{
+ const h=await harness(),id=await seed();assert.equal((await savingCall(h,savingsPayload({sourceId:id,date:'2026-10-01'}))).code,200);const before=await snapshot();
+ assert.equal((await h.call('gastos-update.js',{...expense,id,monto:999},'PUT')).code,404);
+ assert.equal((await h.call('gastos-delete.js',{movimientoId:id},'DELETE')).code,404);
+ assert.equal((await h.call('gastos-estado.js',{movimientoId:id,estado:'pendiente'},'PATCH')).code,404);
+ assert.deepEqual(await snapshot(),before);assert.equal((await savedRows(h)).length,1);
+});
+
 await fs.writeFile(path.join(out,'resultados-api-postgres.json'),JSON.stringify(results,null,2));await pg.close();
 if(results.some(r=>r.status==='fallo'))process.exitCode=1;

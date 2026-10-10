@@ -28,17 +28,28 @@ function safeCompare(a, b) {
   return crypto.timingSafeEqual(ba, bb);
 }
 
-export function validatePin(usuarioId, pin) {
-  const users = [
-    { usuarioId: "usr_gustavo", nombre: "Gustavo", pin: process.env.MF_PIN_GUSTAVO },
-    { usuarioId: "usr_vane", nombre: "Vane", pin: process.env.MF_PIN_VANE },
+function configuredUsers() {
+  const defaults = [
+    { usuarioId: "usr_gustavo", login: "gustavo", nombre: "Gustavo", pinEnv: "MF_PIN_GUSTAVO" },
+    { usuarioId: "usr_vane", login: "vane", nombre: "Vane", pinEnv: "MF_PIN_VANE" },
   ];
-
-  const user = users.find((u) => u.usuarioId === usuarioId);
-
-  if (!user || !user.pin || String(user.pin) !== String(pin || "")) {
-    return null;
+  const extra = process.env.MF_AUTH_USERS ? JSON.parse(process.env.MF_AUTH_USERS) : [];
+  if (!Array.isArray(extra)) throw new Error("Configuración de usuarios inválida");
+  const users = new Map(defaults.map(u => [u.usuarioId, u]));
+  for (const u of extra) {
+    if (!u.usuarioId || !u.login || !/^MF_PIN_[A-Z0-9_]+$/.test(u.pinEnv || "")) throw new Error("Configuración de usuario inválida");
+    users.set(u.usuarioId, u);
   }
+  return [...users.values()];
+}
+
+export function validatePin(usuarioId, pin) {
+  const users = configuredUsers();
+  const identifier = String(usuarioId || "").trim().toLowerCase();
+  const user = users.find(u => u.activo !== false && [u.usuarioId, u.login].some(v => String(v).toLowerCase() === identifier));
+  const expected = user ? process.env[user.pinEnv] : null;
+  const matches = safeCompare(sign(String(expected || "unconfigured")), sign(String(pin || "")));
+  if (!user || !expected || !matches) return null;
 
   return {
     usuarioId: user.usuarioId,
@@ -79,7 +90,7 @@ export function verifyToken(token) {
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
     const now = Math.floor(Date.now() / 1000);
 
-    if (!decoded.exp || decoded.exp < now) return null;
+    if (!decoded.exp || decoded.exp <= now) return null;
     if (!decoded.usuarioId) return null;
 
     return {
@@ -114,7 +125,11 @@ export async function resolveWorkspaceForUser(sql, user) {
     LIMIT 1;
   `;
 
-  if (rows.length === 0) return user;
+  if (rows.length === 0) {
+    const error = new Error("Tu usuario no tiene un espacio activo. Contactá a quien administra la app.");
+    error.statusCode = 403;
+    throw error;
+  }
 
   return {
     ...user,
@@ -128,7 +143,8 @@ export function requireAuth(req, res) {
   const token = header.startsWith("Bearer ") ? header.slice(7) : null;
   const user = verifyToken(token);
 
-  if (!user) {
+  const configured = user && configuredUsers().find(u => u.usuarioId === user.usuarioId && u.activo !== false && process.env[u.pinEnv]);
+  if (!user || !configured) {
     res.status(401).json({
       ok: false,
       error: "Sesión inválida o vencida",

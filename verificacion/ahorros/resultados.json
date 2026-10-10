@@ -1,0 +1,464 @@
+{
+  "version": "Ahorros y claridad visual",
+  "fecha": "2026-10-10",
+  "build": "correcto",
+  "resumen": {
+    "api_postgresql_y_calculos": 35,
+    "navegador_api_simulada": 39,
+    "calculos_panorama_y_avisos": 16,
+    "total": 90
+  },
+  "alcance": "Datos ficticios. PostgreSQL embebido y navegador con API simulada. Sin conexión a Neon real ni claves personales. La prueba UI-23 se repitió al actualizar el texto esperado; UI-37 se repitió para revisar la captura final.",
+  "escenarios": [
+    {
+      "id": "API-01",
+      "title": "Alta válida con detalle mixto y etiquetas",
+      "status": "correcto"
+    },
+    {
+      "id": "API-02",
+      "title": "Fallo del detalle revierte toda el alta",
+      "status": "correcto"
+    },
+    {
+      "id": "API-03",
+      "title": "Violación real de clave foránea revierte el alta",
+      "status": "correcto"
+    },
+    {
+      "id": "API-04",
+      "title": "Fallo en edición conserva cabecera, etiquetas y detalle originales",
+      "status": "correcto"
+    },
+    {
+      "id": "API-05",
+      "title": "Edición válida cambia cabecera, etiquetas y detalle juntos",
+      "status": "correcto"
+    },
+    {
+      "id": "API-06",
+      "title": "Fallo al borrar revierte los borrados de etiquetas y detalles",
+      "status": "correcto"
+    },
+    {
+      "id": "API-07",
+      "title": "Borrado válido elimina el gasto y sus dependencias",
+      "status": "correcto"
+    },
+    {
+      "id": "API-08",
+      "title": "Rechazo de importes y fechas inválidos antes de escribir",
+      "status": "correcto"
+    },
+    {
+      "id": "API-09",
+      "title": "Ingreso y sueldo válidos; sueldo existente se actualiza",
+      "status": "correcto"
+    },
+    {
+      "id": "API-10",
+      "title": "Sin sesión y sin propiedad no modifica datos",
+      "status": "correcto"
+    },
+    {
+      "id": "CALC-01",
+      "title": "Totales ARS, USD y desglose mixto",
+      "status": "correcto"
+    },
+    {
+      "id": "API-11",
+      "title": "Ingresos: crear, editar y eliminar con persistencia",
+      "status": "correcto"
+    },
+    {
+      "id": "API-12",
+      "title": "Edición de ingreso rechaza otro usuario, mes, espacio y sueldo",
+      "status": "correcto"
+    },
+    {
+      "id": "API-13",
+      "title": "Eliminar sueldo solo afecta al mes, usuario y espacio propios",
+      "status": "correcto"
+    },
+    {
+      "id": "API-14",
+      "title": "Login por usuario, credenciales inválidas y sin espacio activo",
+      "status": "correcto"
+    },
+    {
+      "id": "API-15",
+      "title": "Tercer usuario configurable, acceso propio y fuente sin asignar a Vane",
+      "status": "correcto"
+    },
+    {
+      "id": "API-16",
+      "title": "Membresía inactiva rechaza un token todavía válido antes de escribir",
+      "status": "correcto"
+    },
+    {
+      "id": "API-17",
+      "title": "Débito automático se conserva al pagar y al volver a pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "API-18",
+      "title": "Deshabilitar usuario en configuración rechaza sesiones existentes",
+      "status": "correcto"
+    },
+    {
+      "id": "CALC-02",
+      "title": "Comparaciones con cero, aumento, baja y período anual",
+      "status": "correcto"
+    },
+    {
+      "id": "CALC-03",
+      "title": "Alertas manuales, automáticas, revisión y réplica parcial sin duplicar",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-01",
+      "title": "Inicialización aditiva e idempotente; aportes separados de gastos e ingresos",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-02",
+      "title": "Saldo inicial y dólar conservan moneda; el equivalente queda fijo por operación",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-03",
+      "title": "Retiro excedido, moneda o destino incorrectos se rechazan sin cambiar el saldo",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-04",
+      "title": "Editar o eliminar un aporte usado no permite saldos negativos ni retiros anteriores",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-05",
+      "title": "Edición y eliminación con versión; los cambios de otro dispositivo no se pisan",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-06",
+      "title": "Reintentar la misma solicitud no duplica; un contenido distinto con la misma clave se rechaza",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-07",
+      "title": "Ahorros aislados por usuario y espacio; sin sesión no se crea el registro",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-08",
+      "title": "Conversión explícita y atómica mantiene el importe y archiva el gasto original",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-09",
+      "title": "Fallo real de conversión revierte tanto el ahorro como el cambio de gasto",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-10",
+      "title": "Conversión rechaza pendiente, revisión, gasto ajeno, importe cambiado y mezcla de monedas",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-11",
+      "title": "Validación de importes, centavos, cotización, fechas y saldo inicial repetido",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-12",
+      "title": "Dos retiros concurrentes no pueden gastar el mismo ahorro",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-13",
+      "title": "Saldo histórico, monedas y retiros no alteran ingresos ni consumo",
+      "status": "correcto"
+    },
+    {
+      "id": "SAVE-14",
+      "title": "Un gasto convertido conserva su auditoría y rechaza edición, pago o borrado desde una vista antigua",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-01",
+      "title": "Login individual con error claro y recuperación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-02",
+      "title": "Pantallas de 320, 390 y 1280 px sin desbordes ni errores",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-03",
+      "title": "Gasto automático: alta pendiente, edición, cancelar borrado y eliminación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-04",
+      "title": "Ingreso: guardar, editar y borrar con reintento tras error",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-05",
+      "title": "Sueldo: actualizar y eliminar sin tocar otros meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-06",
+      "title": "Informes: diferencia y porcentaje total y por concepto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-07",
+      "title": "Débito vencido pide verificar y se conserva al pagar/deshacer",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-08",
+      "title": "Réplica hacia un mes parcialmente cargado sin repetir existentes",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-09",
+      "title": "Guardar gasto con fallo conserva formulario y permite reintentar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-10",
+      "title": "Fallo al refrescar después de guardar no invita a duplicar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-11",
+      "title": "Edición fallida conserva valores y muestra error en el diálogo",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-12",
+      "title": "Cerrar sesión limpia datos y borradores antes de otro usuario",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-13",
+      "title": "Sin mes anterior o sin mes actual: comparación sin porcentajes ficticios",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-14",
+      "title": "Réplica entre enero y febrero ajusta día y fecha al mes corto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-15",
+      "title": "Exportación completa del usuario mantiene todos sus meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-16",
+      "title": "Validación de importe, fecha pendiente y día evita escrituras incompletas",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-17",
+      "title": "Débito automático elegido por forma o concepto inicia pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-18",
+      "title": "Inicio: balance y cuatro avisos completos antes de la navegación inferior",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-19",
+      "title": "Avisos incluyen meses anteriores, filtran y actualizan el período correcto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-20",
+      "title": "Próximo pago de otro mes abre y guarda el gasto en su mes original",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-21",
+      "title": "Revisión de pagados accesible sin sumarlos como deuda ni volver a pagarlos",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-22",
+      "title": "Mes vacío, sin ingresos y saldo negativo dan contexto sin NaN",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-23",
+      "title": "Al volver otro día se actualizan los avisos sin recargar la app",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-24",
+      "title": "Pendiente mensual mantiene alcance; avisos globales permanecen al cambiar de mes",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-25",
+      "title": "Próxima acción explica lo urgente y abre pagos y débitos a resolver",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-26",
+      "title": "Aumentos habituales muestran importe y porcentaje y abren el gasto correcto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-27",
+      "title": "Ocultar importes del inicio cubre avisos y accesibilidad y recuerda solo esa cuenta",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-28",
+      "title": "Duplicados: cancelar, ver el existente y guardar otro sin sumar ni duplicar por doble toque",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-29",
+      "title": "Reconsulta detecta una carga posterior y un fallo previo al guardado conserva el borrador",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-30",
+      "title": "Mismo concepto e importe en otro día guarda separado y no acumula automáticamente",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-31",
+      "title": "Cerrar una sesión durante la revisión de duplicados cancela la escritura pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-32",
+      "title": "Ahorro en pesos: crear, recargar, editar y eliminar actualiza disponible sin tocar consumo",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-33",
+      "title": "Ahorro inicial, aporte y retiro en dólares conservan moneda y cotización propia",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-34",
+      "title": "No se puede borrar ni reducir un aporte usado; el error conserva la edición",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-35",
+      "title": "Convertir un gasto pagado lo retira del consumo y conserva el disponible",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-36",
+      "title": "Respuesta perdida del ahorro conserva el formulario y reintenta sin duplicar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-37",
+      "title": "Ahorros en copia completa, privacidad de inicio y limpieza al cambiar de usuario",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-38",
+      "title": "Evolución distingue una primera carga de un concepto que reaparece y expande su historia",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-39",
+      "title": "Fallo al leer Ahorros informa saldo sin verificar y permite recuperar la pantalla",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-01",
+      "title": "Pendientes de otros meses mantienen su período y no se pierden",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-02",
+      "title": "Avisos sin duplicación: urgencia primero, fechas estimadas a revisión",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-03",
+      "title": "Débitos alcanzados requieren verificar; pagados no vuelven a vencer",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-04",
+      "title": "Pagados por revisar visibles sin aumentar la deuda pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-05",
+      "title": "Importes ARS, USD y desgloses respetan la conversión existente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-06",
+      "title": "Fechas ausentes o imposibles piden revisión y nunca generan NaN",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-07",
+      "title": "Ventana de tres días y próximo pago cruzan meses correctamente",
+      "status": "correcto"
+    },
+    {
+      "id": "PAN-08",
+      "title": "Sin registros o todo pagado: cero tareas sin importes ficticios",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-01",
+      "title": "Duplicado por día o vencimiento y moneda original, con alias normalizados",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-02",
+      "title": "Cuentas, conceptos, fechas o monedas distintas no se confunden",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-03",
+      "title": "Detalle mixto compara totales por moneda y no solo su equivalente en pesos",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-04",
+      "title": "Aumento habitual compara una carga confirmada de cada mes",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-05",
+      "title": "Cotización distinta no se presenta como aumento del servicio",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-06",
+      "title": "No hay aumentos ficticios con revisiones, múltiples cargos, mezclas o base cero",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-07",
+      "title": "Próxima acción prioriza vencidos y débitos; después próximos y revisión",
+      "status": "correcto"
+    },
+    {
+      "id": "SMART-08",
+      "title": "Sin tareas o todo pagado no se inventa una próxima acción",
+      "status": "correcto"
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "date": "2026-10-05",
+  "build": "correcto",
+  "data": "Solo fixtures ficticios; API simulada y PostgreSQL embebido, sin acceso a Neon real",
+  "scenarios": [
+    {
+      "id": "API-01",
+      "title": "Alta válida con detalle mixto y etiquetas",
+      "status": "correcto"
+    },
+    {
+      "id": "API-02",
+      "title": "Fallo del detalle revierte toda el alta",
+      "status": "correcto"
+    },
+    {
+      "id": "API-03",
+      "title": "Violación real de clave foránea revierte el alta",
+      "status": "correcto"
+    },
+    {
+      "id": "API-04",
+      "title": "Fallo en edición conserva cabecera, etiquetas y detalle originales",
+      "status": "correcto"
+    },
+    {
+      "id": "API-05",
+      "title": "Edición válida cambia cabecera, etiquetas y detalle juntos",
+      "status": "correcto"
+    },
+    {
+      "id": "API-06",
+      "title": "Fallo al borrar revierte los borrados de etiquetas y detalles",
+      "status": "correcto"
+    },
+    {
+      "id": "API-07",
+      "title": "Borrado válido elimina el gasto y sus dependencias",
+      "status": "correcto"
+    },
+    {
+      "id": "API-08",
+      "title": "Rechazo de importes y fechas inválidos antes de escribir",
+      "status": "correcto"
+    },
+    {
+      "id": "API-09",
+      "title": "Ingreso y sueldo válidos; sueldo existente se actualiza",
+      "status": "correcto"
+    },
+    {
+      "id": "API-10",
+      "title": "Sin sesión y sin propiedad no modifica datos",
+      "status": "correcto"
+    },
+    {
+      "id": "CALC-01",
+      "title": "Totales ARS, USD y desglose mixto",
+      "status": "correcto"
+    },
+    {
+      "id": "API-11",
+      "title": "Ingresos: crear, editar y eliminar con persistencia",
+      "status": "correcto"
+    },
+    {
+      "id": "API-12",
+      "title": "Edición de ingreso rechaza otro usuario, mes, espacio y sueldo",
+      "status": "correcto"
+    },
+    {
+      "id": "API-13",
+      "title": "Eliminar sueldo solo afecta al mes, usuario y espacio propios",
+      "status": "correcto"
+    },
+    {
+      "id": "API-14",
+      "title": "Login por usuario, credenciales inválidas y sin espacio activo",
+      "status": "correcto"
+    },
+    {
+      "id": "API-15",
+      "title": "Tercer usuario configurable, acceso propio y fuente sin asignar a Vane",
+      "status": "correcto"
+    },
+    {
+      "id": "API-16",
+      "title": "Membresía inactiva rechaza un token todavía válido antes de escribir",
+      "status": "correcto"
+    },
+    {
+      "id": "API-17",
+      "title": "Débito automático se conserva al pagar y al volver a pendiente",
+      "status": "correcto"
+    },
+    {
+      "id": "API-18",
+      "title": "Deshabilitar usuario en configuración rechaza sesiones existentes",
+      "status": "correcto"
+    },
+    {
+      "id": "CALC-02",
+      "title": "Comparaciones con cero, aumento, baja y período anual",
+      "status": "correcto"
+    },
+    {
+      "id": "CALC-03",
+      "title": "Alertas manuales, automáticas, revisión y réplica parcial sin duplicar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-01",
+      "title": "Login individual con error claro y recuperación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-02",
+      "title": "Pantallas de 320, 390 y 1280 px sin desbordes ni errores",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-03",
+      "title": "Gasto automático: alta pendiente, edición, cancelar borrado y eliminación",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-04",
+      "title": "Ingreso: guardar, editar y borrar con reintento tras error",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-05",
+      "title": "Sueldo: actualizar y eliminar sin tocar otros meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-06",
+      "title": "Informes: diferencia y porcentaje total y por concepto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-07",
+      "title": "Débito vencido pide verificar y se conserva al pagar/deshacer",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-08",
+      "title": "Réplica hacia un mes parcialmente cargado sin repetir existentes",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-09",
+      "title": "Guardar gasto con fallo conserva formulario y permite reintentar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-10",
+      "title": "Fallo al refrescar después de guardar no invita a duplicar",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-11",
+      "title": "Edición fallida conserva valores y muestra error en el diálogo",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-12",
+      "title": "Cerrar sesión limpia datos y borradores antes de otro usuario",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-13",
+      "title": "Sin mes anterior o sin mes actual: comparación sin porcentajes ficticios",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-14",
+      "title": "Réplica entre enero y febrero ajusta día y fecha al mes corto",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-15",
+      "title": "Exportación completa del usuario mantiene todos sus meses",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-16",
+      "title": "Validación de importe, fecha pendiente y día evita escrituras incompletas",
+      "status": "correcto"
+    },
+    {
+      "id": "UI-17",
+      "title": "Débito automático elegido por forma o concepto inicia pendiente",
+      "status": "correcto"
+    }
+  ]
+}

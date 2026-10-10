@@ -53,7 +53,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     console.error("Error en /api/ingresos-delete:", error);
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       ok: false,
       error: error.message || "Error interno",
     });

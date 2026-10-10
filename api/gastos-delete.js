@@ -34,7 +34,7 @@ export default async function handler(req, res) {
       WHERE movimiento_id = ${movimientoId}
         AND usuario_id = ${user.usuarioId}
         AND workspace_id = ${workspaceId}
-        AND tipo_movimiento = 'GASTO'
+        AND tipo_movimiento = 'GASTO' AND activo = true
       LIMIT 1;
     `;
 
@@ -46,6 +46,13 @@ export default async function handler(req, res) {
     }
 
     const queries = [];
+    // Serialize with conversion to savings; archived sources must remain intact.
+    queries.push(sql`
+      SELECT movimiento_id FROM movimientos
+      WHERE movimiento_id = ${movimientoId} AND usuario_id = ${user.usuarioId}
+        AND workspace_id = ${workspaceId} AND tipo_movimiento = 'GASTO' AND activo = true
+      FOR UPDATE;
+    `);
     queries.push(sql`
       DELETE FROM movimiento_etiquetas
       WHERE movimiento_id = ${movimientoId}
@@ -54,7 +61,7 @@ export default async function handler(req, res) {
           FROM movimientos
           WHERE usuario_id = ${user.usuarioId}
             AND workspace_id = ${workspaceId}
-            AND tipo_movimiento = 'GASTO'
+            AND tipo_movimiento = 'GASTO' AND activo = true
         );
     `);
 
@@ -66,7 +73,7 @@ export default async function handler(req, res) {
           FROM movimientos
           WHERE usuario_id = ${user.usuarioId}
             AND workspace_id = ${workspaceId}
-            AND tipo_movimiento = 'GASTO'
+            AND tipo_movimiento = 'GASTO' AND activo = true
         );
     `);
 
@@ -75,10 +82,11 @@ export default async function handler(req, res) {
       WHERE movimiento_id = ${movimientoId}
         AND usuario_id = ${user.usuarioId}
         AND workspace_id = ${workspaceId}
-        AND tipo_movimiento = 'GASTO';
+        AND tipo_movimiento = 'GASTO' AND activo = true;
     `);
 
-    await sql.transaction(queries);
+    const results = await sql.transaction(queries);
+    if (!results[0].length) return res.status(404).json({ok:false,error:"El gasto ya no está disponible. Actualizá los movimientos."});
 
     return res.status(200).json({
       ok: true,
@@ -89,7 +97,7 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error("Error en /api/gastos-delete:", error);
 
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       ok: false,
       error: error.message || "Error interno",
     });
