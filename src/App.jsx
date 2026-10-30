@@ -77,6 +77,7 @@ import ReplicateAction from "./components/ReplicateAction";
 import ReplicateModal from "./components/ReplicateModal";
 import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
+import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
 import "./styles/base.css";
 
@@ -269,22 +270,8 @@ export default function App() {
     return () => { cancelado = true; };
   }, [authUser, mesKey, mesAnteriorKey, cargaEstado]);
   
-  const normalizarFechaConversion = (gasto = {}) => {
-  if (gasto.vencimiento) {
-    return String(gasto.vencimiento).slice(0, 10);
-  }
-
-  if (gasto.fechaOperacion) {
-    return String(gasto.fechaOperacion).slice(0, 10);
-  }
-
-  if (gasto.fecha_operacion) {
-    return String(gasto.fecha_operacion).slice(0, 10);
-  }
-
-  const dia = String(gasto.dia || now.getDate()).padStart(2, "0");
-  return `${mesKey}-${dia}`;
-};
+  const normalizarFechaConversion = (gasto = {}) =>
+    normalizarFechaConversionPura(gasto, { now, mesKey });
 
 const resolverTipoCambioPorFecha = async (gasto = {}) => {
   const fechaConversion = normalizarFechaConversion(gasto);
@@ -610,32 +597,7 @@ useEffect(() => {
 // ======================================================
 // 🧩 HANDLERS (acciones del usuario / CRUD / cambios de estado)
 // ======================================================
-const calcularTotalARSDetalle = (items = []) => {
-  if (!Array.isArray(items) || items.length === 0) return 0;
-
-  return items.reduce((acc, item) => {
-    const monedaItem = String(item.moneda || "ARS").trim().toUpperCase();
-    const monto = Number(item.monto ?? item.montoUSD ?? 0);
-
-    const montoARSGuardado = item.montoARSCalculado ?? item.monto_ars_calculado;
-    if (
-      montoARSGuardado !== null &&
-      montoARSGuardado !== undefined &&
-      montoARSGuardado !== "" &&
-      Number.isFinite(Number(montoARSGuardado))
-    ) {
-      return acc + Number(montoARSGuardado);
-    }
-
-    if (monedaItem === "USD") {
-      const tipoCambio = Number(item.tipoCambio ?? item.tipo_cambio ?? tc ?? 1);
-      return acc + monto * (Number.isFinite(tipoCambio) ? tipoCambio : 1);
-    }
-
-    return acc + monto;
-  }, 0);
-};
-
+const calcularTotalARSDetalle = (items = []) => calcularTotalARSDetallePuro(items, tc);
 
 const guardarGastoInterno = async (extra = {}) => {
   let f = { ...form, ...extra };
