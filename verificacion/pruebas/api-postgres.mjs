@@ -355,6 +355,23 @@ await check('CALC-04','Conversión a pesos: total del desglose y fecha de conver
   return {cases:13};
 });
 
+await check('CALC-05','Validación de gasto antes de guardar: reglas y orden (src/utils/validarGasto.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/validarGasto.js'));await mod.evaluate();const v=mod.namespace.validarGastoParaGuardar;
+  const ctx={mes:{y:2026,m:1},cfg:{instrumentosPago:[{id:'ins_tarjeta',nombre:'Tarjeta'},{id:'ins_x',nombre:'Sin definir'}]}};
+  const ok={servicio:'  Luz ',monto:'100',dia:'15',medioPagoId:'mp_banco',instrumentoId:'ins_tarjeta',tipoGasto:'simple'};
+  const r=v(ok,ctx);assert.equal(r.ok,true);assert.equal(r.f.servicio,'Luz');assert.equal(r.f.monto,'100');
+  assert.match(v({...ok,servicio:'   '},ctx).mensaje,/concepto/);
+  assert.match(v({...ok,dia:'29'},ctx).mensaje,/entre 1 y 28/);assert.match(v({...ok,dia:'0'},ctx).mensaje,/día válido/);assert.match(v({...ok,dia:'1.5'},ctx).mensaje,/día válido/);
+  assert.equal(v({...ok,dia:'29'},{...ctx,mes:{y:2028,m:1}}).ok,true);
+  assert.match(v({...ok,medioPagoId:'mp_sin_definir'},ctx).mensaje,/medio de pago/);assert.match(v({...ok,medioPagoId:''},ctx).mensaje,/medio de pago/);
+  assert.match(v({...ok,instrumentoId:''},ctx).mensaje,/cómo pagaste/);assert.match(v({...ok,instrumentoId:'ins_sin_definir'},ctx).mensaje,/cómo pagaste/);assert.match(v({...ok,instrumentoId:'ins_x'},ctx).mensaje,/cómo pagaste/);
+  assert.match(v({...ok,monto:'0'},ctx).mensaje,/mayor a cero/);assert.match(v({...ok,monto:'abc'},ctx).mensaje,/mayor a cero/);
+  const d=v({...ok,monto:'',tipoGasto:'detalle',subconceptos:[]},ctx);assert.equal(d.ok,false);assert.equal(d.abrirDesglose,true);
+  assert.equal(v({...ok,monto:'',tipoGasto:'detalle',subconceptos:[{nombre:'a',monto:1}]},ctx).ok,true);
+  assert.match(v({...ok,servicio:'',dia:'99'},ctx).mensaje,/concepto/);
+  return {cases:17};
+});
+
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
 const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
 await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
