@@ -92,8 +92,6 @@ export const metaGrupoDetalle = (g = {}, categoriasLegacy = []) => {
     "Medio no definido"
   );
 
-  const tieneMedioNuevo = Boolean(g.medioPagoNombre || g.medioPago);
-  const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
 
   return {
     // Agrupa por nombre visible, no por origen técnico.

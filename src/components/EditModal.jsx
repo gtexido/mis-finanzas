@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { fmtARS, fmtUSD } from "../utils/formatters";
-import { montoReal, montoUSDReal } from "../utils/money";
+import { montoReal } from "../utils/money";
 import { conceptoDesdeGasto } from "../utils/gastos";
 import ExpenseFields from "./ExpenseFields";
 import UiIcon from "./UiIcon";
@@ -79,28 +78,9 @@ export default function EditModal({
     });
   }, [gasto, config.conceptos]);
 
-  const [busquedaConceptoEdit, setBusquedaConceptoEdit] = React.useState("");
 
-  const normalizarTextoBusqueda = (valor) =>
-    String(valor || "")
-      .trim()
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
 
-  const textoBusquedaConceptoEdit = normalizarTextoBusqueda(busquedaConceptoEdit);
 
-  const conceptosEditFiltrados = (config.conceptos || [])
-    .filter((concepto) => {
-      if (!textoBusquedaConceptoEdit) return true;
-
-      const textoConcepto = normalizarTextoBusqueda(
-        `${concepto.nombre || ""} ${concepto.label || ""}`
-      );
-
-      return textoConcepto.includes(textoBusquedaConceptoEdit);
-    })
-    .slice(0, textoBusquedaConceptoEdit ? 40 : 18);
 
   const toNumber = (value, fallback = 0) => {
     const n = Number(value);
@@ -164,122 +144,25 @@ export default function EditModal({
     }));
   };
 
-  const toggleEtiqueta = (etiquetaId) => {
-    setF((p) => {
-      const actuales = p.etiquetasIds || [];
-      const existe = actuales.includes(etiquetaId);
-
-      return {
-        ...p,
-        etiquetasIds: existe
-          ? actuales.filter((id) => id !== etiquetaId)
-          : [...actuales, etiquetaId],
-      };
-    });
-  };
 
   const tieneDesglose = Array.isArray(f.subconceptos) && f.subconceptos.length > 0;
   const moneda = normalizarMoneda(f.moneda || "ARS");
   const tipoCambioActual = toNumber(tc, 1);
 
-  const montoItem = (item) => toNumber(item?.monto ?? item?.montoUSD ?? 0);
 
-  const obtenerTipoCambioItem = (item) => {
-    return toNumber(
-      item?.tipoCambio ??
-        item?.tipo_cambio ??
-        f?.tipoCambio ??
-        f?.tipo_cambio ??
-        tipoCambioActual,
-      tipoCambioActual
-    );
-  };
 
-  const montoARSItem = (item) => {
-    const monedaItem = normalizarMoneda(item?.moneda || moneda);
-    const monto = montoItem(item);
 
-    const montoARSGuardado =
-      item?.montoARSCalculado ?? item?.monto_ars_calculado;
-
-    if (
-      montoARSGuardado !== null &&
-      montoARSGuardado !== undefined &&
-      montoARSGuardado !== ""
-    ) {
-      return toNumber(montoARSGuardado);
-    }
-
-    if (monedaItem === "USD") {
-      return monto * obtenerTipoCambioItem(item);
-    }
-
-    return monto;
-  };
-
-  const fmtMonto = (monto, mon = moneda) => {
-    const n = toNumber(monto);
-    return normalizarMoneda(mon) === "USD" ? fmtUSD(n) : fmtARS(n);
-  };
 
   const totalDetalleARS = tieneDesglose ? montoReal(f, tipoCambioActual) : 0;
-  const totalDetalleUSD = tieneDesglose ? montoUSDReal(f) : 0;
 
-  const totalARSDirecto = tieneDesglose
-    ? f.subconceptos.reduce((acc, s) => {
-        const monedaItem = normalizarMoneda(s.moneda || moneda);
-        return monedaItem === "ARS" ? acc + montoItem(s) : acc;
-      }, 0)
-    : 0;
 
-  const totalUSDConvertidoARS = tieneDesglose
-    ? f.subconceptos.reduce((acc, s) => {
-        const monedaItem = normalizarMoneda(s.moneda || moneda);
-        return monedaItem === "USD" ? acc + montoARSItem(s) : acc;
-      }, 0)
-    : 0;
 
-  const tieneUSDDetalle = totalDetalleUSD > 0;
-  const tieneARSDetalle = totalARSDirecto > 0;
-  const tieneMonedaMixta = tieneUSDDetalle && tieneARSDetalle;
   // QA-14.1: si un gasto queda marcado para revisar, puede no tener vencimiento definitivo.
   // La validación de vencimiento obligatorio aplica solo a pendientes confirmados.
   const pendienteSinVencimiento =
     String(f.estado || "").toLowerCase() === "pendiente" &&
     !String(f.vencimiento || "").trim() &&
     !f.requiereRevision;
-
-  const EL2 = {
-    fontSize: 11,
-    color: "#64748b",
-    fontWeight: 700,
-    letterSpacing: 1,
-    marginBottom: 8,
-  };
-
-  const EI2 = {
-    width: "100%",
-    background: "#1a1a24",
-    border: "1.5px solid #2a2a3e",
-    borderRadius: 12,
-    padding: "11px 13px",
-    color: "#e2e8f0",
-    fontSize: 15,
-    outline: "none",
-    fontFamily: "'DM Sans',sans-serif",
-  };
-
-  const chipStyle = (active, color = "#7c3aed") => ({
-    border: "none",
-    borderRadius: 10,
-    padding: "6px 10px",
-    cursor: "pointer",
-    fontFamily: "'DM Sans',sans-serif",
-    fontWeight: 600,
-    fontSize: 12,
-    background: active ? color : "#1e1e2e",
-    color: active ? "#0a0a0f" : "#94a3b8",
-  });
 
   return <div className="ov" style={{zIndex:950}} onClick={()=>!guardandoRef.current && onClose()}>
     <section ref={sheetRef} tabIndex={-1} onKeyDown={handleKeys} className="modal-sheet" role="dialog" aria-modal="true" aria-labelledby="edit-title" onClick={e=>e.stopPropagation()}>
