@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
+import { responderError } from "./_http.js";
 
 const ESTADOS_VALIDOS = new Set(["pendiente", "pagado"]);
 
@@ -57,10 +58,6 @@ export default async function handler(req, res) {
 
     return res.status(200).json({ ok: true, data: updated[0] });
   } catch (error) {
-    console.error("Error en /api/gastos-estado:", error);
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message || "Error interno",
-    });
+    return responderError(res, error, "/api/gastos-estado");
   }
 }

@@ -95,7 +95,7 @@ await check('API-02','Fallo del detalle revierte toda el alta',async()=>{
   return {http:500,databaseUnchanged:true};
 });
 await check('API-03','Violación real de clave foránea revierte el alta',async()=>{
-  const h=await harness();const before=await snapshot();const r=await h.call('gastos.js',{...expense,etiquetasIds:['inexistente']});assert.equal(r.code,500);assert.deepEqual(await snapshot(),before);return {databaseUnchanged:true};
+  const h=await harness();const before=await snapshot();const r=await h.call('gastos.js',{...expense,etiquetasIds:['inexistente']});assert.equal(r.code,409);assert.deepEqual(await snapshot(),before);return {databaseUnchanged:true,http:409};
 });
 await check('API-04','Fallo en edición conserva cabecera, etiquetas y detalle originales',async()=>{
   const id=await seed(),before=await snapshot();const h=await harness({failure:q=>q.startsWith('INSERT INTO detalle_movimiento')});
@@ -316,6 +316,47 @@ await check('SAVE-14','Un gasto convertido conserva su auditoría y rechaza edic
  assert.equal((await h.call('gastos-delete.js',{movimientoId:id},'DELETE')).code,404);
  assert.equal((await h.call('gastos-estado.js',{movimientoId:id,estado:'pendiente'},'PATCH')).code,404);
  assert.deepEqual(await snapshot(),before);assert.equal((await savedRows(h)).length,1);
+});
+
+// ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
+const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
+await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
+  const h=await harness();const r=await h.call('gastos.js',{...expense,etiquetasIds:['inexistente']});
+  assert.equal(r.code,409,JSON.stringify(r.payload));assert.match(r.payload.error,/no existe/);assert.doesNotMatch(r.payload.error,TECNICO);
+  assert.ok(h.errors.length>=1,'el detalle técnico debe quedar en el log del servidor');
+  return {http:409,message:r.payload.error};
+});
+await check('ERR-02','Falla inesperada responde 500 genérico y deja el detalle solo en el log',async()=>{
+  const h=await harness({failure:q=>q.startsWith('INSERT INTO detalle_movimiento')});const r=await h.call('gastos.js',expense);
+  assert.equal(r.code,500);assert.doesNotMatch(r.payload.error,/Fallo de escritura/);assert.match(r.payload.error,/Intentá de nuevo/);
+  assert.ok(h.errors.some(e=>/Fallo de escritura/.test(e)),'el log debe conservar el detalle');
+  return {http:500,message:r.payload.error};
+});
+await check('ERR-03','Tabla inexistente no filtra nombres internos de la base en la respuesta',async()=>{
+  const h=await harness();const r=await h.call('catalogos-admin.js',{recurso:'concepto',conceptoId:'con_x',nombre:'Prueba'},'PUT');
+  assert.equal(r.code,500,JSON.stringify(r.payload));assert.doesNotMatch(r.payload.error,TECNICO);assert.doesNotMatch(r.payload.error,/conceptos/i);
+  return {http:500,message:r.payload.error};
+});
+await check('ERR-04','Catálogos: datos faltantes responden 400 y recursos inexistentes 404, con su mensaje',async()=>{
+  const h=await harness();
+  const sinNombre=await h.call('catalogos-admin.js',{recurso:'concepto'},'POST');assert.equal(sinNombre.code,400);assert.equal(sinNombre.payload.error,'Falta nombre del concepto');
+  const sinId=await h.call('catalogos-admin.js',{recurso:'etiqueta'},'DELETE');assert.equal(sinId.code,400);assert.equal(sinId.payload.error,'Falta etiquetaId');
+  const sinRecurso=await h.call('catalogos-admin.js',{},'POST');assert.equal(sinRecurso.code,400);
+  return {http:[400,400,400]};
+});
+await check('ERR-05','Traducción de errores reales de PostgreSQL: dato inválido 400, conflicto 409, otro 500',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'api/_http.js'));await mod.evaluate();const {traducirError}=mod.namespace;
+  const fail=async q=>{try{await pg.query(q);}catch(e){return e;}throw Error('La consulta debía fallar: '+q);};
+  const check_=traducirError(await fail("INSERT INTO movimientos(movimiento_id,monto) VALUES('x',-1)"));
+  const nulo=traducirError(await fail("INSERT INTO etiquetas VALUES(NULL)"));
+  const duplicado=traducirError(await fail("INSERT INTO etiquetas VALUES('tag_a')"));
+  const fk=traducirError(await fail("INSERT INTO movimiento_etiquetas VALUES('no_existe','tag_a')"));
+  const sintaxis=traducirError(await fail("SELEC 1"));
+  assert.equal(check_.status,400);assert.equal(nulo.status,400);assert.equal(duplicado.status,409);assert.equal(fk.status,409);assert.equal(sintaxis.status,500);
+  for(const t of [check_,nulo,duplicado,fk,sintaxis])assert.doesNotMatch(t.mensaje,TECNICO);
+  assert.equal(traducirError(Object.assign(Error('Mensaje propio'),{statusCode:403})).mensaje,'Mensaje propio');
+  assert.equal(traducirError(Object.assign(Error('interno'),{statusCode:500})).status,500);
+  return {check:check_.status,notNull:nulo.status,unique:duplicado.status,foreignKey:fk.status,syntax:sintaxis.status};
 });
 
 await fs.writeFile(path.join(out,'resultados-api-postgres.json'),JSON.stringify(results,null,2));await pg.close();
