@@ -18,3 +18,14 @@ node --experimental-vm-modules pruebas/api-postgres.mjs /ruta/al/proyecto
 Opciones para entornos especializados: `AUDIT_CHROMIUM_MODULE` y `AUDIT_BROWSER_EXECUTABLE` permiten usar un Chromium empaquetado. `QA_PGLITE_MODULE` permite resolver PGlite desde otra instalación. `AUDIT_ONLY=UI-01` selecciona un escenario. El resultado JSON de cada ejecución reemplaza el anterior.
 
 El frontend Vite se inicia dentro del proceso de prueba, en 127.0.0.1:4173. Las pruebas de API usan el esquema definido en el propio script, no migraciones de producción.
+
+## Estado de las pruebas de pantallas en GitHub (2026-10-29)
+
+Corren en cada pedido de cambio como control informativo (no bloquean). En la corrida de hoy pasaron 8 de 16 escenarios.
+
+Motivos de los 8 que fallan, leídos de la salida de GitHub:
+- UI-02, UI-05 y UI-09 leen `gapp_v7` de localStorage. La app actual borra esa clave a propósito (los datos viven en el servidor), así que esas pruebas quedaron desactualizadas.
+- UI-14 espera el acceso visible antes del menú inferior y la pantalla cambió.
+- UI-07, UI-10, UI-12 y UI-15 esperan elementos que ya no se encuentran con esos nombres (tiempo agotado o aserción falsa). No se verificó caso por caso si es la prueba o la app.
+
+Decisión: no reescribirlas ahora, porque Cargar y Ajustes se van a rediseñar. Después del rediseño se reemplazan por pruebas de humo (entrar, ver el mes, cargar un gasto, marcar un pago) y recién entonces el control pasa a ser obligatorio.

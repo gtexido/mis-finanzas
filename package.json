@@ -5,7 +5,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check:api": "node scripts/check-api.mjs",
+    "test:logica": "node verificacion/pruebas/overview.mjs && node verificacion/pruebas/smart-hints.mjs",
+    "check": "npm run check:api && npm run build && npm run test:logica"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
