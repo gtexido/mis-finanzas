@@ -1,5 +1,5 @@
 import { neon } from "@neondatabase/serverless";
-import { createToken, validatePin, resolveWorkspaceForUser } from "./_auth.js";
+import { createToken, validatePin, findConfiguredUser, resolveWorkspaceForUser } from "./_auth.js";
 import { claveLogin, revisarBloqueo, registrarFallo, limpiarFallos } from "./_loginGuard.js";
 
 export default async function handler(req, res) {
@@ -7,8 +7,17 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Método no permitido" });
   try {
     const { usuarioId, pin } = req.body || {};
+    // Usuario inexistente: se rechaza sin tocar la base. Así nadie puede llenar
+    // la tabla de intentos inventando nombres de usuario.
+    const conocido = findConfiguredUser(usuarioId);
+    if (!conocido) {
+      validatePin(usuarioId, pin);
+      return res.status(401).json({ ok: false, error: "Usuario o clave incorrectos" });
+    }
+
     const sql = neon(process.env.DATABASE_URL);
-    const clave = claveLogin(req, usuarioId);
+    // La clave usa el id canónico: "gustavo", "GUSTAVO" y "usr_gustavo" cuentan como el mismo usuario.
+    const clave = claveLogin(req, conocido.usuarioId);
 
     const bloqueo = await revisarBloqueo(sql, clave);
     if (bloqueo.bloqueado) {
