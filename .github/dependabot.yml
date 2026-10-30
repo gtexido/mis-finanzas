@@ -1,0 +1,13 @@
+# Avisos y propuestas automáticas de actualización (seguridad incluida).
+# Cada propuesta llega como pull request y pasa por los controles antes de unirse.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
