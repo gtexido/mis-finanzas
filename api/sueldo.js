@@ -2,6 +2,7 @@ import { validarPeriodoDia, validarImporte } from "./_validation.js";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { fuenteDefaultPorUsuario, generarId } from "./_db.js";
+import { responderError } from "./_http.js";
 
 export default async function handler(req, res) {
   if (!["POST", "DELETE"].includes(req.method)) {
@@ -141,10 +142,6 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
-    console.error("Error en /api/sueldo:", error);
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message || "Error interno",
-    });
+    return responderError(res, error, "/api/sueldo");
   }
 }

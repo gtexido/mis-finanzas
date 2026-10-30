@@ -2,6 +2,7 @@ import { validarGasto } from "./_validation.js";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { generarId, mapServicioId, normalizarFecha, normalizarListaIds, normalizarMoneda, toNumber } from "./_db.js";
+import { responderError } from "./_http.js";
 
 function mapCategoriaId(categoria) {
   return categoria ? `cat_${categoria}` : null;
@@ -455,10 +456,6 @@ export default async function handler(req, res) {
       data: { movimiento_id: id },
     });
   } catch (error) {
-    console.error("Error en /api/gastos-update:", error);
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message || "Error interno",
-    });
+    return responderError(res, error, "/api/gastos-update");
   }
 }
