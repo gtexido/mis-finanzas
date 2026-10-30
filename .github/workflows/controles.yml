@@ -1,0 +1,77 @@
+# ======================================================================
+# MIS FINANZAS - CONTROLES AUTOMÁTICOS
+# ======================================================================
+# Cuándo corre : en cada pull request y en cada cambio que llega a main.
+# Qué hace     : 1) revisa la sintaxis de api/, 2) compila la app,
+#                3) corre las pruebas de lógica (vencimientos y avisos),
+#                4) en un segundo trabajo informativo, corre las pruebas del
+#                   servidor sobre PostgreSQL de prueba y las de pantallas.
+# Seguridad    : - No usa claves ni secretos. No toca Neon ni Vercel.
+#                - Permisos mínimos: solo lectura del repositorio.
+#                - Las acciones externas están fijadas a un commit exacto.
+#                - No usa pull_request_target, así que un pull request de un
+#                  fork no recibe permisos de escritura.
+# ======================================================================
+name: Controles
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: controles-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  base:
+    name: Sintaxis, compilación y lógica
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Instalar dependencias (sin scripts de instalación)
+        run: npm ci --ignore-scripts
+      - name: Revisar sintaxis de api/
+        run: npm run check:api
+      - name: Compilar la app
+        run: npm run build
+      - name: Pruebas de lógica
+        run: npm run test:logica
+
+  integracion:
+    name: Servidor y pantallas (informativo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    # Informativo hasta confirmar que corre estable en GitHub; después se
+    # quita esta línea para que también bloquee cambios con errores.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Instalar dependencias (sin scripts de instalación)
+        run: npm ci --ignore-scripts
+      - name: Instalar herramientas de prueba (solo en esta carpeta, versiones fijas)
+        run: npm install --no-save --package-lock=false --ignore-scripts --prefix verificacion playwright@1.63.0 @electric-sql/pglite@0.5.10
+      - name: Instalar Chromium
+        run: npx --prefix verificacion playwright install --with-deps chromium
+      - name: Pruebas del servidor (PostgreSQL de prueba)
+        run: node --experimental-vm-modules verificacion/pruebas/api-postgres.mjs .
+      - name: Pruebas de pantallas
+        env:
+          AUDIT_PROJECT: .
+        run: node verificacion/pruebas/navegador.cjs
