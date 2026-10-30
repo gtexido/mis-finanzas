@@ -4,7 +4,6 @@ import { fmtARS, fmtFecha } from '../utils/formatters';
 import { montoReal } from '../utils/money';
 import { hasUnconfirmedDue, isAutomaticDebit } from '../utils/paymentStatus';
 import { allExpenses, buildOverview, ATTENTION_FILTERS } from '../utils/overview';
-import ExpenseBadges from './ExpenseBadges';
 import UiIcon from './UiIcon';
 
 export default function VencimientosView({ data, mesActual, tc, today, selection, onSelectionChange, onEdit, onMarcarPagado }) {

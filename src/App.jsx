@@ -39,12 +39,11 @@ import {
 
 // Utils
 import {
-  fmtARS, fmtUSD, fmtFecha,
-  fmtARSCompact, normalizarEtiquetaVisual, normalizarFuenteIngreso,
-  slugKey, fmtMonto, normalizarTexto
+  fmtARS, normalizarEtiquetaVisual, normalizarFuenteIngreso,
+  normalizarTexto
 } from './utils/formatters';
 
-import { diasRestantes, semaforo, MESES, getMesKey, getMesActual } from './utils/dates';
+import { diasRestantes, MESES, getMesKey, getMesActual } from './utils/dates';
 import { montoReal, montoUSDReal } from './utils/money';
 import {
   COLORES, TIPOS_MEDIO_PAGO, DEFAULT_CONFIG,
@@ -55,14 +54,13 @@ import {
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
-import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable, categoriaRealDesdeGasto as categoriaRealDesdeGastoPure, metaGrupoDetalle as metaGrupoDetallePure } from './utils/gastos';
+import { gastoTieneDesglose, tieneSubconceptosValidos, categoriaRealDesdeGasto as categoriaRealDesdeGastoPure, metaGrupoDetalle as metaGrupoDetallePure } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
 import { mapMovimientosDesdeApi, mapHistorialDesdeApi } from "./mappers/movimientosMapper";
 
 // Components
-import VencBadge from "./components/VencBadge";
 import CotizadorWidget from "./components/CotizadorWidget";
 import SubconceptosModal from "./components/SubconceptosModal";
 import EditModal from "./components/EditModal";
