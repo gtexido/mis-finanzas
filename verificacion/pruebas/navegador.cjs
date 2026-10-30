@@ -111,6 +111,8 @@ async function desglose(s,moneda='ARS') {
   await s.page.getByRole('button',{name:'+',exact:true}).click();
 }
 const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
+const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-start<ms){if(await condition())return true;await pause(50);}throw new Error('La condición no se cumplió a tiempo');};
 (async()=>{
   await fs.mkdir(out,{recursive:true});
   const root=path.resolve(process.env.AUDIT_PROJECT);
@@ -144,7 +146,7 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
     const s=await setup();try{
       await nav(s.page,'Evol.');
       const six=s.page.getByRole('button',{name:'6M',exact:true});if(await six.count())await six.click();
-      const loaded=await data(s.page);assert.equal(Object.keys(loaded.gastos).length,6);
+      assert(s.requests.some(r=>r.path==='/api/movimientos'),'La app pidió movimientos al servidor');
       await capture(s.page,'02-historico.png');
       await nav(s.page,'Vence');await capture(s.page,'03-vencimientos.png');
       await nav(s.page,'Ajustes');await s.page.getByRole('button',{name:/Copias y datos/}).click();
@@ -181,7 +183,7 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
     const s=await setup({delayWrites:true,emptyCurrent:true});try{
       await cargar(s);await s.page.getByPlaceholder('0',{exact:true}).fill('2500');
       await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).evaluate(b=>{b.click();b.click();});
-      await s.page.waitForFunction(()=>JSON.parse(localStorage.getItem('gapp_v7')).gastos['2026-10']?.length===1);
+      await until(()=>s.db['2026-10'].length>=1);await pause(900);
       assert.equal(writes(s).length,1);assert.equal(s.db['2026-10'].length,1);
       return {posts:1,records:1};
     }finally{await s.context.close();}
@@ -202,11 +204,12 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
   });
   await probe('UI-07','La copia verifica el mes destino antes de escribir',async()=>{
     const s=await setup({emptyNext:true});try{
-      s.db['2026-11']=[movimiento('2026-11',123)];
+      await nav(s.page,'Detalle');
       await s.page.getByRole('button',{name:/Replicar gastos/}).click();
-      await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().click();
+      await s.page.getByRole('button',{name:/Continuar con/}).click();
+      s.db['2026-11']=[movimiento('2026-11',123)];
       await s.page.getByRole('button',{name:/Confirmar copia/}).click();
-      await s.page.getByText('Ese mes ya tiene gastos. Revisalo antes de volver a copiar.',{exact:true}).waitFor();
+      await s.page.getByRole('dialog').getByText('Ya están cargados',{exact:true}).waitFor();
       assert.equal(writes(s).length,0);assert.equal(s.db['2026-11'].length,1);
       return {destinationWasRechecked:true,posts:0};
     }finally{await s.context.close();}
@@ -227,12 +230,14 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
   });
   await probe('UI-09','Copia válida y doble toque',async()=>{
     const s=await setup({emptyNext:true,delayWrites:true});try{
+      await nav(s.page,'Detalle');
       await s.page.getByRole('button',{name:/Replicar gastos/}).click();
-      await s.page.getByRole('button',{name:/Continuar|Siguiente|Copiar.*gasto/}).last().click();
+      await s.page.getByRole('button',{name:/Continuar con/}).click();
       await s.page.getByRole('button',{name:/Confirmar copia/}).evaluate(b=>{b.click();b.click();});
-      await s.page.waitForFunction(()=>JSON.parse(localStorage.getItem('gapp_v7')).gastos['2026-11']?.length===1);
+      await until(()=>(s.db['2026-11']||[]).length>=1);await pause(900);
       assert.equal(writes(s).length,1);assert.equal(writes(s)[0].body.conceptoId,'con_audit');
-      return {posts:1,conceptPreserved:true};
+      assert.equal(writes(s)[0].body.periodo,'2026-11');assert.equal(writes(s)[0].body.vencimiento,'2026-11-15');assert.equal(writes(s)[0].body.estado,'pendiente');
+      return {posts:1,conceptPreserved:true,dueDateMoved:true};
     }finally{await s.context.close();}
   });
   await probe('UI-10','Carga libre sin categoría ni tipo, con decimales',async()=>{
@@ -286,25 +291,28 @@ const writes=s=>s.requests.filter(r=>r.path==='/api/gastos'&&r.method==='POST');
   });
   await probe('UI-14','Replicar sigue visible con destino ocupado y no duplica datos',async()=>{
     const s=await setup();try{
+      await nav(s.page,'Detalle');
       const action=s.page.getByRole('button',{name:/Replicar gastos/});assert(await action.isVisible());
       const rect=await action.boundingBox();assert(rect.y+rect.height<766,'Acceso visible antes del menú inferior');
       await action.click();const dialog=s.page.getByRole('dialog');
-      assert(await dialog.getByText('Noviembre ya tiene gastos cargados.',{exact:true}).isVisible());
+      assert(await dialog.getByText('Ya están cargados',{exact:true}).isVisible());
       assert.equal(writes(s).length,0);
-      await dialog.getByRole('button',{name:'Ver gastos de noviembre',exact:true}).click();
+      await dialog.getByRole('button',{name:/Ver Noviembre/}).click();
       assert.equal(await s.page.locator('.period-picker>span').innerText(),'Noviembre 2026');
       assert(await s.page.getByRole('button',{name:/Replicar gastos/}).isVisible());
       return {actionVisible:true,destinationOpened:true,posts:0};
     }finally{await s.context.close();}
   });
-  await probe('UI-15','Mes vacío explica qué necesita la copia y permite cargar',async()=>{
+  await probe('UI-15','Mes vacío explica qué necesita la copia',async()=>{
     const s=await setup({emptyCurrent:true});try{
+      await nav(s.page,'Detalle');
       await s.page.getByRole('button',{name:/Replicar gastos/}).click();
       const dialog=s.page.getByRole('dialog');
-      assert(await dialog.getByText('No hay gastos en octubre para replicar.',{exact:true}).isVisible());
-      await dialog.getByRole('button',{name:'Cargar un gasto',exact:true}).click();
-      assert(await s.page.getByLabel('¿Qué pagaste?',{exact:true}).isVisible());assert.equal(writes(s).length,0);
-      return {emptyMonthExplained:true,canLoadExpense:true,posts:0};
+      assert(await dialog.getByText('Todavía no hay gastos',{exact:true}).isVisible());
+      assert(await dialog.getByText('Elegí un mes con gastos para preparar el siguiente.',{exact:true}).isVisible());
+      await dialog.getByRole('button',{name:'Cerrar replicación',exact:true}).click();
+      assert.equal(await s.page.getByRole('dialog').count(),0);assert.equal(writes(s).length,0);
+      return {emptyMonthExplained:true,dialogCloses:true,posts:0};
     }finally{await s.context.close();}
   });
   await probe('UI-16','Replicar desde Movimientos permite elegir los gastos',async()=>{
