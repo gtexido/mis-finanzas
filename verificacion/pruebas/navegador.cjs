@@ -62,6 +62,7 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
     if(loadError) return send({ok:false,error:'Error de conexión de prueba'},503);
     if(expired) return send({ok:false,error:'Sesión inválida o vencida'},401);
     if(url.pathname==='/api/catalogos')return send({ok:true,data:catalogos});
+    if(url.pathname==='/api/movimientos'&&url.searchParams.get('recurso')==='ahorros')return send({ok:true,data:{records:[]}});
     if(url.pathname==='/api/movimientos')return send({ok:true,data:{movimientos:entry.periodo ? db[entry.periodo]||[] : Object.values(db).flat(),detalles:[],etiquetas:[]}});
     if(url.pathname==='/api/cotizaciones')return send({ok:true,data:{valor:1000,fuente:'prueba'}});
     if(r.method()!=='GET'){
@@ -155,7 +156,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       const download=await downloaded, saved=path.join(out,'exportacion-ficticia.json');await download.saveAs(saved);
       const exp=JSON.parse(await fs.readFile(saved,'utf8'));
       assert.deepEqual(Object.keys(exp.data.gastos).sort(),Object.keys(s.db).sort());
-      assert.equal(exp.version,'v2');assert.equal(exp.usuarioId,user.usuarioId);
+      assert.equal(exp.version,'v3');assert.equal(exp.usuarioId,user.usuarioId);
       assert.equal(await s.page.locator('input[type=file]').count(),0);
       assert.equal(await s.page.getByRole('button',{name:/Enviar backup completo a Sheets/}).count(),0);
       await capture(s.page,'04-exportacion.png');
