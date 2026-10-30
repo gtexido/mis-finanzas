@@ -66,12 +66,12 @@ jobs:
       - name: Instalar dependencias (sin scripts de instalación)
         run: npm ci --ignore-scripts
       - name: Instalar herramientas de prueba (solo en esta carpeta, versiones fijas)
-        run: npm install --no-save --package-lock=false --ignore-scripts --prefix verificacion playwright@1.63.0 @electric-sql/pglite@0.5.10
+        run: bash scripts/ci-correr.sh "Instalar herramientas de prueba" npm install --no-save --package-lock=false --ignore-scripts --prefix verificacion playwright@1.63.0 @electric-sql/pglite@0.5.10
       - name: Instalar Chromium
-        run: npx --prefix verificacion playwright install --with-deps chromium
+        run: bash scripts/ci-correr.sh "Instalar Chromium" npx --prefix verificacion playwright install --with-deps chromium
       - name: Pruebas del servidor (PostgreSQL de prueba)
-        run: node --experimental-vm-modules verificacion/pruebas/api-postgres.mjs .
+        run: bash scripts/ci-correr.sh "Pruebas del servidor" node --experimental-vm-modules verificacion/pruebas/api-postgres.mjs .
       - name: Pruebas de pantallas
         env:
           AUDIT_PROJECT: .
-        run: node verificacion/pruebas/navegador.cjs
+        run: bash scripts/ci-correr.sh "Pruebas de pantallas" node verificacion/pruebas/navegador.cjs
