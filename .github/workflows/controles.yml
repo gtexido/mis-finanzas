@@ -4,8 +4,10 @@
 # Cuándo corre : en cada pull request y en cada cambio que llega a main.
 # Qué hace     : 1) revisa la sintaxis de api/, 2) compila la app,
 #                3) corre las pruebas de lógica (vencimientos y avisos),
-#                4) en un segundo trabajo informativo, corre las pruebas del
-#                   servidor sobre PostgreSQL de prueba y las de pantallas.
+#                4) corre las pruebas del servidor sobre PostgreSQL de prueba,
+#                5) corre las pruebas de pantallas en un trabajo informativo
+#                   (hoy 8 de 16 escenarios fallan en GitHub; se revisan antes
+#                   de volverlo obligatorio).
 # Seguridad    : - No usa claves ni secretos. No toca Neon ni Vercel.
 #                - Permisos mínimos: solo lectura del repositorio.
 #                - Las acciones externas están fijadas a un commit exacto.
@@ -48,12 +50,31 @@ jobs:
       - name: Pruebas de lógica
         run: npm run test:logica
 
-  integracion:
-    name: Servidor y pantallas (informativo)
+  servidor:
+    name: Servidor sobre PostgreSQL de prueba
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Instalar dependencias (sin scripts de instalación)
+        run: npm ci --ignore-scripts
+      - name: Instalar PostgreSQL de prueba (solo en esta carpeta, versión fija)
+        run: bash scripts/ci-correr.sh "Instalar herramientas de prueba" npm install --no-save --package-lock=false --ignore-scripts --prefix verificacion @electric-sql/pglite@0.5.10
+      - name: Pruebas del servidor
+        run: bash scripts/ci-correr.sh "Pruebas del servidor" node --experimental-vm-modules verificacion/pruebas/api-postgres.mjs .
+
+  pantallas:
+    name: Pantallas (informativo)
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    # Informativo hasta confirmar que corre estable en GitHub; después se
-    # quita esta línea para que también bloquee cambios con errores.
+    # Informativo: hoy fallan 8 de 16 escenarios en GitHub. Se revisa y,
+    # cuando pase completo, se quita esta línea para que también bloquee.
     continue-on-error: true
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
@@ -65,12 +86,10 @@ jobs:
           cache: npm
       - name: Instalar dependencias (sin scripts de instalación)
         run: npm ci --ignore-scripts
-      - name: Instalar herramientas de prueba (solo en esta carpeta, versiones fijas)
-        run: bash scripts/ci-correr.sh "Instalar herramientas de prueba" npm install --no-save --package-lock=false --ignore-scripts --prefix verificacion playwright@1.63.0 @electric-sql/pglite@0.5.10
+      - name: Instalar herramientas de prueba (solo en esta carpeta, versión fija)
+        run: bash scripts/ci-correr.sh "Instalar herramientas de prueba" npm install --no-save --package-lock=false --ignore-scripts --prefix verificacion playwright@1.63.0
       - name: Instalar Chromium
         run: bash scripts/ci-correr.sh "Instalar Chromium" npx --prefix verificacion playwright install --with-deps chromium
-      - name: Pruebas del servidor (PostgreSQL de prueba)
-        run: bash scripts/ci-correr.sh "Pruebas del servidor" node --experimental-vm-modules verificacion/pruebas/api-postgres.mjs .
       - name: Pruebas de pantallas
         env:
           AUDIT_PROJECT: .
