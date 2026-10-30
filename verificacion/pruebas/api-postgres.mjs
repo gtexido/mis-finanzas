@@ -30,9 +30,10 @@ CREATE TABLE detalle_movimiento(detalle_id text primary key,movimiento_id text r
 monto numeric check(monto>0),moneda text,tipo_cambio numeric,monto_ars_calculado numeric,orden integer,observacion text,activo boolean);
 CREATE TABLE cotizaciones(fecha date,moneda_origen text,moneda_destino text,tipo text,valor numeric);
 CREATE TABLE parametros(clave text,valor numeric);INSERT INTO parametros VALUES('tipo_cambio_default',1000);
+CREATE TABLE login_fallos(id bigserial primary key,usuario_id text not null,ip text not null,creado_at timestamptz not null default now());
 `);
 async function snapshot(){return Object.fromEntries(await Promise.all(['movimientos','detalle_movimiento','movimiento_etiquetas'].map(async t=>[t,(await pg.query(`SELECT * FROM ${t} ORDER BY 1,2`)).rows])));}
-async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos;');}
+async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos,login_fallos;');}
 async function check(id,title,run){
   await reset();try{results.push({id,title,status:'correcto',...await run()});}
   catch(e){results.push({id,title,status:'fallo',error:String(e.stack)});}
@@ -163,9 +164,9 @@ await check('API-14','Login por usuario, credenciales inválidas y sin espacio a
   const h=await harness();
   assert.equal((await h.call('auth-login.js',{usuarioId:'  GUSTAVO ',pin:'clave-ficticia-1'})).code,200);
   const before=h.statements.length;
-  assert.equal((await h.call('auth-login.js',{usuarioId:'gustavo',pin:'incorrecta'})).code,401);
   assert.equal((await h.call('auth-login.js',{usuarioId:'desconocido',pin:'incorrecta'})).code,401);
   assert.equal(h.statements.length,before);
+  assert.equal((await h.call('auth-login.js',{usuarioId:'gustavo',pin:'incorrecta'})).code,401);
   assert.equal((await h.call('auth-login.js',{usuarioId:'vane',pin:'clave-ficticia-2'})).code,403);
 });
 await check('API-15','Tercer usuario configurable, acceso propio y fuente sin asignar a Vane',async()=>{
@@ -177,6 +178,31 @@ await check('API-15','Tercer usuario configurable, acceso propio y fuente sin as
     const row=(await snapshot()).movimientos[0];assert.equal(row.usuario_id,'usr_prueba');assert.equal(row.workspace_id,'ws_tercero');assert.equal(row.fuente_ingreso_id,null);
     const original=await harness();assert.equal((await original.call('ingresos-delete.js',{movimientoId:row.movimiento_id},'DELETE')).code,404);
   }finally{await pg.exec("DELETE FROM workspace_usuarios WHERE usuario_id='usr_prueba';DELETE FROM workspaces WHERE workspace_id='ws_tercero'");}
+});
+await check('API-19','Bloqueo de login: 5 fallos, alias del mismo usuario, otro usuario libre y limpieza al entrar',async()=>{
+  const h=await harness();
+  const login=(usuarioId,pin)=>h.call('auth-login.js',{usuarioId,pin});
+  const filas=async()=>Number((await pg.query('SELECT count(*)::int n FROM login_fallos')).rows[0].n);
+  // Usuario inexistente: nunca deja filas
+  for(let i=0;i<8;i++)assert.equal((await login('inventado'+i,'x')).code,401);
+  assert.equal(await filas(),0);
+  // Cinco fallos con alias distintos del mismo usuario suman en un único contador
+  for(const alias of ['gustavo','GUSTAVO','usr_gustavo','  Gustavo ','usr_gustavo'])assert.equal((await login(alias,'mala')).code,401);
+  assert.equal(await filas(),5);
+  // Sexto intento: bloqueado incluso con la clave correcta
+  const bloqueado=await login('gustavo','clave-ficticia-1');
+  assert.equal(bloqueado.code,429);
+  assert.match(bloqueado.payload.error,/Demasiados intentos/);
+  assert.equal(bloqueado.payload.data,undefined);
+  // Otro usuario no se ve afectado y, al entrar bien, sus fallos se limpian
+  assert.equal((await login('vane','mala')).code,401);
+  assert.equal(await filas(),6);
+  assert.equal((await login('vane','clave-ficticia-2')).code,403); // clave correcta; sin espacio activo en este esquema
+  // Pasados 20 minutos el bloqueo de Gustavo vence
+  await pg.exec("UPDATE login_fallos SET creado_at=now()-interval '20 minutes'");
+  assert.equal((await login('gustavo','clave-ficticia-1')).code,200);
+  assert.equal(Number((await pg.query("SELECT count(*)::int n FROM login_fallos WHERE usuario_id='usr_gustavo'")).rows[0].n),0);
+  return {bloqueoTras:5,aliasUnificados:true,inexistentesSinRastro:true};
 });
 await check('API-16','Membresía inactiva rechaza un token todavía válido antes de escribir',async()=>{
   await pg.exec("UPDATE workspace_usuarios SET activo=false WHERE usuario_id='usr_gustavo'");

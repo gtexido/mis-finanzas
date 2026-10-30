@@ -43,10 +43,15 @@ function configuredUsers() {
   return [...users.values()];
 }
 
-export function validatePin(usuarioId, pin) {
-  const users = configuredUsers();
+// Busca el usuario configurado por id o por nombre de acceso, sin mirar la clave
+// ni la base. Sirve para saber si vale la pena registrar un intento de login.
+export function findConfiguredUser(usuarioId) {
   const identifier = String(usuarioId || "").trim().toLowerCase();
-  const user = users.find(u => u.activo !== false && [u.usuarioId, u.login].some(v => String(v).toLowerCase() === identifier));
+  return configuredUsers().find(u => u.activo !== false && [u.usuarioId, u.login].some(v => String(v).toLowerCase() === identifier)) || null;
+}
+
+export function validatePin(usuarioId, pin) {
+  const user = findConfiguredUser(usuarioId);
   const expected = user ? process.env[user.pinEnv] : null;
   const matches = safeCompare(sign(String(expected || "unconfigured")), sign(String(pin || "")));
   if (!user || !expected || !matches) return null;

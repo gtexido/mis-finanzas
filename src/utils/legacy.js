@@ -1,9 +1,5 @@
 export const ABRIL_GASTOS = []; // Sin datos precargados — se cargan desde Google Sheets
 
-export const SHEETS_URL = null;
-export const syncSheets = () => {};
-export const syncFullBackup = () => {};
-
 export const medioPagoDesdeCategoriaLegacy = (categoria) => {
   const map = {
     bancon: "mp_bancon",
