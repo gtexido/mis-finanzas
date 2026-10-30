@@ -93,6 +93,7 @@ async function probe(id,title,run){
   try{const detail=await run();results.push({id,title,status:'correcto',...detail});}
   catch(e){results.push({id,title,status:'fallo',error:String(e.stack)});}
   console.log(id,results.at(-1).status);
+  if(results.at(-1).status==='fallo')console.log('   ->',String(results.at(-1).error).split('\n').slice(0,2).join(' | ').slice(0,230));
   await fs.writeFile(path.join(out,'resultados-navegador.json'),JSON.stringify(results,null,2));
 }
 
