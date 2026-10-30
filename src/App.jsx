@@ -77,6 +77,7 @@ import ReplicateAction from "./components/ReplicateAction";
 import ReplicateModal from "./components/ReplicateModal";
 import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
+import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
 import "./styles/base.css";
@@ -604,70 +605,21 @@ const guardarGastoInterno = async (extra = {}) => {
   const owner=authUser.usuarioId;
   const isCurrentDraft = () => sessionRef.current===owner && saveScopeRef.current.period===mesKey && saveScopeRef.current.view==="cargar";
 
-  const conceptoLimpio = String(f.servicio || "").trim();
-  const montoNumero = Number(f.monto || 0);
-  const diaNumero = Number(f.dia || 0);
-  const ultimoDiaMes = new Date(mes.y, mes.m + 1, 0).getDate();
-  const esDetalle = f.tipoGasto === "detalle";
-  const medioPagoValido =
-    !!f.medioPagoId &&
-    f.medioPagoId !== "mp_sin_definir";
-
-  const instrumentoSeleccionado = (cfg.instrumentosPago || []).find((ins) => ins.id === f.instrumentoId);
-  const instrumentoNombreNormalizado = String(instrumentoSeleccionado?.nombre || "")
-    .trim()
-    .toLowerCase();
-  const instrumentoIdNormalizado = String(f.instrumentoId || "")
-    .trim()
-    .toLowerCase();
-
-  const instrumentoValido =
-    !!f.instrumentoId &&
-    !instrumentoIdNormalizado.includes("sin_definir") &&
-    instrumentoNombreNormalizado !== "sin definir";
-
-
-  if (!conceptoLimpio) {
-    toast_("Escribí el concepto del gasto antes de guardar.", "err");
+  const validacion = validarGastoParaGuardar(f, { mes, cfg });
+  if (!validacion.ok) {
+    toast_(validacion.mensaje, "err");
+    if (validacion.abrirDesglose) {
+      abrirSubconceptosConCotizacion({
+        ...f,
+        servicio: String(f.servicio || "").trim(),
+        id: "new_" + Date.now(),
+        moneda: f.moneda || "ARS",
+        subconceptos: f.subconceptos || [],
+      });
+    }
     return;
   }
-
-  f = {
-    ...f,
-    servicio: conceptoLimpio,
-  };
-
-  if (!Number.isInteger(diaNumero) || diaNumero < 1 || diaNumero > ultimoDiaMes) {
-    toast_(`Ingresá un día válido entre 1 y ${ultimoDiaMes}.`, "err");
-    return;
-  }
-
-  if (!medioPagoValido) {
-    toast_("Seleccioná un medio de pago para evitar que quede sin clasificar.", "err");
-    return;
-  }
-
-  if (!instrumentoValido) {
-    toast_("Seleccioná cómo pagaste antes de guardar.", "err");
-    return;
-  }
-
-
-  if (!esDetalle && (!Number.isFinite(montoNumero) || montoNumero <= 0)) {
-    toast_("Ingresá un monto mayor a cero.", "err");
-    return;
-  }
-
-  if (esDetalle && (!f.subconceptos || f.subconceptos.length === 0)) {
-    toast_("Primero agregá ítems al desglose y tocá ‘Guardar desglose y volver’.", "err");
-    abrirSubconceptosConCotizacion({
-      ...f,
-      id: "new_" + Date.now(),
-      moneda: f.moneda || "ARS",
-      subconceptos: f.subconceptos || [],
-    });
-    return;
-  }
+  f = validacion.f;
 
   // Refresh this month before writing: a second device may have registered the charge.
   let latest;
