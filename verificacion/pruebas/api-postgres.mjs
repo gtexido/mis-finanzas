@@ -337,6 +337,24 @@ await check('CALC-02','Réplica al mes siguiente: fechas, día y desglose (src/u
   return {cases:15};
 });
 
+await check('CALC-04','Conversión a pesos: total del desglose y fecha de conversión (src/utils/conversion.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/conversion.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.calcularTotalARSDetalle([],1000),0);assert.equal(m.calcularTotalARSDetalle(null,1000),0);
+  assert.equal(m.calcularTotalARSDetalle([{monto:100}],1000),100);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'usd'}],1000),10000);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'USD',tipoCambio:1200}],1000),12000);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'USD',montoARSCalculado:15000}],1000),15000);
+  assert.equal(m.calcularTotalARSDetalle([{montoUSD:5,moneda:'USD'},{monto:200}],1000),5200);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'USD'}]),10);
+  const now=new Date(2026,9,15);
+  assert.equal(m.normalizarFechaConversion({vencimiento:'2026-11-05T00:00:00Z'},{now,mesKey:'2026-10'}),'2026-11-05');
+  assert.equal(m.normalizarFechaConversion({fechaOperacion:'2026-10-02'},{now,mesKey:'2026-10'}),'2026-10-02');
+  assert.equal(m.normalizarFechaConversion({fecha_operacion:'2026-10-03'},{now,mesKey:'2026-10'}),'2026-10-03');
+  assert.equal(m.normalizarFechaConversion({dia:7},{now,mesKey:'2026-10'}),'2026-10-07');
+  assert.equal(m.normalizarFechaConversion({},{now,mesKey:'2026-10'}),'2026-10-15');
+  return {cases:13};
+});
+
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
 const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
 await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
