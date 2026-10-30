@@ -318,6 +318,25 @@ await check('SAVE-14','Un gasto convertido conserva su auditoría y rechaza edic
  assert.deepEqual(await snapshot(),before);assert.equal((await savedRows(h)).length,1);
 });
 
+await check('CALC-02','Réplica al mes siguiente: fechas, día y desglose (src/utils/replicas.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/replicas.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.moverFechaAlMesSiguiente('2026-01-31'),'2026-02-28');assert.equal(m.moverFechaAlMesSiguiente('2028-01-31'),'2028-02-29');
+  assert.equal(m.moverFechaAlMesSiguiente('2026-12-15'),'2027-01-15');assert.equal(m.moverFechaAlMesSiguiente('2026-03-31T00:00:00Z'),'2026-04-30');
+  assert.equal(m.moverFechaAlMesSiguiente(''),'');assert.equal(m.moverFechaAlMesSiguiente('basura'),'');
+  assert.equal(m.moverDiaAlMesSiguiente(31,'2026-02'),'28');assert.equal(m.moverDiaAlMesSiguiente(15,'2026-03'),'15');
+  assert.equal(m.moverDiaAlMesSiguiente(undefined,'2026-03'),'1');assert.equal(m.moverDiaAlMesSiguiente(0,'2026-03'),'1');
+  const items=m.prepararSubconceptosParaReplica([
+    {nombre:'A',monto:10,moneda:'usd',tipoCambio:1000,montoARSCalculado:10000,orden:3},
+    {nombreItem:'B',montoUSD:5},
+    {nombre:'C',monto:20,moneda:'ARS',tipoCambio:1200,montoARSCalculado:24000}]);
+  assert.equal(items.length,3);
+  assert.equal(items[0].moneda,'USD');assert.equal(items[0].tipoCambio,null);assert.equal(items[0].montoARSCalculado,null);assert.equal(items[0].orden,3);assert.equal(items[0].id,undefined);
+  assert.equal(items[1].nombre,'B');assert.equal(items[1].monto,5);assert.equal(items[1].moneda,'ARS');assert.equal(items[1].orden,2);
+  assert.equal(items[2].tipoCambio,1200);assert.equal(items[2].montoARSCalculado,24000);
+  assert.equal(m.prepararSubconceptosParaReplica(null).length,0);assert.equal(m.prepararSubconceptosParaReplica().length,0);
+  return {cases:15};
+});
+
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
 const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
 await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{

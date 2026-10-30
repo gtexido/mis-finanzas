@@ -1,5 +1,4 @@
 import React, { useEffect, useRef, useState } from "react";
-import { diasRestantes, semaforo } from "../utils/dates";
 import { fmtARS, fmtUSD } from "../utils/formatters";
 import { montoReal, montoUSDReal } from "../utils/money";
 import { conceptoDesdeGasto } from "../utils/gastos";

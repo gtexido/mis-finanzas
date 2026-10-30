@@ -19,13 +19,14 @@ Opciones para entornos especializados: `AUDIT_CHROMIUM_MODULE` y `AUDIT_BROWSER_
 
 El frontend Vite se inicia dentro del proceso de prueba, en 127.0.0.1:4173. Las pruebas de API usan el esquema definido en el propio script, no migraciones de producción.
 
-## Estado de las pruebas de pantallas en GitHub (2026-10-29)
+## Estado de las pruebas de pantallas en GitHub (2026-10-30)
 
-Corren en cada pedido de cambio como control informativo (no bloquean). En la corrida de hoy pasaron 8 de 16 escenarios.
+Corren en cada pedido de cambio como control informativo (no bloquean). En la última corrida pasaron 14 de 16 escenarios.
 
-Motivos de los 8 que fallan, leídos de la salida de GitHub:
-- UI-02, UI-05 y UI-09 leen `gapp_v7` de localStorage. La app actual borra esa clave a propósito (los datos viven en el servidor), así que esas pruebas quedaron desactualizadas.
-- UI-14 espera el acceso visible antes del menú inferior y la pantalla cambió.
-- UI-07, UI-10, UI-12 y UI-15 esperan elementos que ya no se encuentran con esos nombres (tiempo agotado o aserción falsa). No se verificó caso por caso si es la prueba o la app.
+Se actualizaron UI-02, UI-05, UI-07, UI-09, UI-14 y UI-15 a la app actual: ya no leen `gapp_v7` (los datos viven en el servidor), llegan a Replicar desde Movimientos y usan los textos vigentes. UI-09 comprueba que la copia al mes siguiente guarda una sola vez, con el mes, el concepto y el vencimiento trasladado.
 
-Decisión: no reescribirlas ahora, porque Cargar y Ajustes se van a rediseñar. Después del rediseño se reemplazan por pruebas de humo (entrar, ver el mes, cargar un gasto, marcar un pago) y recién entonces el control pasa a ser obligatorio.
+Quedan dos pendientes:
+- UI-10 (carga libre) depende de los nombres de campos de Cargar, que se va a rediseñar.
+- UI-12 (Evolución y próximo pago) busca clases y textos que cambiaron en Evolución y Vencimientos.
+
+Decisión: reemplazarlas por pruebas de humo después del rediseño (entrar, ver el mes, cargar un gasto, marcar un pago) y recién entonces el control pasa a ser obligatorio.

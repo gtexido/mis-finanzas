@@ -219,29 +219,4 @@ export const tieneMonedaMixta = (movimiento) => {
   return monedas.size > 1;
 };
 
-/**
- * Devuelve una descripción corta de monedas del movimiento.
- *
- * Ejemplos:
- * - "ARS"
- * - "USD"
- * - "ARS + USD"
- */
-export const descripcionMonedas = (movimiento) => {
-  const detalle = obtenerDetalleMovimiento(movimiento);
-
-  if (!detalle.length) {
-    return normalizarMoneda(movimiento?.moneda);
-  }
-
-  const monedas = Array.from(
-    new Set(detalle.map((item) => normalizarMoneda(item?.moneda ?? movimiento?.moneda)))
-  );
-
-  return monedas.join(" + ");
-};
-
 export const pct = (a,b) => b===0?null:Math.round(((a-b)/b)*100);
-
-export const montoDetalle = (item) =>
-  Number(item.monto ?? item.montoUSD ?? 0);

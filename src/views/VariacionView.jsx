@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import MonthComparison from '../components/MonthComparison';
 import { formatPercent } from '../utils/comparisons';
 import { fmtARS, slugKey, normalizarEtiquetaVisual, normalizarTexto } from '../utils/formatters';

@@ -7,7 +7,7 @@
 //  - 30 fallos en 60 min para el mismo usuario (cualquier IP) -> bloqueo.
 // Un login correcto borra los fallos de ese usuario + IP.
 //
-// Requiere la tabla `login_fallos` (ver SQL_LOGIN_INTENTOS.sql).
+// Requiere la tabla `login_fallos` (ver sql/SQL_LOGIN_INTENTOS.sql).
 // Si la tabla no existe, NO bloquea el login: avisa en el log y sigue.
 // ============================================================
 
@@ -54,7 +54,7 @@ export async function revisarBloqueo(sql, { usuario, ip }) {
     }
     return { bloqueado: false };
   } catch (error) {
-    if (tablaNoExiste(error)) console.warn("login_fallos no existe: el límite de intentos está desactivado. Ejecutá SQL_LOGIN_INTENTOS.sql.");
+    if (tablaNoExiste(error)) console.warn("login_fallos no existe: el límite de intentos está desactivado. Ejecutá sql/SQL_LOGIN_INTENTOS.sql.");
     else console.error("Error revisando intentos de login:", error);
     return { bloqueado: false };
   }

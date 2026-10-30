@@ -68,8 +68,6 @@ export const DEFAULT_CONFIG = {
   tipoCambio: 1415,
 };
 
-export const SUBCONCEPTOS_USD_SUGERIDOS = ["Google One","YouTube","ChatGPT","Netflix","Spotify","Microsoft 365","Apple","Amazon","iCloud","Disney+","HBO","Canva","Notion","Dropbox","Otro"];
-
 export const FUENTES_INGRESO_GENERICAS = ["Hogar", "Ventas", "Trabajo Diario", "Otros"];
 
 export const MAPA_FUENTES_INGRESO_LEGACY = {
