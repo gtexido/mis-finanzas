@@ -26,12 +26,6 @@ import {
   crearMedioPago,
   actualizarMedioPago,
   desactivarMedioPago,
-  crearCategoriaGasto,
-  actualizarCategoriaGasto,
-  desactivarCategoriaGasto,
-  crearEtiqueta,
-  actualizarEtiqueta,
-  desactivarEtiqueta,
   login,
   logout,
   getSessionUser
@@ -43,8 +37,8 @@ import {
   normalizarTexto
 } from './utils/formatters';
 
-import { diasRestantes, MESES, getMesKey, getMesActual } from './utils/dates';
-import { montoReal, montoUSDReal } from './utils/money';
+import { MESES, getMesKey, getMesActual } from './utils/dates';
+import { montoReal } from './utils/money';
 import {
   COLORES, TIPOS_MEDIO_PAGO, DEFAULT_CONFIG,
   FUENTES_INGRESO_GENERICAS
@@ -125,7 +119,7 @@ export default function App() {
   const [savingsSeed,setSavingsSeed]=useState(null);
   const savingsFetchRef=useRef(0);
   const [cfg,setCfg]=useState(stored.config);
-  const [recurrentes,setRecurrentes]=useState(stored.recurrentes);
+  const [,setRecurrentes]=useState(stored.recurrentes);
   const [mes,setMes]=useState(getMesActual);
   const [form,setForm]=useState({
   categoria:"",
@@ -200,19 +194,12 @@ export default function App() {
   const [subconceptosGasto,setSubconceptosGasto]=useState(null); // gasto en edición de subconceptos
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
-  const [desglosesAbiertos,setDesglosesAbiertos]=useState({});
   const [cfgTab,setCfgTab]=useState("conceptos");
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
   const [editConcepto,setEditConcepto]=useState(null);
   const [busquedaMedioCfg,setBusquedaMedioCfg]=useState("");
   const [editMedio,setEditMedio]=useState(null);
   const [nuevoMedio,setNuevoMedio]=useState({ nombre:"", tipo:"banco", color:"#60a5fa", ordenVisual:"" });
-  const [busquedaCategoriaGastoCfg,setBusquedaCategoriaGastoCfg]=useState("");
-  const [editCategoriaGasto,setEditCategoriaGasto]=useState(null);
-  const [nuevaCategoriaGasto,setNuevaCategoriaGasto]=useState({ nombre:"", color:"#60a5fa", ordenVisual:"" });
-  const [busquedaEtiquetaCfg,setBusquedaEtiquetaCfg]=useState("");
-  const [editEtiqueta,setEditEtiqueta]=useState(null);
-  const [nuevaEtiqueta,setNuevaEtiqueta]=useState({ nombre:"", color:"#f97316", ordenVisual:"" });
   const [tcInput,setTcInput]=useState("");
   const [showCotizador,setShowCotizador]=useState(false);
   const [mostrarOpcionesCarga,setMostrarOpcionesCarga]=useState(false);
@@ -221,10 +208,7 @@ export default function App() {
   const [nuevoServInline,setNuevoServInline]=useState("");
   const [replicarStep,setReplicarStep]=useState(null); // null | 'modal' | 'confirmar' | 'done'
   const [excluirReplicar,setExcluirReplicar]=useState(new Set());
-  const [filtCatReplicar,setFiltCatReplicar]=useState("todos");
   const [mesesAtrasVar,setMesesAtrasVar]=useState(3);
-  const [newForma,setNewForma]=useState(""); const [editForma,setEditForma]=useState(null);
-  const [selCatServ,setSelCatServ]=useState(""); const [newServ,setNewServ]=useState("");
   const [newFuente,setNewFuente]=useState(""); const [editFuente,setEditFuente]=useState(null);
 
   const mesKey=getMesKey(mes.y,mes.m);
@@ -481,75 +465,24 @@ useEffect(() => {
 }, [sueldoDelMes, mesKey]);
   const toARS_=(g)=>montoReal(g,tc);
   const totalGastos=gastosDelMes.reduce((a,g)=>a+toARS_(g),0);
-  const totalPagado=gastosDelMes.filter(g=>g.estado==="pagado").reduce((a,g)=>a+toARS_(g),0);
   const totalPendiente=gastosDelMes.filter(g=>g.estado==="pendiente").reduce((a,g)=>a+toARS_(g),0);
-  const totalUSD_=gastosDelMes.reduce((a,g)=>a+montoUSDReal(g),0);
   const totalIngresosExtras=ingresosDelMes.reduce((a,i)=>a+Number(i.monto),0);
   const totalIngresos=totalIngresosExtras+Number(sueldoDelMes);
   const totalIngresosExtrasAnterior=ingresosMesAnterior.reduce((a,i)=>a+Number(i.monto||0),0);
   const totalIngresosAnterior=totalIngresosExtrasAnterior+Number(sueldoMesAnterior||0);
-  const tieneIngresosMesAnterior=ingresosMesAnterior.length>0 || Number(sueldoMesAnterior||0)>0;
-  const variacionIngresos=totalIngresos-totalIngresosAnterior;
-  const variacionIngresosPct=tieneIngresosMesAnterior && totalIngresosAnterior>0 ? Math.round((variacionIngresos/totalIngresosAnterior)*100) : null;
-  const diaActualMes = mes.y === now.getFullYear() && mes.m === now.getMonth() ? now.getDate() : new Date(mes.y, mes.m + 1, 0).getDate();
-  const diasDelMes = new Date(mes.y, mes.m + 1, 0).getDate();
-  const ingresosHoy = ingresosDelMes.filter(i=>Number(i.dia)===diaActualMes).reduce((a,i)=>a+Number(i.monto||0),0);
-  const movimientosIngresosMes = ingresosDelMes.length + (Number(sueldoDelMes)>0 ? 1 : 0);
-  const ingresosVariablesOrdenados = [...ingresosDelMes].sort((a,b)=>{
-    const diaDiff = Number(b.dia || 0) - Number(a.dia || 0);
-    if (diaDiff !== 0) return diaDiff;
-    return String(b.id || '').localeCompare(String(a.id || ''));
-  });
-  const ultimoIngresoVariable = ingresosVariablesOrdenados[0] || null;
-  const promedioPorCargaIngreso = ingresosDelMes.length > 0 ? totalIngresosExtras / ingresosDelMes.length : 0;
-  const metaIngresosMes = Math.max(Number(sueldoDelMes || 0), totalIngresos, 1);
-  const avanceIngresosPct = Math.min(100, Math.round((totalIngresos / metaIngresosMes) * 100));
-  const fuentesIngresoNormalizadas = [
-  ...new Set([
-    ...(cfg.fuentesIngreso || []),
-    ...FUENTES_INGRESO_GENERICAS
-  ].map(normalizarFuenteIngreso))
-];
 
-const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
-  const fuenteNormalizada = normalizarFuenteIngreso(fuente);
-  const items = ingresosDelMes.filter(i=>normalizarFuenteIngreso(i.fuente)===fuenteNormalizada);
-  const total = items.reduce((a,i)=>a+Number(i.monto||0),0);
-  return { fuente: fuenteNormalizada, total, items, color: COLORES[idx % COLORES.length] };
-}).filter(f=>f.total>0 || f.fuente===normalizarFuenteIngreso(ingForm.fuente));
-  const fuenteMayorIngreso = ingresosPorFuente.filter(f=>f.total>0).sort((a,b)=>b.total-a.total)[0] || null;
   const saldo=totalIngresos-totalGastos;
-  const saldoColor=saldo>=0?"#4ade80":"#f87171";
   const categoriaRealDesdeGasto = (g = {}) =>
     categoriaRealDesdeGastoPure(g, cfg.conceptos, cfg.categoriasGasto, cfg.categorias);
 
-  const agruparPorCategoriaReal = (items = []) =>
-    Array.from(items.reduce((mapa, g) => {
-      const meta = categoriaRealDesdeGasto(g);
-      const grupo = mapa.get(meta.id) || {
-        id: meta.id,
-        label: meta.label,
-        color: meta.color,
-        total: 0,
-        items: [],
-      };
 
-      grupo.total += toARS_(g);
-      grupo.items.push(g);
-      mapa.set(meta.id, grupo);
-      return mapa;
-    }, new Map()).values());
-
-  const gastosPorCat=agruparPorCategoriaReal(gastosDelMes);
   const [filtroCatInicio,setFiltroCatInicio]=useState(null); // categoría seleccionada desde inicio
   const gastosFiltrados = filtroEstado === "todos"
     ? gastosDelMes
     : filtroEstado === "automatico" ? gastosDelMes.filter(g=>isAutomaticDebit(g,cfg)) : filtroEstado === "revisar"
       ? gastosDelMes.filter(g => !!g.requiereRevision)
       : gastosDelMes.filter(g => g.estado === filtroEstado);
-  const gastosPorCatF=agruparPorCategoriaReal(gastosFiltrados);
   const [busqueda,setBusqueda]=useState("");
-  const [mostrarTodosConceptos,setMostrarTodosConceptos]=useState(false);
   const textoBusquedaDetalle = busqueda.trim().toLowerCase();
 
   const metaGrupoDetalle = (g) =>
@@ -603,63 +536,12 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
     ? cfg.categorias.find(c => c.id === filtroCatInicio)?.label || "Detalle"
     : filtroEstado === "automatico" ? "Débitos automáticos" : filtroEstado === "revisar" ? "Para revisar" : "Detalle";
 
-  const todosVenc=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&g.vencimiento);
   const overview = buildOverview(allExpenses(data),tc,today);
   const vencUrgentes = overview.attentionCount;
 
-  const alertasProximas = todosVenc
-  .map(g => ({
-    ...g,
-    dias: diasRestantes(g.vencimiento),
-    montoARS: toARS_(g)
-  }))
-  .filter(g => g.dias !== null && g.dias >= 0 && g.dias <= 3)
-  .sort((a, b) => {
-    if (a.dias !== b.dias) return a.dias - b.dias;
-    return b.montoARS - a.montoARS;
-  });
 
-const cantidadAlertasProximas = alertasProximas.length;
-const totalAlertasProximas = alertasProximas.reduce((acc, g) => acc + g.montoARS, 0);
-const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : null;
 
 // ── Home Premium: métricas ejecutivas del mes ───────────────────────────────
-const porcentajeUsoIngreso = totalIngresos > 0 ? Math.round((totalGastos / totalIngresos) * 100) : 0;
-const porcentajeSaldoIngreso = totalIngresos > 0 ? Math.round((saldo / totalIngresos) * 100) : 0;
-const gastosOrdenadosPorMonto = [...gastosDelMes].sort((a, b) => toARS_(b) - toARS_(a));
-const gastoMayorDelMes = gastosOrdenadosPorMonto[0] || null;
-const categoriasConGasto = gastosPorCat.filter((cat) => cat.total > 0).sort((a, b) => b.total - a.total);
-const categoriaMayorDelMes = categoriasConGasto[0] || null;
-const totalOperacionesMes = gastosDelMes.length;
-const ticketPromedioMes = totalOperacionesMes > 0 ? totalGastos / totalOperacionesMes : 0;
-const pagosRealizadosPct = totalGastos > 0 ? Math.round((totalPagado / totalGastos) * 100) : 0;
-const saludFinanciera =
-  totalIngresos <= 0
-    ? { label: "Sin ingresos cargados", color: "#94a3b8", icon: "🧭", detalle: "Cargá ingresos para calcular tu margen real." }
-    : saldo >= 0 && porcentajeUsoIngreso <= 70
-      ? { label: "Muy saludable", color: "#4ade80", icon: "🟢", detalle: "Hay margen para ahorrar o anticipar pagos." }
-      : saldo >= 0 && porcentajeUsoIngreso <= 90
-        ? { label: "Controlado", color: "#fbbf24", icon: "🟡", detalle: "Venís bien; mantené bajo control los gastos principales." }
-        : saldo >= 0
-          ? { label: "Ajustado", color: "#fb923c", icon: "🟠", detalle: "Queda poco margen: priorizá pagos y evitá gastos nuevos." }
-          : { label: "En rojo", color: "#f87171", icon: "🔴", detalle: "Los gastos superan los ingresos: toca ordenar prioridades." };
-const recomendacionHome =
-  totalIngresos <= 0
-    ? "Cargá tus ingresos para ver capacidad real de ahorro y presión de gastos."
-    : saldo < 0
-      ? `Revisá primero ${categoriaMayorDelMes?.label || "la categoría principal"}: concentra ${categoriaMayorDelMes ? fmtARS(categoriaMayorDelMes.total) : fmtARS(0)}.`
-      : totalPendiente > 0
-        ? `Tenés ${fmtARS(totalPendiente)} pendiente. Conviene priorizar vencimientos antes de sumar nuevos gastos.`
-        : `Cierre prolijo: te queda ${fmtARS(saldo)} disponible. Buen momento para separar ahorro.`;
-const accionesHome = [
-  totalIngresos <= 0 && { icon:"💰", titulo:"Cargar ingresos", detalle:"Sumalos para medir tu margen real." },
-  saldo < 0 && { icon:"🧯", titulo:"Reducir presión", detalle:"Revisá primero los gastos más altos." },
-  cantidadAlertasProximas > 0 && { icon:"⚠️", titulo:"Atender vencimientos", detalle:`Hay ${cantidadAlertasProximas} vencimiento${cantidadAlertasProximas > 1 ? "s" : ""} urgente${cantidadAlertasProximas > 1 ? "s" : ""}.` },
-  totalPendiente > 0 && { icon:"⏳", titulo:"Ordenar pagos pendientes", detalle:`Quedan ${fmtARS(totalPendiente)} sin pagar.` },
-  categoriaMayorDelMes && { icon:"🔎", titulo:"Revisar mayor foco", detalle:`${categoriaMayorDelMes.label} explica ${totalGastos > 0 ? Math.round((categoriaMayorDelMes.total / totalGastos) * 100) : 0}% del gasto.` },
-  saldo > 0 && totalPendiente === 0 && { icon:"🏦", titulo:"Reservar ahorro", detalle:`Reservá una parte de ${fmtARS(saldo)} antes del próximo mes.` },
-].filter(Boolean).slice(0, 2);
-const topCategoriasHome = categoriasConGasto.slice(0, 3);
 
 const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
@@ -1301,7 +1183,7 @@ const handleSubconceptosSave = (items) => {
   setIngForm({fuente:"",monto:"",dia:String(new Date().getDate())}); setSueldoInput("");
   setEditingGasto(null); setEditingMesKey(null); setConfirmDel(null); setSubconceptosGasto(null); setAcumModal(null); setReplicarStep(null);
   setEditConcepto(null); setEditMedio(null); setNuevoMedio({nombre:"",tipo:"banco",color:"#60a5fa",ordenVisual:""});
-  setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null); setDesglosesAbiertos({});
+  setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null);
   setCfgTab("conceptos"); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
 };
 const refrescarMes = async (periodo, owner = authUser?.usuarioId) => {
@@ -1365,19 +1247,7 @@ const eliminar = async () => {
 };
   //const eliminar=(tipo,id)=>{ setData(prev=>({...prev,[tipo]:{...prev[tipo],[mesKey]:(prev[tipo][mesKey]||[]).filter(g=>g.id!==id)}})); setConfirmDel(null); toast_("Eliminado","err"); };
   const cambiarMes=(dir)=>setMes(prev=>{ let m=prev.m+dir,y=prev.y; if(m>11){m=0;y++;} if(m<0){m=11;y--;} return{y,m}; });
-  const exportCSV=()=>{
-    const rows=[["Dia","Medio de pago","Concepto","Importe registrado","Moneda","Total ARS","Débito automático","Estado","Vencimiento","Por revisar","Nota"]];
-    gastosDelMes.forEach(g=>rows.push([g.dia,g.medioPagoNombre||g.medioPago||"",g.servicio,Number(g.monto),g.moneda,montoReal(g,tc),isAutomaticDebit(g)?"Sí":"No",g.estado,g.vencimiento||"",g.requiereRevision?"Sí":"No",g.observacion||""]));
-    const cell=value=>{const text=String(value??"");const safe=typeof value==='string'&&/^[=+@\-\t\r]/.test(text)?"'"+text:text;return '"'+safe.replace(/"/g,'""')+'"';};
-    const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
-    const a=document.createElement('a');a.href=url;a.download=`gastos_${mesKey}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast_("CSV exportado");
-  };
 
-  const addForma=()=>{if(!newForma.trim()||cfg.formasPago.includes(newForma.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,formasPago:[...p.formasPago,newForma.trim()]}));setNewForma("");toast_("Agregado");};
-  const saveForma=()=>{if(!editForma?.val.trim())return;setCfg(p=>{const fp=[...p.formasPago];fp[editForma.idx]=editForma.val.trim();return{...p,formasPago:fp};});setEditForma(null);toast_("Actualizado");};
-  const delForma=(idx)=>{setCfg(p=>({...p,formasPago:p.formasPago.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
-  const addServ=()=>{if(!selCatServ||!newServ.trim()){toast_("Completá campos","err");return;}setCfg(p=>{const s={...p.servicios};s[selCatServ]=[...(s[selCatServ]||[]),newServ.trim()];return{...p,servicios:s};});setNewServ("");toast_("Agregado");};
-  const delServ=(catId,idx)=>{setCfg(p=>{const s={...p.servicios};s[catId]=(s[catId]||[]).filter((_,i)=>i!==idx);return{...p,servicios:s};});toast_("Eliminado","err");};
   const addFuente=()=>{if(!newFuente.trim()||cfg.fuentesIngreso.includes(newFuente.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,fuentesIngreso:[...p.fuentesIngreso,newFuente.trim()]}));setNewFuente("");toast_("Agregado");};
   const saveFuente=()=>{if(!editFuente?.val.trim())return;setCfg(p=>{const f=[...p.fuentesIngreso];f[editFuente.idx]=editFuente.val.trim();return{...p,fuentesIngreso:f};});setEditFuente(null);toast_("Actualizado");};
   const delFuente=(idx)=>{setCfg(p=>({...p,fuentesIngreso:p.fuentesIngreso.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
@@ -1403,19 +1273,6 @@ const eliminar = async () => {
     });
   };
 
-  const toggleEtiquetaConceptoEdit = (etiquetaId) => {
-    setEditConcepto((p) => {
-      if (!p) return p;
-      const actuales = p.etiquetasIds || [];
-      const existe = actuales.includes(etiquetaId);
-      return {
-        ...p,
-        etiquetasIds: existe
-          ? actuales.filter((id) => id !== etiquetaId)
-          : [...actuales, etiquetaId],
-      };
-    });
-  };
 
   const guardarConceptoEditado = async () => {
     if (!editConcepto?.id) return;
@@ -1530,123 +1387,19 @@ const eliminar = async () => {
     } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar el medio de pago", "err"); }
   };
 
-  const categoriasGastoConfigFiltradas = (cfg.categoriasGasto || [])
-    .filter((c) => String(c.nombre || "").toLowerCase().includes(busquedaCategoriaGastoCfg.trim().toLowerCase()))
-    .sort((a,b)=>(Number(a.ordenVisual||99)-Number(b.ordenVisual||99)) || String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
 
-  const etiquetasConfigFiltradas = (cfg.etiquetas || [])
-    .filter((e) => String(e.nombre || "").toLowerCase().includes(busquedaEtiquetaCfg.trim().toLowerCase()))
-    .sort((a,b)=>(Number(a.ordenVisual||99)-Number(b.ordenVisual||99)) || String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
 
-  const abrirEditarCategoriaGasto = (categoria) => {
-    setEditCategoriaGasto({
-      id: categoria.id,
-      nombre: categoria.nombre || "",
-      color: categoria.color || "#64748b",
-      ordenVisual: categoria.ordenVisual ?? 99,
-      activo: true,
-    });
-  };
 
-  const crearCategoriaGastoCfg = async () => {
-    const nombre = String(nuevaCategoriaGasto.nombre || "").trim();
-    if (!nombre) { toast_("Ingresá un nombre para la categoría", "err"); return; }
-    try {
-      await crearCategoriaGasto({ nombre, color: nuevaCategoriaGasto.color || "#64748b", ordenVisual: nuevaCategoriaGasto.ordenVisual ? Number(nuevaCategoriaGasto.ordenVisual) : undefined, workspaceId: "ws_default" });
-      await refrescarCatalogos();
-      setNuevaCategoriaGasto({ nombre:"", color:"#60a5fa", ordenVisual:"" });
-      toast_("Categoría creada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la categoría", "err"); }
-  };
 
-  const guardarCategoriaGastoEditada = async () => {
-    if (!editCategoriaGasto?.id) return;
-    if (!String(editCategoriaGasto.nombre || "").trim()) { toast_("Ingresá un nombre para la categoría", "err"); return; }
-    try {
-      await actualizarCategoriaGasto({ categoriaGastoId: editCategoriaGasto.id, nombre: editCategoriaGasto.nombre.trim(), color: editCategoriaGasto.color || "#64748b", ordenVisual: Number(editCategoriaGasto.ordenVisual || 99), activo: true });
-      await refrescarCatalogos();
-      setEditCategoriaGasto(null);
-      toast_("Categoría actualizada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la categoría", "err"); }
-  };
 
-  const desactivarCategoriaGastoCfg = async (categoria) => {
-    if (!categoria?.id) return;
-    const ok = await pedirConfirmacion({
-      title: "Desactivar categoría",
-      message: `¿Querés desactivar "${categoria.nombre}"?`,
-      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
-      icon: "⚠️",
-      variant: "warn",
-      confirmLabel: "Desactivar",
-      cancelLabel: "Cancelar",
-    });
-    if (!ok) return;
-    try {
-      await desactivarCategoriaGasto(categoria.id);
-      await refrescarCatalogos();
-      if (editCategoriaGasto?.id === categoria.id) setEditCategoriaGasto(null);
-      toast_("Categoría desactivada", "err");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar la categoría", "err"); }
-  };
 
-  const abrirEditarEtiqueta = (etiqueta) => {
-    setEditEtiqueta({
-      id: etiqueta.id,
-      nombre: etiqueta.nombre || "",
-      color: etiqueta.color || "#64748b",
-      ordenVisual: etiqueta.ordenVisual ?? 99,
-      activo: true,
-    });
-  };
 
-  const crearEtiquetaCfg = async () => {
-    const nombre = String(nuevaEtiqueta.nombre || "").trim();
-    if (!nombre) { toast_("Ingresá un nombre para la etiqueta", "err"); return; }
-    try {
-      await crearEtiqueta({ nombre, color: nuevaEtiqueta.color || "#64748b", ordenVisual: nuevaEtiqueta.ordenVisual ? Number(nuevaEtiqueta.ordenVisual) : undefined, workspaceId: "ws_default" });
-      await refrescarCatalogos();
-      setNuevaEtiqueta({ nombre:"", color:"#f97316", ordenVisual:"" });
-      toast_("Etiqueta creada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la etiqueta", "err"); }
-  };
 
-  const guardarEtiquetaEditada = async () => {
-    if (!editEtiqueta?.id) return;
-    if (!String(editEtiqueta.nombre || "").trim()) { toast_("Ingresá un nombre para la etiqueta", "err"); return; }
-    try {
-      await actualizarEtiqueta({ etiquetaId: editEtiqueta.id, nombre: editEtiqueta.nombre.trim(), color: editEtiqueta.color || "#64748b", ordenVisual: Number(editEtiqueta.ordenVisual || 99), activo: true });
-      await refrescarCatalogos();
-      setEditEtiqueta(null);
-      toast_("Etiqueta actualizada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la etiqueta", "err"); }
-  };
 
-  const desactivarEtiquetaCfg = async (etiqueta) => {
-    if (!etiqueta?.id) return;
-    const ok = await pedirConfirmacion({
-      title: "Desactivar etiqueta",
-      message: `¿Querés desactivar "${etiqueta.nombre}"?`,
-      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
-      icon: "⚠️",
-      variant: "warn",
-      confirmLabel: "Desactivar",
-      cancelLabel: "Cancelar",
-    });
-    if (!ok) return;
-    try {
-      await desactivarEtiqueta(etiqueta.id);
-      await refrescarCatalogos();
-      if (editEtiqueta?.id === etiqueta.id) setEditEtiqueta(null);
-      toast_("Etiqueta desactivada", "err");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar la etiqueta", "err"); }
-  };
 
   // ── Replicar mes ──
-  const mesKeyAnterior=()=>{ let m=mes.m-1,y=mes.y; if(m<0){m=11;y--;} return getMesKey(y,m); };
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
-  const yaHayMesSiguiente=()=> !!(data.gastos[mesKeySiguiente()]?.length);
   const gastosFuenteReplicar=missingReplicas(gastosDelMes,data.gastos[mesKeySiguiente()]||[]);
   const abrirReplica = () => {
     const recurrent = gastosFuenteReplicar.filter(g=>g.esRecurrente || isAutomaticDebit(g,cfg));
@@ -1783,7 +1536,6 @@ const eliminar = async () => {
 
   // Render gasto en detalle
   // Render gasto en detalle
-  const esDolar_form = esDolarConcepto(form.servicio);
 
   const esConceptoSoloHistorico = (concepto = {}) => {
     const id = String(concepto.id || concepto.conceptoId || "").trim().toLowerCase();
@@ -1801,10 +1553,6 @@ const eliminar = async () => {
   const conceptosDisponiblesCarga = conceptosDisponibles.filter(
     (concepto) => !esConceptoSoloHistorico(concepto)
   );
-  const conceptosFiltrados = conceptosDisponiblesCarga.filter((concepto) => {
-    if (!textoConceptoNormalizado) return true;
-    return normalizarTexto(concepto.nombre).includes(textoConceptoNormalizado);
-  });
   const conceptoExactoOcultoCarga = conceptosDisponibles.find(
     (concepto) =>
       esConceptoSoloHistorico(concepto) &&
@@ -1813,15 +1561,11 @@ const eliminar = async () => {
   const conceptoExacto = conceptosDisponiblesCarga.find(
     (concepto) => normalizarTexto(concepto.nombre) === textoConceptoNormalizado
   );
-  const conceptosVisibles = mostrarTodosConceptos
-    ? conceptosFiltrados
-    : conceptosFiltrados.slice(0, textoConceptoNormalizado ? 8 : 10);
 
   const ultimoDiaCarga = new Date(mes.y, mes.m + 1, 0).getDate();
  const aplicarConceptoExistente = (concepto) => {
   if (!concepto) return;
 
-  setMostrarTodosConceptos(false);
   setForm((f) => ({
     ...f,
     conceptoId: concepto.id,
@@ -2285,7 +2029,7 @@ if (!authUser) {
               )}
 
               <div className="card"><span style={lbl}>CONCEPTOS ACTIVOS</span>
-                {conceptosConfigFiltrados.slice(0,80).map(con=>{ const cg=(cfg.categoriasGasto||[]).find(x=>x.id===con.categoriaGastoId); const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); const tags=(con.etiquetasIds||[]).map(id=>(cfg.etiquetas||[]).find(t=>t.id===id)?.nombre).filter(Boolean); return(
+                {conceptosConfigFiltrados.slice(0,80).map(con=>{ const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); return(
                   <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{normalizarEtiquetaVisual(mp?.nombre, "Medio no definido")} · {normalizarEtiquetaVisual(ins?.nombre, "Manual")} · {con.monedaDefault||"ARS"}</div></div><div style={{ display:"flex",gap:6 }}><button className="icon-button" aria-label={`Editar concepto ${con.nombre}`} onClick={()=>abrirEditarConcepto(con)}><UiIcon name="settings" size={18}/></button><button className="icon-button" aria-label={`Desactivar concepto ${con.nombre}`} onClick={()=>desactivarConceptoCfg(con)}><UiIcon name="trash" size={18}/></button></div></div></div>
                 );})}
                 {conceptosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay conceptos con ese filtro.</div>}
