@@ -11,7 +11,7 @@ import { categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId } fr
 export default function ExpenseFieldsRapido({
   value: f, setValue, config, tc, maxDay = 31, suggestions = [], atajos = [], comparacion = null,
   etiquetaMesAnterior = 'el mes pasado', diasRapidos = [], vencimientos = [],
-  onSelectConcept, onBreakdown, advanced, setAdvanced, onRemember,
+  onSelectConcept, onBreakdown, advanced, setAdvanced, onRemember, onDescartar,
 }) {
   const [cambiarPago, setCambiarPago] = useState(false);
   const [otroDia, setOtroDia] = useState(false);
@@ -24,7 +24,7 @@ export default function ExpenseFieldsRapido({
   const detailed = f.tipoGasto === 'detalle' || !!f.subconceptos?.length;
   const candidates = suggestions.filter(c => !f.servicio || c.nombre.toLocaleLowerCase().includes(f.servicio.toLocaleLowerCase())).slice(0, 6);
   const review = () => setValue(p => ({ ...p, requiereRevision: !p.requiereRevision, motivoRevision: !p.requiereRevision ? 'REVISAR_MANUAL' : null, origenMovimiento: !p.requiereRevision ? 'CARGA_MANUAL' : p.origenMovimiento }));
-  const limpiarConcepto = () => setValue(p => ({ ...p, servicio: '', conceptoId: '', crearConceptoPendiente: false, guardarComoConceptoFrecuente: false, categoriaGastoId: '', etiquetasIds: [], accionCompuesto: 'nuevo', decisionManual: false }));
+  const descartar = () => { setCambiarPago(false); setOtroDia(false); setOtraFecha(false); onDescartar(); };
 
   const medio = (config.mediosPago || []).find(m => m.id === f.medioPagoId);
   const instrumento = (config.instrumentosPago || []).find(i => i.id === f.instrumentoId);
@@ -40,7 +40,7 @@ export default function ExpenseFieldsRapido({
 
   return <div className="expense-fields cr">
     {f.conceptoId
-      ? <div className="cr-concepto"><div><small>Gasto elegido</small><strong>{f.servicio}</strong></div><button type="button" className="text-button" onClick={limpiarConcepto}>Cambiar</button></div>
+      ? <div className="cr-concepto"><div><small>Gasto elegido</small><strong>{f.servicio}</strong></div><button type="button" className="text-button" onClick={descartar}>Cambiar</button></div>
       : <div className="field">
         <label htmlFor="expense-concept">{mostrarAtajos ? 'Tus gastos de siempre' : '¿Qué gasto querés registrar?'}</label>
         {mostrarAtajos && <div className="cr-atajos">{atajos.map(a => {
@@ -51,6 +51,7 @@ export default function ExpenseFieldsRapido({
         {mostrarAtajos && <p className="cr-o">¿Es otro gasto?</p>}
         <input id="expense-concept" className="inf" placeholder="Ej: Alquiler, supermercado, internet" value={f.servicio || ''} onChange={e => setValue(p => ({ ...p, servicio: e.target.value, conceptoId: '', crearConceptoPendiente: false, guardarComoConceptoFrecuente: false, categoriaGastoId: '', etiquetasIds: [], accionCompuesto: 'nuevo', decisionManual: false }))} />
         {!f.conceptoId && textoConcepto && candidates.length > 0 && <div className="suggestions" aria-label="Conceptos sugeridos">{candidates.map(c => <button type="button" key={c.id} onClick={() => onSelectConcept(c)}>{c.nombre}</button>)}</div>}
+        {(textoConcepto || f.monto) && !f.conceptoId && <button type="button" className="text-button" onClick={descartar}>Borrar y empezar de nuevo</button>}
         {textoConcepto && !f.conceptoId && onRemember && <label className="check-line"><input type="checkbox" checked={!!(f.crearConceptoPendiente || f.guardarComoConceptoFrecuente)} onChange={onRemember} />Recordar este concepto</label>}
       </div>}
 
