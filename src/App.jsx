@@ -79,12 +79,13 @@ import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
 import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
-import { leerCargarNuevo } from "./utils/interruptores";
+import { leerCargarNuevo, leerAjustesNuevo } from "./utils/interruptores";
 import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
 import "./styles/base.css";
 import "./styles/cargar-rapido.css";
+import "./styles/ajustes-nuevo.css";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
 const load = () => ({data: {gastos:{}, ingresos:{}, sueldo:{}}, config: DEFAULT_CONFIG, recurrentes: []});
@@ -203,7 +204,9 @@ export default function App() {
   const [subconceptosGasto,setSubconceptosGasto]=useState(null); // gasto en edición de subconceptos
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
-  const [cfgTab,setCfgTab]=useState("conceptos");
+  const [ajustesNuevo]=useState(leerAjustesNuevo);
+  const [cfgTab,setCfgTab]=useState(leerAjustesNuevo()?"":"conceptos");
+  const [mostrarNuevoMedio,setMostrarNuevoMedio]=useState(false);
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
   const [editConcepto,setEditConcepto]=useState(null);
   const [busquedaMedioCfg,setBusquedaMedioCfg]=useState("");
@@ -1110,7 +1113,7 @@ const handleSubconceptosSave = (items) => {
   setEditingGasto(null); setEditingMesKey(null); setConfirmDel(null); setSubconceptosGasto(null); setAcumModal(null); setReplicarStep(null);
   setEditConcepto(null); setEditMedio(null); setNuevoMedio({nombre:"",tipo:"banco",color:"#60a5fa",ordenVisual:""});
   setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null);
-  setCfgTab("conceptos"); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
+  setCfgTab(ajustesNuevo?"":"conceptos"); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
 };
 const refrescarMes = async (periodo, owner = authUser?.usuarioId) => {
   try {
@@ -1278,6 +1281,7 @@ const eliminar = async () => {
       await crearMedioPago({ nombre, tipo: nuevoMedio.tipo || "banco", color: nuevoMedio.color || "#60a5fa", ordenVisual: nuevoMedio.ordenVisual ? Number(nuevoMedio.ordenVisual) : undefined, workspaceId: "ws_default" });
       await refrescarCatalogos();
       setNuevoMedio({ nombre:"", tipo:"banco", color:"#60a5fa", ordenVisual:"" });
+      setMostrarNuevoMedio(false);
       toast_("Medio de pago creado");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo crear el medio de pago", "err"); }
   };
@@ -2001,9 +2005,27 @@ if (!authUser) {
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
-          <section className="surface account-card"><span className="avatar">{authUser.nombre?.slice(0,1)}</span><div><strong>{authUser.nombre}</strong><p className="small muted">{authUser.workspaceNombre || "Tu espacio"} · Tus movimientos personales</p></div><UiIcon name="lock" size={19}/></section>
+          {(!ajustesNuevo||cfgTab==="")&&<section className="surface account-card"><span className="avatar">{authUser.nombre?.slice(0,1)}</span><div><strong>{authUser.nombre}</strong><p className="small muted">{authUser.workspaceNombre || "Tu espacio"} · Tus movimientos personales</p></div><UiIcon name="lock" size={19}/></section>}
+          {ajustesNuevo
+            ? (cfgTab===""
+              ? (() => {
+                  const medios=cfg.mediosPago||[];
+                  const nDeb=gastosDelMes.filter(g=>isAutomaticDebit(g,cfg)).length;
+                  const filas=[
+                    ["medios","wallet","Medios de pago",`${medios.length} activo${medios.length===1?"":"s"}${medios.length?" · "+medios.slice(0,2).map(m=>m.nombre).join(", "):""}`],
+                    ["debitos","repeat","Débitos automáticos",nDeb?`${nDeb} servicio${nDeb===1?"":"s"} este mes`:"Ninguno este mes"],
+                    ["tc","chart","Dólar",`Hoy: $ ${tc.toLocaleString("es-AR")}`],
+                    ["fuentes","down","Orígenes de ingreso",`${(cfg.fuentesIngreso||[]).length} ${(cfg.fuentesIngreso||[]).length===1?"origen":"orígenes"}`],
+                    ["backup","export","Copias y datos","Descargar tus movimientos"],
+                  ];
+                  const fila=([id,icono,titulo,resumen])=><button type="button" className="aj-fila" key={id} onClick={()=>setCfgTab(id)}><span className="aj-icono"><UiIcon name={icono} size={20}/></span><span className="aj-texto"><strong>{titulo}</strong><small>{resumen}</small></span><UiIcon name="chevron" size={18}/></button>;
+                  return <div className="aj-hub"><p className="aj-grupo">TU DINERO</p>{filas.slice(0,4).map(fila)}<p className="aj-grupo">DATOS</p>{filas.slice(4).map(fila)}</div>;
+                })()
+              : <div className="aj-cabecera"><button type="button" className="aj-volver" onClick={()=>setCfgTab("")}><UiIcon name="chevron" size={16} style={{transform:"rotate(180deg)"}}/>Ajustes</button><h2 className="aj-titulo">{({medios:"Medios de pago",debitos:"Débitos automáticos",tc:"Dólar",fuentes:"Orígenes de ingreso",backup:"Copias y datos"})[cfgTab]}</h2></div>)
+            : <>
           <p className="settings-intro">Administrá tus conceptos frecuentes, medios de pago y copias de tus datos.</p>
           <div className="settings-tabs">{[["conceptos","Conceptos"],["medios","Medios de pago"],["debitos","Débitos automáticos"],["fuentes","Ingresos"],["tc","Dólar"],["backup","Copias y datos"]].map(([id,label])=><button key={id} aria-pressed={cfgTab===id} onClick={()=>setCfgTab(id)}>{label}</button>)}</div>
+            </>}
           {cfgTab==="conceptos"&&(
             <>
               <div className="card">
@@ -2043,12 +2065,13 @@ if (!authUser) {
             </>
           )}
           {cfgTab==="medios"&&(
-            <>
-              <div className="card" style={{ border:"1px solid #1e3a5f",background:"#0f172a" }}>
+            <div className={ajustesNuevo?"aj-medios":undefined}>
+              <div className="card aj-info" style={{ border:"1px solid #1e3a5f",background:"#0f172a" }}>
                 <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>Medios de pago</div>
                 <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6 }}>Administrá bancos, billeteras, efectivo o cuentas propias. Los cambios impactan en carga, edición, conceptos y análisis.</div>
               </div>
-              <div className="card"><span style={lbl}>CREAR MEDIO DE PAGO</span>
+              {ajustesNuevo&&!mostrarNuevoMedio&&<button type="button" className="aj-agregar" onClick={()=>setMostrarNuevoMedio(true)}>＋ Agregar medio de pago</button>}
+              <div className="card aj-crear" hidden={ajustesNuevo&&!mostrarNuevoMedio}><span style={lbl}>CREAR MEDIO DE PAGO</span>
                 <input className="inf" placeholder="Ej: Galicia, BBVA, Ualá, Cuenta negocio" value={nuevoMedio.nombre} onChange={e=>setNuevoMedio(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
                   <select className="inf" value={nuevoMedio.tipo} onChange={e=>setNuevoMedio(p=>({...p,tipo:e.target.value}))}>{TIPOS_MEDIO_PAGO.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
@@ -2058,9 +2081,9 @@ if (!authUser) {
                 <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNuevoMedio(p=>({...p,color:c}))} style={{ background:c,borderColor:nuevoMedio.color===c?"#fff":"transparent",transform:nuevoMedio.color===c?"scale(1.2)":"none" }}/>)}</div>
                 <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={crearMedioPagoCfg}>+ Crear medio</button>
               </div>
-              <div className="card"><span style={lbl}>BUSCAR MEDIO</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaMedioCfg} onChange={e=>setBusquedaMedioCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{mediosConfigFiltrados.length} medio(s) activo(s).</div></div>
+              <div className="card aj-buscar" hidden={ajustesNuevo&&(cfg.mediosPago||[]).length<=6}><span style={lbl}>BUSCAR MEDIO</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaMedioCfg} onChange={e=>setBusquedaMedioCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{mediosConfigFiltrados.length} medio(s) activo(s).</div></div>
               {editMedio&&(
-                <div className="card" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR MEDIO</span>
+                <div className="card aj-editar" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR MEDIO</span>
                   <input className="inf" value={editMedio.nombre} onChange={e=>setEditMedio(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
                   <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
                     <select className="inf" value={editMedio.tipo} onChange={e=>setEditMedio(p=>({...p,tipo:e.target.value}))}>{TIPOS_MEDIO_PAGO.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
@@ -2071,13 +2094,13 @@ if (!authUser) {
                   <div style={{ display:"flex",gap:8 }}><button className="pb" style={{ flex:2,background:"#7c3aed",color:"#fff" }} onClick={guardarMedioEditado}>Guardar medio</button><button className="pb" style={{ flex:1,background:"#2a1a1a",color:"#f87171" }} onClick={()=>desactivarMedioPagoCfg({id:editMedio.id,nombre:editMedio.nombre})}>Desactivar</button></div>
                 </div>
               )}
-              <div className="card"><span style={lbl}>MEDIOS ACTIVOS</span>
+              <div className="card aj-lista"><span style={lbl}>MEDIOS ACTIVOS</span>
                 {mediosConfigFiltrados.map(mp=>(
                   <div key={mp.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"center" }}><div style={{ display:"flex",alignItems:"center",gap:10,minWidth:0 }}><span style={{ width:14,height:14,borderRadius:"50%",background:mp.color||"#64748b",flexShrink:0 }}/><div style={{ minWidth:0 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis" }}>{mp.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:3 }}>{mp.tipo||"otro"} · orden {mp.ordenVisual??"—"}</div></div></div><div style={{ display:"flex",gap:6 }}><button style={ib("#1a1a24","#94a3b8")} onClick={()=>abrirEditarMedio(mp)}>✎</button><button style={ib("#2a1a1a","#f87171")} onClick={()=>desactivarMedioPagoCfg(mp)}>✕</button></div></div></div>
                 ))}
                 {mediosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay medios con ese filtro.</div>}
               </div>
-            </>
+            </div>
           )}
           {cfgTab==="tc"&&(<div className="card"><span style={lbl}>TIPO DE CAMBIO USD → ARS</span><div style={{ fontSize:13,color:"#64748b",marginBottom:10 }}>Actual: <strong style={{ color:"#38bdf8" }}>${tc.toLocaleString("es-AR")}</strong></div><div style={{ display:"flex",gap:10,marginBottom:12 }}><input className="inf" type="number" placeholder="Ej: 1415" value={tcInput} onChange={e=>setTcInput(e.target.value)} inputMode="numeric" style={{ flex:1 }}/><button className="pb" style={{ background:"#38bdf8",color:"#0a0a0f",fontWeight:700 }} onClick={guardarTC}>OK</button></div><CotizadorWidget onSelectTC={(valor,tipo)=>{ setCfg(p=>({...p,tipoCambio:valor})); toast_(`TC ${tipo}: $${valor.toLocaleString("es-AR")}`); }}/></div>)}
           {cfgTab==="backup"&&(
