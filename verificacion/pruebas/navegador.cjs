@@ -246,10 +246,10 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       await nav(s.page,'Cargar');
       assert.equal(await s.page.getByText('TIPO / ETIQUETAS',{exact:true}).count(),0);
       assert.equal(await s.page.getByText('Categoría',{exact:true}).count(),0);
-      await s.page.getByLabel('¿Qué pagaste?',{exact:true}).fill('Panadería nueva');
+      await s.page.getByLabel('¿Qué gasto querés registrar?',{exact:true}).fill('Panadería nueva');
       await s.page.getByLabel('Importe',{exact:true}).fill('1500.75');
-      await s.page.getByLabel('Medio de pago',{exact:true}).selectOption('mp_bancon');
-      await s.page.getByLabel('Cómo pagaste',{exact:true}).selectOption('ins_manual');
+      await s.page.getByLabel('Cuenta o medio de pago',{exact:true}).selectOption('mp_bancon');
+      await s.page.getByLabel('Forma de pago',{exact:true}).selectOption('ins_manual');
       const response=s.page.waitForResponse(r=>r.url().includes('/api/gastos'));
       await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).click();await response;
       assert.equal(writes(s).length,1);const b=writes(s)[0].body;
@@ -272,8 +272,8 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
     const s=await setup();try{
       for(const period of ['2026-09','2026-10'])s.db[period]=Array.from({length:8},(_,i)=>({...movimiento(period,period==='2026-10'?200:100,`${period}_${i}`),concepto_id:`con_count_${i}`,concepto_nombre:`Concepto ${i}`}));
       await s.page.reload();await s.page.waitForLoadState('networkidle');await nav(s.page,'Evol.');
-      const count=s.page.locator('.change-grid>div').filter({hasText:'Conceptos que subieron'}).locator('strong');assert.equal(await count.innerText(),'8');
-      await nav(s.page,'Vence');const next=s.page.locator('.due-summary>div').filter({hasText:'Próximo pago'});assert.match(await next.innerText(),/En 14 días/);assert.doesNotMatch(await next.innerText(),/En -/);
+      const count=s.page.locator('.change-grid>button').filter({hasText:'Subieron'}).locator('strong');assert.equal(await count.innerText(),'8');
+      await nav(s.page,'Vence');const textos=await s.page.locator('.due-relative').allInnerTexts();assert(textos.some(t=>/Vence en 14 días/.test(t)),'Falta el vencimiento futuro en 14 días');assert(textos.every(t=>!/en -|hace -/.test(t)),'No debe haber días negativos');
       return {increasedConcepts:8,nextDueDays:14};
     }finally{await s.context.close();}
   });
