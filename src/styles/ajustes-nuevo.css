@@ -1,0 +1,22 @@
+/* Ajustes nuevo (solo con ?ajustes=nuevo): lista de secciones y vista interna */
+.aj-hub{display:flex;flex-direction:column;gap:10px}
+.aj-grupo{margin:10px 4px 0;font-size:12px;letter-spacing:.08em;font-weight:700;color:var(--muted)}
+.aj-fila{display:flex;align-items:center;gap:12px;width:100%;min-height:64px;padding:12px 14px;border-radius:16px;border:1px solid var(--line);background:#141d2a;color:inherit;text-align:left;cursor:pointer}
+.aj-icono{display:flex;align-items:center;justify-content:center;flex:none;width:40px;height:40px;border-radius:12px;background:#1e1b3a;color:#a78bfa}
+.aj-texto{flex:1;min-width:0}
+.aj-texto strong{display:block;font-size:16px}
+.aj-texto small{display:block;margin-top:1px;font-size:13px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aj-fila>svg:last-child{color:#64748b;flex:none}
+.aj-cabecera{display:flex;flex-direction:column;gap:2px;margin-bottom:12px}
+.aj-volver{display:inline-flex;align-items:center;gap:4px;align-self:flex-start;min-height:44px;padding:0;border:none;background:none;color:#a78bfa;font-size:15px;cursor:pointer}
+.aj-titulo{margin:0;font-size:26px;letter-spacing:-.3px}
+.aj-medios{display:flex;flex-direction:column}
+.aj-medios .aj-info{display:none}
+.aj-medios .aj-editar{order:0}
+.aj-medios .aj-lista{order:1}
+.aj-medios .aj-buscar{order:2}
+.aj-medios .aj-agregar{order:3}
+.aj-medios .aj-crear{order:4}
+.aj-medios .aj-crear[hidden]{display:none}
+.aj-agregar{min-height:48px;margin:0 0 14px;border-radius:14px;border:1px dashed #5b4bb5;background:transparent;color:#c4b5fd;font-size:15px;font-weight:600;cursor:pointer}
+.aj-medios .aj-buscar[hidden]{display:none}
