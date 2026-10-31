@@ -372,6 +372,25 @@ await check('CALC-05','Validación de gasto antes de guardar: reglas y orden (sr
   return {cases:17};
 });
 
+await check('CALC-06','Cargar nueva: atajos, comparación con el mes anterior y fechas rápidas (src/utils/cargaRapida.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/cargaRapida.js'));await mod.evaluate();const m=mod.namespace;
+  const conceptos=[{id:'c1',nombre:'Supermercado'},{id:'c2',nombre:'Internet'},{id:'c3',nombre:'Alquiler'},{id:'c4',nombre:'Luz'}];
+  const gastos={'2026-10':[{conceptoId:'c2',servicio:'Internet',dia:'5',monto:21900},{conceptoId:'c1',servicio:'Supermercado',dia:'10',monto:30000},{servicio:'supermercado',dia:'20',monto:48500}],'2026-09':[{conceptoId:'c1',servicio:'Supermercado',dia:'12',monto:45000},{conceptoId:'c3',servicio:'Alquiler',dia:'1',monto:320000}]};
+  const a=m.atajosDeConceptos(conceptos,gastos,['2026-10','2026-09'],{limite:3});
+  assert.equal(a.length,3);assert.equal(a[0].concepto.id,'c1');assert.equal(a[0].usos,3);assert.equal(a[0].ultimo.monto,48500);
+  assert.equal(a[1].concepto.id,'c2');assert.equal(a[2].concepto.id,'c3');
+  const todos=m.atajosDeConceptos(conceptos,{},[],{});assert.equal(todos.length,4);assert.equal(todos[0].usos,0);assert.equal(todos[0].ultimo,null);
+  const c1=m.comparacionConMesAnterior({conceptoId:'c1',servicio:'Supermercado'},gastos['2026-09'],48600);assert.equal(c1.anterior,45000);assert.equal(c1.porcentaje,8);assert.equal(c1.estado,'sube');
+  assert.equal(m.comparacionConMesAnterior({conceptoId:'c1'},gastos['2026-09'],45000).estado,'igual');assert.equal(m.comparacionConMesAnterior({conceptoId:'c1'},gastos['2026-09'],22500).estado,'baja');
+  assert.equal(m.comparacionConMesAnterior({conceptoId:'c1'},gastos['2026-09'],0).estado,'sin_importe');assert.equal(m.comparacionConMesAnterior({conceptoId:'c2'},gastos['2026-09'],100),null);
+  assert.equal(m.comparacionConMesAnterior({servicio:' SUPERMERCADO '},gastos['2026-09'],45000).anterior,45000);
+  const v=m.vencimientosRapidos(new Date(2026,9,30));assert.equal(v.length,3);assert.equal(v[0].fecha,'2026-10-31');assert.equal(v[0].detalle,'sáb 31 oct');assert.equal(v[1].fecha,'2026-11-06');assert.equal(v[2].fecha,'2026-11-10');
+  assert.equal(m.vencimientosRapidos(new Date(2026,9,5))[2].fecha,'2026-10-10');assert.equal(m.vencimientosRapidos(new Date(2026,11,28))[1].fecha,'2027-01-04');assert.equal(m.vencimientosRapidos(new Date(2026,11,28))[2].fecha,'2027-01-10');
+  const d=m.diasRapidos(new Date(2026,9,30),{y:2026,m:9});assert.equal(d.length,2);assert.equal(d[0].dia,'30');assert.equal(d[1].dia,'29');assert.equal(d[1].detalle,'jue 29 oct');
+  assert.equal(m.diasRapidos(new Date(2026,9,1),{y:2026,m:9}).length,1);assert.equal(m.diasRapidos(new Date(2026,9,30),{y:2026,m:8}).length,0);
+  return {cases:22};
+});
+
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
 const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
 await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
