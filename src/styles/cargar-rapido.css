@@ -1,0 +1,58 @@
+/* Pantalla Cargar nueva (activada con ?cargar=nuevo). Solo afecta a .expense-fields.cr */
+.expense-fields.cr .field{margin-bottom:14px}
+.expense-fields.cr .amount-field{padding:14px 16px;margin:12px 0;border-radius:18px}
+.expense-fields.cr .amount-input{margin:6px 0 2px}
+.expense-fields.cr .amount-input input{font-size:34px}
+.expense-fields.cr .amount-input>span{font-size:26px}
+.expense-fields.cr .segmented button{min-height:44px!important;font-size:13px}
+.expense-fields.cr .disclosure{margin-bottom:4px}
+.cr-atajos{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 10px}
+.cr-atajos button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;min-width:0;padding:8px 12px;border:1px solid #2f3b50;border-radius:14px;background:#1a2231;color:var(--text)}
+.cr-atajos strong{font-size:14px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr-atajos .money{font-size:13px;color:#c5b2ff}
+.cr-atajos small{font-size:11px;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr-o{font-size:13px;color:#c7d0df;margin:4px 0 8px}
+.cr-concepto{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 14px;margin-bottom:12px;border:1px solid #5b4b96;border-radius:14px;background:#1f1c36}
+.cr-concepto small{display:block;font-size:11px;color:#c5b2ff}
+.cr-concepto strong{font-size:16px;font-weight:650}
+.cr-comparacion{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 4px}
+.cr-pct{font-weight:700;padding:2px 8px;border-radius:8px;background:#2a2230}
+.cr-pago{padding:6px 12px;margin-bottom:14px;border:1px solid var(--line);border-radius:14px;background:#141d2a}
+.cr-pago-fila{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.cr-pago-fila small,.cr-switch-fila small{display:block;font-size:11px;color:var(--muted)}
+.cr-pago-fila strong{font-size:15px;font-weight:650}
+.cr-pago .field-grid{padding-top:8px}
+.cr-switch-fila{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid var(--line);margin-top:4px;padding:6px 0}
+.cr-pago-fila+.cr-switch-fila,.cr-pago .field-grid+.cr-switch-fila{margin-top:4px}
+.cr-switch-fila strong{display:block;font-size:14px;font-weight:600}
+.cr-switch{flex:none;position:relative;width:52px;height:44px;padding:0;border:0;background:transparent}
+.cr-switch:before{content:'';position:absolute;left:2px;top:8px;width:48px;height:28px;border-radius:14px;background:#2c3748}
+.cr-switch[aria-checked=true]:before{background:#8f74e6}
+.cr-switch span{position:absolute;top:11px;left:5px;width:22px;height:22px;border-radius:50%;background:#a0aec0;transition:left .15s}
+.cr-switch[aria-checked=true] span{left:25px;background:#fff}
+.cr-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px}
+.cr-chips button{display:flex;flex-direction:column;align-items:flex-start;gap:0;min-height:44px;padding:4px 12px;border:1px solid #2f3b50;border-radius:12px;background:#1a2231;color:#c7d0df;text-align:left}
+.cr-chips strong{font-size:14px;font-weight:600}
+.cr-chips small{font-size:11px;color:var(--muted)}
+.cr-chips button[aria-pressed=true]{background:#302b48;border-color:#7a66b8;color:#fff}
+.cr-chips button[aria-pressed=true] small{color:#d6c9ff}
+.cr-guardar{position:sticky;bottom:78px;z-index:30;margin:0 -22px;padding:18px 22px 6px;background:linear-gradient(to bottom,rgba(12,17,27,0),var(--bg) 28%)}
+.cr-guardar .form-submit{margin:0 0 6px}
+.cr-guardar p{margin:0;text-align:center;font-size:12px;color:var(--muted)}
+
+/* Total del mes en Cargar */
+.cr-mes{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 10px;padding:8px 14px;border-radius:14px;background:#141d2a;border:1px solid var(--line)}
+.cr-mes small{display:block;font-size:12px;color:var(--muted)}
+.cr-mes strong{display:block;font-size:18px;font-weight:700}
+.cr-mes-detalle{display:flex;flex-direction:column;gap:2px;text-align:right;font-size:12px;color:var(--muted)}
+.cr-mes-detalle b{color:inherit;font-weight:600}
+
+/* Aviso Guardado con Deshacer */
+.cr-deshacer{position:fixed;left:50%;transform:translateX(-50%);bottom:92px;z-index:998;display:flex;align-items:center;gap:12px;width:calc(100% - 28px);max-width:440px;padding:10px 12px 10px 14px;border-radius:18px;background:rgba(20,83,45,.96);border:1px solid #22c55e;color:#dcfce7;box-shadow:0 18px 45px rgba(0,0,0,.38);animation:cr-sube .25s ease}
+.cr-deshacer-icono{display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:999px;background:rgba(255,255,255,.12);flex-shrink:0}
+.cr-deshacer-texto{flex:1;min-width:0}
+.cr-deshacer-texto strong{display:block;font-size:14px}
+.cr-deshacer-texto small{display:block;font-size:12px;opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cr-deshacer button{min-height:44px;padding:0 16px;border-radius:12px;border:1px solid rgba(220,252,231,.55);background:transparent;color:#fff;font-size:15px;font-weight:700;cursor:pointer}
+@keyframes cr-sube{from{opacity:0;transform:translate(-50%,12px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (prefers-reduced-motion:reduce){.cr-deshacer{animation:none}}

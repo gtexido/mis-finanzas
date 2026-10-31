@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
+import { responderError } from "./_http.js";
 
 async function usarWorkspaceConFallback(sql, workspaceId, consultaPropia, consultaDefault) {
   const propios = await consultaPropia(workspaceId);
@@ -260,10 +261,6 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
-    console.error("Error en API catalogos:", error);
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message,
-    });
+    return responderError(res, error, "/api/catalogos");
   }
 }

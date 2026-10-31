@@ -2,6 +2,7 @@ import { validarPeriodoDia, validarImporte } from "./_validation.js";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { fuenteDefaultPorUsuario, generarId, normalizarTexto } from "./_db.js";
+import { responderError } from "./_http.js";
 
 function fuenteVisibleIngreso(fuente) {
   const normalizada = normalizarTexto(fuente);
@@ -154,10 +155,6 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
-    console.error("Error en /api/ingresos:", error);
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message || "Error interno",
-    });
+    return responderError(res, error, "/api/ingresos");
   }
 }

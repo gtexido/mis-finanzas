@@ -1,4 +1,4 @@
-import { MAPA_FUENTES_INGRESO_LEGACY, FUENTES_INGRESO_GENERICAS } from "./constants";
+import { MAPA_FUENTES_INGRESO_LEGACY } from "./constants";
 
 export const fmtARS = (n) =>
   new Intl.NumberFormat("es-AR", {
@@ -18,24 +18,6 @@ export const fmtFecha = (str) => {
   if (!str) return "";
   const [y, m, d] = str.split("-");
   return `${d}/${m}/${y}`;
-};
-
-export const fmtARSCompact = (valor) => {
-  const n = Number(valor || 0);
-  const signo = n < 0 ? "-" : "";
-  const abs = Math.abs(n);
-
-  if (abs >= 1000000) {
-    return `${signo}$ ${(abs / 1000000).toLocaleString("es-AR", {
-      maximumFractionDigits: 1,
-    })} M`;
-  }
-
-  if (abs >= 1000) {
-    return `${signo}$ ${Math.round(abs / 1000).toLocaleString("es-AR")} mil`;
-  }
-
-  return fmtARS(n);
 };
 
 export const normalizarEtiquetaVisual = (valor, fallback = "") => {
@@ -149,21 +131,4 @@ export const getObservacionVisual = (observacion = "") => {
     color: "#cbd5e1",
     iconColor: "#a78bfa",
   };
-};
-
-export const getMotivoRevisionHumano = (motivoRaw) => {
-  const MAPA = {
-    "REVISAR_MONTO": "Confirmar importe",
-    "REVISAR_FACTURA": "Esperando factura",
-    "REVISAR_VENCIMIENTO": "Confirmar vencimiento",
-    "REVISAR_MANUAL": "Revisar información",
-    "COPIAR_ANTERIOR": "Factura estimada",
-    "CARGA_MANUAL": "Confirmar datos",
-    "PENDIENTE_REVISION": "Pendiente de revisión"
-  };
-
-  const raw = String(motivoRaw || "").trim().toUpperCase();
-  if (!raw) return "Revisar información";
-
-  return MAPA[raw] || "Revisar información";
 };

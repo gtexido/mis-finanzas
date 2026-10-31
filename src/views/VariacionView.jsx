@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import MonthComparison from '../components/MonthComparison';
 import { formatPercent } from '../utils/comparisons';
 import { fmtARS, slugKey, normalizarEtiquetaVisual, normalizarTexto } from '../utils/formatters';
@@ -41,9 +41,6 @@ export default function VariacionView({
   const totalMes = (key) => (data.gastos[key] || []).reduce((s, g) => s + toARS__(g, tc), 0);
   const totalActual = totalMes(actualKey);
   const totalAnterior = anteriorKey ? totalMes(anteriorKey) : 0;
-  const diffTotal = totalActual - totalAnterior;
-  const pctTotal = pct_(totalActual, totalAnterior);
-  const tieneBase = totalAnterior > 0;
 
   const claveVariacionGasto = (g = {}) => {
     const conceptoId = String(g.conceptoId || g.concepto_id || "").trim();

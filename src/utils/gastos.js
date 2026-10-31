@@ -1,4 +1,3 @@
-import { medioPagoDesdeCategoriaLegacy } from './legacy';
 import { slugKey, normalizarEtiquetaVisual } from './formatters';
 
 /**
@@ -16,17 +15,6 @@ export const gastoTieneDesglose = (g) =>
  */
 export const tieneSubconceptosValidos = (items = []) =>
   Array.isArray(items) && items.length > 0;
-
-/**
- * Obtiene el medio de pago del gasto de forma compatible e integrada.
- * @param {object} gasto
- * @returns {string}
- */
-export const obtenerMedioPagoComparable = (gasto = {}) =>
-  gasto.medioPagoId ||
-  gasto.medio_pago_id ||
-  gasto.medioPago ||
-  medioPagoDesdeCategoriaLegacy(gasto.categoria || "");
 
 /**
  * Busca y retorna el concepto de catálogo completo asociado a un gasto.
@@ -104,8 +92,6 @@ export const metaGrupoDetalle = (g = {}, categoriasLegacy = []) => {
     "Medio no definido"
   );
 
-  const tieneMedioNuevo = Boolean(g.medioPagoNombre || g.medioPago);
-  const tieneCategoriaNueva = Boolean(g.categoriaGastoNombre || g.categoriaGasto);
 
   return {
     // Agrupa por nombre visible, no por origen técnico.
@@ -119,19 +105,3 @@ export const metaGrupoDetalle = (g = {}, categoriasLegacy = []) => {
       "#94a3b8",
   };
 };
-
-/**
- * Resuelve una clave de normalización Unicode en base a cualquier identificador del concepto de gasto.
- * @param {object} g
- * @returns {string}
- */
-export const claveRevisionGasto = (g = {}) =>
-  String(g.conceptoId || g.conceptoNombre || g.conceptoManual || g.servicio || "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-
-
-
-

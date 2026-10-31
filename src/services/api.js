@@ -243,24 +243,6 @@ export async function getCotizacionPorFecha(fecha, tipo = "tarjeta") {
   return json.data;
 }
 
-export async function guardarCotizacion(payload) {
-  const res = await fetch("/api/cotizaciones", {
-    method: "POST",
-    headers: authHeaders({
-      "Content-Type": "application/json",
-    }),
-    body: JSON.stringify(payload),
-  });
-
-  const json = await readResponse(res);
-
-  if (!json.ok) {
-    throw new Error(json.error || "Error al guardar cotización");
-  }
-
-  return json.data;
-}
-
 async function catalogosAdminRequest(method, payload) {
   const res = await fetch("/api/catalogos-admin", {
     method,

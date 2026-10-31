@@ -26,12 +26,6 @@ import {
   crearMedioPago,
   actualizarMedioPago,
   desactivarMedioPago,
-  crearCategoriaGasto,
-  actualizarCategoriaGasto,
-  desactivarCategoriaGasto,
-  crearEtiqueta,
-  actualizarEtiqueta,
-  desactivarEtiqueta,
   login,
   logout,
   getSessionUser
@@ -39,31 +33,28 @@ import {
 
 // Utils
 import {
-  fmtARS, fmtUSD, fmtFecha,
-  fmtARSCompact, normalizarEtiquetaVisual, normalizarFuenteIngreso,
-  slugKey, fmtMonto, normalizarTexto
+  fmtARS, normalizarEtiquetaVisual, normalizarFuenteIngreso,
+  normalizarTexto
 } from './utils/formatters';
 
-import { diasRestantes, semaforo, MESES, getMesKey, getMesActual } from './utils/dates';
-import { montoReal, montoUSDReal } from './utils/money';
+import { MESES, getMesKey, getMesActual } from './utils/dates';
+import { montoReal } from './utils/money';
 import {
   COLORES, TIPOS_MEDIO_PAGO, DEFAULT_CONFIG,
   FUENTES_INGRESO_GENERICAS
 } from './utils/constants';
 import {
-  SHEETS_URL, syncSheets, syncFullBackup,
   medioPagoDesdeCategoriaLegacy, instrumentoDesdeFormaPagoLegacy,
   categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId,
   categoriaGastoDesdeServicio, etiquetasDesdeServicio
 } from './utils/legacy';
-import { gastoTieneDesglose, tieneSubconceptosValidos, obtenerMedioPagoComparable, categoriaRealDesdeGasto as categoriaRealDesdeGastoPure, metaGrupoDetalle as metaGrupoDetallePure } from './utils/gastos';
+import { gastoTieneDesglose, tieneSubconceptosValidos, categoriaRealDesdeGasto as categoriaRealDesdeGastoPure, metaGrupoDetalle as metaGrupoDetallePure } from './utils/gastos';
 
 // Mappers
 import { mapCatalogosDesdeApi } from "./mappers/catalogosMapper";
 import { mapMovimientosDesdeApi, mapHistorialDesdeApi } from "./mappers/movimientosMapper";
 
 // Components
-import VencBadge from "./components/VencBadge";
 import CotizadorWidget from "./components/CotizadorWidget";
 import SubconceptosModal from "./components/SubconceptosModal";
 import EditModal from "./components/EditModal";
@@ -76,6 +67,7 @@ import { isAutomaticDebit, missingReplicas } from "./utils/paymentStatus";
 import { allExpenses, buildOverview } from "./utils/overview";
 import { findPossibleDuplicate, recurringIncreases, nativeAmounts } from "./utils/smartHints";
 import { savingsSummary, localDate } from "./utils/savings";
+import { moverFechaAlMesSiguiente, moverDiaAlMesSiguiente, prepararSubconceptosParaReplica } from "./utils/replicas";
 import SavingsView from "./views/SavingsView";
 import DuplicateReview from "./components/DuplicateReview";
 import DetalleViewShell from "./views/DetalleView";
@@ -85,7 +77,14 @@ import ReplicateAction from "./components/ReplicateAction";
 import ReplicateModal from "./components/ReplicateModal";
 import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
+import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
+import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
+import { leerCargarNuevo } from "./utils/interruptores";
+import { validarGastoParaGuardar } from "./utils/validarGasto";
+import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
+import "./styles/base.css";
+import "./styles/cargar-rapido.css";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
 const load = () => ({data: {gastos:{}, ingresos:{}, sueldo:{}}, config: DEFAULT_CONFIG, recurrentes: []});
@@ -126,7 +125,7 @@ export default function App() {
   const [savingsSeed,setSavingsSeed]=useState(null);
   const savingsFetchRef=useRef(0);
   const [cfg,setCfg]=useState(stored.config);
-  const [recurrentes,setRecurrentes]=useState(stored.recurrentes);
+  const [,setRecurrentes]=useState(stored.recurrentes);
   const [mes,setMes]=useState(getMesActual);
   const [form,setForm]=useState({
   categoria:"",
@@ -169,6 +168,9 @@ export default function App() {
   const [replicaCopiados,setReplicaCopiados]=useState(0);
   const [toast,setToast]=useState(null);
   const toastTimerRef = useRef(null);
+  const [deshacerCarga,setDeshacerCarga]=useState(null);
+  const deshacerTimerRef = useRef(null);
+  const deshaciendoRef = useRef(false);
   const [authUser,setAuthUser]=useState(getSessionUser());
   const sessionRef = useRef(authUser?.usuarioId);
   sessionRef.current = authUser?.usuarioId;
@@ -201,31 +203,22 @@ export default function App() {
   const [subconceptosGasto,setSubconceptosGasto]=useState(null); // gasto en edición de subconceptos
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
-  const [desglosesAbiertos,setDesglosesAbiertos]=useState({});
   const [cfgTab,setCfgTab]=useState("conceptos");
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
   const [editConcepto,setEditConcepto]=useState(null);
   const [busquedaMedioCfg,setBusquedaMedioCfg]=useState("");
   const [editMedio,setEditMedio]=useState(null);
   const [nuevoMedio,setNuevoMedio]=useState({ nombre:"", tipo:"banco", color:"#60a5fa", ordenVisual:"" });
-  const [busquedaCategoriaGastoCfg,setBusquedaCategoriaGastoCfg]=useState("");
-  const [editCategoriaGasto,setEditCategoriaGasto]=useState(null);
-  const [nuevaCategoriaGasto,setNuevaCategoriaGasto]=useState({ nombre:"", color:"#60a5fa", ordenVisual:"" });
-  const [busquedaEtiquetaCfg,setBusquedaEtiquetaCfg]=useState("");
-  const [editEtiqueta,setEditEtiqueta]=useState(null);
-  const [nuevaEtiqueta,setNuevaEtiqueta]=useState({ nombre:"", color:"#f97316", ordenVisual:"" });
   const [tcInput,setTcInput]=useState("");
   const [showCotizador,setShowCotizador]=useState(false);
   const [mostrarOpcionesCarga,setMostrarOpcionesCarga]=useState(false);
+  const [cargarNuevo]=useState(leerCargarNuevo);
   const [gestionServModal,setGestionServModal]=useState(null); // catId para gestionar servicios inline
   const [gestionCatModal,setGestionCatModal]=useState(false);
   const [nuevoServInline,setNuevoServInline]=useState("");
   const [replicarStep,setReplicarStep]=useState(null); // null | 'modal' | 'confirmar' | 'done'
   const [excluirReplicar,setExcluirReplicar]=useState(new Set());
-  const [filtCatReplicar,setFiltCatReplicar]=useState("todos");
   const [mesesAtrasVar,setMesesAtrasVar]=useState(3);
-  const [newForma,setNewForma]=useState(""); const [editForma,setEditForma]=useState(null);
-  const [selCatServ,setSelCatServ]=useState(""); const [newServ,setNewServ]=useState("");
   const [newFuente,setNewFuente]=useState(""); const [editFuente,setEditFuente]=useState(null);
 
   const mesKey=getMesKey(mes.y,mes.m);
@@ -286,22 +279,8 @@ export default function App() {
     return () => { cancelado = true; };
   }, [authUser, mesKey, mesAnteriorKey, cargaEstado]);
   
-  const normalizarFechaConversion = (gasto = {}) => {
-  if (gasto.vencimiento) {
-    return String(gasto.vencimiento).slice(0, 10);
-  }
-
-  if (gasto.fechaOperacion) {
-    return String(gasto.fechaOperacion).slice(0, 10);
-  }
-
-  if (gasto.fecha_operacion) {
-    return String(gasto.fecha_operacion).slice(0, 10);
-  }
-
-  const dia = String(gasto.dia || now.getDate()).padStart(2, "0");
-  return `${mesKey}-${dia}`;
-};
+  const normalizarFechaConversion = (gasto = {}) =>
+    normalizarFechaConversionPura(gasto, { now, mesKey });
 
 const resolverTipoCambioPorFecha = async (gasto = {}) => {
   const fechaConversion = normalizarFechaConversion(gasto);
@@ -428,6 +407,7 @@ const persistSavings = async (method,payload) => {
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
     };
   }, []);
 
@@ -482,75 +462,24 @@ useEffect(() => {
 }, [sueldoDelMes, mesKey]);
   const toARS_=(g)=>montoReal(g,tc);
   const totalGastos=gastosDelMes.reduce((a,g)=>a+toARS_(g),0);
-  const totalPagado=gastosDelMes.filter(g=>g.estado==="pagado").reduce((a,g)=>a+toARS_(g),0);
   const totalPendiente=gastosDelMes.filter(g=>g.estado==="pendiente").reduce((a,g)=>a+toARS_(g),0);
-  const totalUSD_=gastosDelMes.reduce((a,g)=>a+montoUSDReal(g),0);
   const totalIngresosExtras=ingresosDelMes.reduce((a,i)=>a+Number(i.monto),0);
   const totalIngresos=totalIngresosExtras+Number(sueldoDelMes);
   const totalIngresosExtrasAnterior=ingresosMesAnterior.reduce((a,i)=>a+Number(i.monto||0),0);
   const totalIngresosAnterior=totalIngresosExtrasAnterior+Number(sueldoMesAnterior||0);
-  const tieneIngresosMesAnterior=ingresosMesAnterior.length>0 || Number(sueldoMesAnterior||0)>0;
-  const variacionIngresos=totalIngresos-totalIngresosAnterior;
-  const variacionIngresosPct=tieneIngresosMesAnterior && totalIngresosAnterior>0 ? Math.round((variacionIngresos/totalIngresosAnterior)*100) : null;
-  const diaActualMes = mes.y === now.getFullYear() && mes.m === now.getMonth() ? now.getDate() : new Date(mes.y, mes.m + 1, 0).getDate();
-  const diasDelMes = new Date(mes.y, mes.m + 1, 0).getDate();
-  const ingresosHoy = ingresosDelMes.filter(i=>Number(i.dia)===diaActualMes).reduce((a,i)=>a+Number(i.monto||0),0);
-  const movimientosIngresosMes = ingresosDelMes.length + (Number(sueldoDelMes)>0 ? 1 : 0);
-  const ingresosVariablesOrdenados = [...ingresosDelMes].sort((a,b)=>{
-    const diaDiff = Number(b.dia || 0) - Number(a.dia || 0);
-    if (diaDiff !== 0) return diaDiff;
-    return String(b.id || '').localeCompare(String(a.id || ''));
-  });
-  const ultimoIngresoVariable = ingresosVariablesOrdenados[0] || null;
-  const promedioPorCargaIngreso = ingresosDelMes.length > 0 ? totalIngresosExtras / ingresosDelMes.length : 0;
-  const metaIngresosMes = Math.max(Number(sueldoDelMes || 0), totalIngresos, 1);
-  const avanceIngresosPct = Math.min(100, Math.round((totalIngresos / metaIngresosMes) * 100));
-  const fuentesIngresoNormalizadas = [
-  ...new Set([
-    ...(cfg.fuentesIngreso || []),
-    ...FUENTES_INGRESO_GENERICAS
-  ].map(normalizarFuenteIngreso))
-];
 
-const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
-  const fuenteNormalizada = normalizarFuenteIngreso(fuente);
-  const items = ingresosDelMes.filter(i=>normalizarFuenteIngreso(i.fuente)===fuenteNormalizada);
-  const total = items.reduce((a,i)=>a+Number(i.monto||0),0);
-  return { fuente: fuenteNormalizada, total, items, color: COLORES[idx % COLORES.length] };
-}).filter(f=>f.total>0 || f.fuente===normalizarFuenteIngreso(ingForm.fuente));
-  const fuenteMayorIngreso = ingresosPorFuente.filter(f=>f.total>0).sort((a,b)=>b.total-a.total)[0] || null;
   const saldo=totalIngresos-totalGastos;
-  const saldoColor=saldo>=0?"#4ade80":"#f87171";
   const categoriaRealDesdeGasto = (g = {}) =>
     categoriaRealDesdeGastoPure(g, cfg.conceptos, cfg.categoriasGasto, cfg.categorias);
 
-  const agruparPorCategoriaReal = (items = []) =>
-    Array.from(items.reduce((mapa, g) => {
-      const meta = categoriaRealDesdeGasto(g);
-      const grupo = mapa.get(meta.id) || {
-        id: meta.id,
-        label: meta.label,
-        color: meta.color,
-        total: 0,
-        items: [],
-      };
 
-      grupo.total += toARS_(g);
-      grupo.items.push(g);
-      mapa.set(meta.id, grupo);
-      return mapa;
-    }, new Map()).values());
-
-  const gastosPorCat=agruparPorCategoriaReal(gastosDelMes);
   const [filtroCatInicio,setFiltroCatInicio]=useState(null); // categoría seleccionada desde inicio
   const gastosFiltrados = filtroEstado === "todos"
     ? gastosDelMes
     : filtroEstado === "automatico" ? gastosDelMes.filter(g=>isAutomaticDebit(g,cfg)) : filtroEstado === "revisar"
       ? gastosDelMes.filter(g => !!g.requiereRevision)
       : gastosDelMes.filter(g => g.estado === filtroEstado);
-  const gastosPorCatF=agruparPorCategoriaReal(gastosFiltrados);
   const [busqueda,setBusqueda]=useState("");
-  const [mostrarTodosConceptos,setMostrarTodosConceptos]=useState(false);
   const textoBusquedaDetalle = busqueda.trim().toLowerCase();
 
   const metaGrupoDetalle = (g) =>
@@ -604,63 +533,12 @@ const ingresosPorFuente = fuentesIngresoNormalizadas.map((fuente, idx)=>{
     ? cfg.categorias.find(c => c.id === filtroCatInicio)?.label || "Detalle"
     : filtroEstado === "automatico" ? "Débitos automáticos" : filtroEstado === "revisar" ? "Para revisar" : "Detalle";
 
-  const todosVenc=Object.values(data.gastos).flat().filter(g=>g.estado==="pendiente"&&g.vencimiento);
   const overview = buildOverview(allExpenses(data),tc,today);
   const vencUrgentes = overview.attentionCount;
 
-  const alertasProximas = todosVenc
-  .map(g => ({
-    ...g,
-    dias: diasRestantes(g.vencimiento),
-    montoARS: toARS_(g)
-  }))
-  .filter(g => g.dias !== null && g.dias >= 0 && g.dias <= 3)
-  .sort((a, b) => {
-    if (a.dias !== b.dias) return a.dias - b.dias;
-    return b.montoARS - a.montoARS;
-  });
 
-const cantidadAlertasProximas = alertasProximas.length;
-const totalAlertasProximas = alertasProximas.reduce((acc, g) => acc + g.montoARS, 0);
-const mayorAlertaProxima = alertasProximas.length > 0 ? alertasProximas[0] : null;
 
 // ── Home Premium: métricas ejecutivas del mes ───────────────────────────────
-const porcentajeUsoIngreso = totalIngresos > 0 ? Math.round((totalGastos / totalIngresos) * 100) : 0;
-const porcentajeSaldoIngreso = totalIngresos > 0 ? Math.round((saldo / totalIngresos) * 100) : 0;
-const gastosOrdenadosPorMonto = [...gastosDelMes].sort((a, b) => toARS_(b) - toARS_(a));
-const gastoMayorDelMes = gastosOrdenadosPorMonto[0] || null;
-const categoriasConGasto = gastosPorCat.filter((cat) => cat.total > 0).sort((a, b) => b.total - a.total);
-const categoriaMayorDelMes = categoriasConGasto[0] || null;
-const totalOperacionesMes = gastosDelMes.length;
-const ticketPromedioMes = totalOperacionesMes > 0 ? totalGastos / totalOperacionesMes : 0;
-const pagosRealizadosPct = totalGastos > 0 ? Math.round((totalPagado / totalGastos) * 100) : 0;
-const saludFinanciera =
-  totalIngresos <= 0
-    ? { label: "Sin ingresos cargados", color: "#94a3b8", icon: "🧭", detalle: "Cargá ingresos para calcular tu margen real." }
-    : saldo >= 0 && porcentajeUsoIngreso <= 70
-      ? { label: "Muy saludable", color: "#4ade80", icon: "🟢", detalle: "Hay margen para ahorrar o anticipar pagos." }
-      : saldo >= 0 && porcentajeUsoIngreso <= 90
-        ? { label: "Controlado", color: "#fbbf24", icon: "🟡", detalle: "Venís bien; mantené bajo control los gastos principales." }
-        : saldo >= 0
-          ? { label: "Ajustado", color: "#fb923c", icon: "🟠", detalle: "Queda poco margen: priorizá pagos y evitá gastos nuevos." }
-          : { label: "En rojo", color: "#f87171", icon: "🔴", detalle: "Los gastos superan los ingresos: toca ordenar prioridades." };
-const recomendacionHome =
-  totalIngresos <= 0
-    ? "Cargá tus ingresos para ver capacidad real de ahorro y presión de gastos."
-    : saldo < 0
-      ? `Revisá primero ${categoriaMayorDelMes?.label || "la categoría principal"}: concentra ${categoriaMayorDelMes ? fmtARS(categoriaMayorDelMes.total) : fmtARS(0)}.`
-      : totalPendiente > 0
-        ? `Tenés ${fmtARS(totalPendiente)} pendiente. Conviene priorizar vencimientos antes de sumar nuevos gastos.`
-        : `Cierre prolijo: te queda ${fmtARS(saldo)} disponible. Buen momento para separar ahorro.`;
-const accionesHome = [
-  totalIngresos <= 0 && { icon:"💰", titulo:"Cargar ingresos", detalle:"Sumalos para medir tu margen real." },
-  saldo < 0 && { icon:"🧯", titulo:"Reducir presión", detalle:"Revisá primero los gastos más altos." },
-  cantidadAlertasProximas > 0 && { icon:"⚠️", titulo:"Atender vencimientos", detalle:`Hay ${cantidadAlertasProximas} vencimiento${cantidadAlertasProximas > 1 ? "s" : ""} urgente${cantidadAlertasProximas > 1 ? "s" : ""}.` },
-  totalPendiente > 0 && { icon:"⏳", titulo:"Ordenar pagos pendientes", detalle:`Quedan ${fmtARS(totalPendiente)} sin pagar.` },
-  categoriaMayorDelMes && { icon:"🔎", titulo:"Revisar mayor foco", detalle:`${categoriaMayorDelMes.label} explica ${totalGastos > 0 ? Math.round((categoriaMayorDelMes.total / totalGastos) * 100) : 0}% del gasto.` },
-  saldo > 0 && totalPendiente === 0 && { icon:"🏦", titulo:"Reservar ahorro", detalle:`Reservá una parte de ${fmtARS(saldo)} antes del próximo mes.` },
-].filter(Boolean).slice(0, 2);
-const topCategoriasHome = categoriasConGasto.slice(0, 3);
 
 const esDolarConcepto = (nombre) => cfg.conceptosDolar?.includes(nombre);
 
@@ -729,102 +607,28 @@ useEffect(() => {
 // ======================================================
 // 🧩 HANDLERS (acciones del usuario / CRUD / cambios de estado)
 // ======================================================
-const calcularTotalARSDetalle = (items = []) => {
-  if (!Array.isArray(items) || items.length === 0) return 0;
-
-  return items.reduce((acc, item) => {
-    const monedaItem = String(item.moneda || "ARS").trim().toUpperCase();
-    const monto = Number(item.monto ?? item.montoUSD ?? 0);
-
-    const montoARSGuardado = item.montoARSCalculado ?? item.monto_ars_calculado;
-    if (
-      montoARSGuardado !== null &&
-      montoARSGuardado !== undefined &&
-      montoARSGuardado !== "" &&
-      Number.isFinite(Number(montoARSGuardado))
-    ) {
-      return acc + Number(montoARSGuardado);
-    }
-
-    if (monedaItem === "USD") {
-      const tipoCambio = Number(item.tipoCambio ?? item.tipo_cambio ?? tc ?? 1);
-      return acc + monto * (Number.isFinite(tipoCambio) ? tipoCambio : 1);
-    }
-
-    return acc + monto;
-  }, 0);
-};
-
+const calcularTotalARSDetalle = (items = []) => calcularTotalARSDetallePuro(items, tc);
 
 const guardarGastoInterno = async (extra = {}) => {
   let f = { ...form, ...extra };
   const owner=authUser.usuarioId;
   const isCurrentDraft = () => sessionRef.current===owner && saveScopeRef.current.period===mesKey && saveScopeRef.current.view==="cargar";
 
-  const conceptoLimpio = String(f.servicio || "").trim();
-  const montoNumero = Number(f.monto || 0);
-  const diaNumero = Number(f.dia || 0);
-  const ultimoDiaMes = new Date(mes.y, mes.m + 1, 0).getDate();
-  const esDetalle = f.tipoGasto === "detalle";
-  const medioPagoValido =
-    !!f.medioPagoId &&
-    f.medioPagoId !== "mp_sin_definir";
-
-  const instrumentoSeleccionado = (cfg.instrumentosPago || []).find((ins) => ins.id === f.instrumentoId);
-  const instrumentoNombreNormalizado = String(instrumentoSeleccionado?.nombre || "")
-    .trim()
-    .toLowerCase();
-  const instrumentoIdNormalizado = String(f.instrumentoId || "")
-    .trim()
-    .toLowerCase();
-
-  const instrumentoValido =
-    !!f.instrumentoId &&
-    !instrumentoIdNormalizado.includes("sin_definir") &&
-    instrumentoNombreNormalizado !== "sin definir";
-
-
-  if (!conceptoLimpio) {
-    toast_("Escribí el concepto del gasto antes de guardar.", "err");
+  const validacion = validarGastoParaGuardar(f, { mes, cfg });
+  if (!validacion.ok) {
+    toast_(validacion.mensaje, "err");
+    if (validacion.abrirDesglose) {
+      abrirSubconceptosConCotizacion({
+        ...f,
+        servicio: String(f.servicio || "").trim(),
+        id: "new_" + Date.now(),
+        moneda: f.moneda || "ARS",
+        subconceptos: f.subconceptos || [],
+      });
+    }
     return;
   }
-
-  f = {
-    ...f,
-    servicio: conceptoLimpio,
-  };
-
-  if (!Number.isInteger(diaNumero) || diaNumero < 1 || diaNumero > ultimoDiaMes) {
-    toast_(`Ingresá un día válido entre 1 y ${ultimoDiaMes}.`, "err");
-    return;
-  }
-
-  if (!medioPagoValido) {
-    toast_("Seleccioná un medio de pago para evitar que quede sin clasificar.", "err");
-    return;
-  }
-
-  if (!instrumentoValido) {
-    toast_("Seleccioná cómo pagaste antes de guardar.", "err");
-    return;
-  }
-
-
-  if (!esDetalle && (!Number.isFinite(montoNumero) || montoNumero <= 0)) {
-    toast_("Ingresá un monto mayor a cero.", "err");
-    return;
-  }
-
-  if (esDetalle && (!f.subconceptos || f.subconceptos.length === 0)) {
-    toast_("Primero agregá ítems al desglose y tocá ‘Guardar desglose y volver’.", "err");
-    abrirSubconceptosConCotizacion({
-      ...f,
-      id: "new_" + Date.now(),
-      moneda: f.moneda || "ARS",
-      subconceptos: f.subconceptos || [],
-    });
-    return;
-  }
+  f = validacion.f;
 
   // Refresh this month before writing: a second device may have registered the charge.
   let latest;
@@ -998,7 +802,7 @@ try {
     : Number(f.monto || 0);
 
 
-  await crearGasto({
+  const gastoCreado = await crearGasto({
     periodo: mesKey,
     dia: f.dia,
     categoria: f.categoria || categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
@@ -1047,7 +851,10 @@ try {
       crearConceptoPendiente: false,
     });
 
-    if(synced)toast_("Gasto guardado correctamente");
+    if(synced){
+      if(cargarNuevo&&gastoCreado?.movimiento_id)mostrarDeshacerCarga({id:gastoCreado.movimiento_id,periodo:mesKey,servicio:f.servicio,monto:montoReal(f,tc)});
+      else toast_("Gasto guardado correctamente");
+    }
   } catch (e) {
     console.error(e);
     toast_(e.message || "No se pudo guardar", "err");
@@ -1068,11 +875,7 @@ try {
 
   const _guardarNuevo=(f)=>{
     const nuevo={...f,monto:Number(f.monto),id:Date.now(),subconceptos:f.subconceptos||[]};
-    setData(prev=>{
-      const updated={...prev,gastos:{...prev.gastos,[mesKey]:[...(prev.gastos[mesKey]||[]),nuevo]}};
-      syncSheets("gastos", mesKey, updated.gastos[mesKey]);
-      return updated;
-    });
+    setData(prev=>({...prev,gastos:{...prev.gastos,[mesKey]:[...(prev.gastos[mesKey]||[]),nuevo]}}));
     if(f.esRecurrente&&!f.recurrenteId) setRecurrentes(prev=>[...prev,{id:Date.now()+1,categoria:f.categoria,formaPago:f.formaPago,servicio:f.servicio,monto:f.monto,moneda:f.moneda,observacion:f.observacion}]);
     setForm(p=>({...p,servicio:"",monto:"",observacion:"",dia:String(now.getDate()),esRecurrente:false,vencimiento:"",subconceptos:[],requiereRevision:false,motivoRevision:null,origenMovimiento:null}));
     toast_("Gasto guardado correctamente");
@@ -1080,11 +883,7 @@ try {
 
   const handleAcumular=()=>{
     const {existente,nuevo}=acumModal;
-    setData(prev=>{
-      const updated={...prev,gastos:{...prev.gastos,[mesKey]:prev.gastos[mesKey].map(g=>g.id===existente.id?{...g,monto:g.monto+nuevo.monto}:g)}};
-      syncSheets("gastos", mesKey, updated.gastos[mesKey]);
-      return updated;
-    });
+    setData(prev=>({...prev,gastos:{...prev.gastos,[mesKey]:prev.gastos[mesKey].map(g=>g.id===existente.id?{...g,monto:g.monto+nuevo.monto}:g)}}));
     setAcumModal(null);
     setForm(p=>({...p,servicio:"",monto:"",observacion:"",dia:String(now.getDate()),esRecurrente:false,vencimiento:"",subconceptos:[],requiereRevision:false,motivoRevision:null,origenMovimiento:null}));
     toast_(`+${fmtARS(nuevo.monto)} sumado a ${existente.servicio}`);
@@ -1310,7 +1109,7 @@ const handleSubconceptosSave = (items) => {
   setIngForm({fuente:"",monto:"",dia:String(new Date().getDate())}); setSueldoInput("");
   setEditingGasto(null); setEditingMesKey(null); setConfirmDel(null); setSubconceptosGasto(null); setAcumModal(null); setReplicarStep(null);
   setEditConcepto(null); setEditMedio(null); setNuevoMedio({nombre:"",tipo:"banco",color:"#60a5fa",ordenVisual:""});
-  setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null); setDesglosesAbiertos({});
+  setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null);
   setCfgTab("conceptos"); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
 };
 const refrescarMes = async (periodo, owner = authUser?.usuarioId) => {
@@ -1374,19 +1173,7 @@ const eliminar = async () => {
 };
   //const eliminar=(tipo,id)=>{ setData(prev=>({...prev,[tipo]:{...prev[tipo],[mesKey]:(prev[tipo][mesKey]||[]).filter(g=>g.id!==id)}})); setConfirmDel(null); toast_("Eliminado","err"); };
   const cambiarMes=(dir)=>setMes(prev=>{ let m=prev.m+dir,y=prev.y; if(m>11){m=0;y++;} if(m<0){m=11;y--;} return{y,m}; });
-  const exportCSV=()=>{
-    const rows=[["Dia","Medio de pago","Concepto","Importe registrado","Moneda","Total ARS","Débito automático","Estado","Vencimiento","Por revisar","Nota"]];
-    gastosDelMes.forEach(g=>rows.push([g.dia,g.medioPagoNombre||g.medioPago||"",g.servicio,Number(g.monto),g.moneda,montoReal(g,tc),isAutomaticDebit(g)?"Sí":"No",g.estado,g.vencimiento||"",g.requiereRevision?"Sí":"No",g.observacion||""]));
-    const cell=value=>{const text=String(value??"");const safe=typeof value==='string'&&/^[=+@\-\t\r]/.test(text)?"'"+text:text;return '"'+safe.replace(/"/g,'""')+'"';};
-    const url=URL.createObjectURL(new Blob(['\ufeff'+rows.map(row=>row.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));
-    const a=document.createElement('a');a.href=url;a.download=`gastos_${mesKey}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast_("CSV exportado");
-  };
 
-  const addForma=()=>{if(!newForma.trim()||cfg.formasPago.includes(newForma.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,formasPago:[...p.formasPago,newForma.trim()]}));setNewForma("");toast_("Agregado");};
-  const saveForma=()=>{if(!editForma?.val.trim())return;setCfg(p=>{const fp=[...p.formasPago];fp[editForma.idx]=editForma.val.trim();return{...p,formasPago:fp};});setEditForma(null);toast_("Actualizado");};
-  const delForma=(idx)=>{setCfg(p=>({...p,formasPago:p.formasPago.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
-  const addServ=()=>{if(!selCatServ||!newServ.trim()){toast_("Completá campos","err");return;}setCfg(p=>{const s={...p.servicios};s[selCatServ]=[...(s[selCatServ]||[]),newServ.trim()];return{...p,servicios:s};});setNewServ("");toast_("Agregado");};
-  const delServ=(catId,idx)=>{setCfg(p=>{const s={...p.servicios};s[catId]=(s[catId]||[]).filter((_,i)=>i!==idx);return{...p,servicios:s};});toast_("Eliminado","err");};
   const addFuente=()=>{if(!newFuente.trim()||cfg.fuentesIngreso.includes(newFuente.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,fuentesIngreso:[...p.fuentesIngreso,newFuente.trim()]}));setNewFuente("");toast_("Agregado");};
   const saveFuente=()=>{if(!editFuente?.val.trim())return;setCfg(p=>{const f=[...p.fuentesIngreso];f[editFuente.idx]=editFuente.val.trim();return{...p,fuentesIngreso:f};});setEditFuente(null);toast_("Actualizado");};
   const delFuente=(idx)=>{setCfg(p=>({...p,fuentesIngreso:p.fuentesIngreso.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
@@ -1412,19 +1199,6 @@ const eliminar = async () => {
     });
   };
 
-  const toggleEtiquetaConceptoEdit = (etiquetaId) => {
-    setEditConcepto((p) => {
-      if (!p) return p;
-      const actuales = p.etiquetasIds || [];
-      const existe = actuales.includes(etiquetaId);
-      return {
-        ...p,
-        etiquetasIds: existe
-          ? actuales.filter((id) => id !== etiquetaId)
-          : [...actuales, etiquetaId],
-      };
-    });
-  };
 
   const guardarConceptoEditado = async () => {
     if (!editConcepto?.id) return;
@@ -1539,180 +1313,19 @@ const eliminar = async () => {
     } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar el medio de pago", "err"); }
   };
 
-  const categoriasGastoConfigFiltradas = (cfg.categoriasGasto || [])
-    .filter((c) => String(c.nombre || "").toLowerCase().includes(busquedaCategoriaGastoCfg.trim().toLowerCase()))
-    .sort((a,b)=>(Number(a.ordenVisual||99)-Number(b.ordenVisual||99)) || String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
 
-  const etiquetasConfigFiltradas = (cfg.etiquetas || [])
-    .filter((e) => String(e.nombre || "").toLowerCase().includes(busquedaEtiquetaCfg.trim().toLowerCase()))
-    .sort((a,b)=>(Number(a.ordenVisual||99)-Number(b.ordenVisual||99)) || String(a.nombre||"").localeCompare(String(b.nombre||""),"es"));
 
-  const abrirEditarCategoriaGasto = (categoria) => {
-    setEditCategoriaGasto({
-      id: categoria.id,
-      nombre: categoria.nombre || "",
-      color: categoria.color || "#64748b",
-      ordenVisual: categoria.ordenVisual ?? 99,
-      activo: true,
-    });
-  };
 
-  const crearCategoriaGastoCfg = async () => {
-    const nombre = String(nuevaCategoriaGasto.nombre || "").trim();
-    if (!nombre) { toast_("Ingresá un nombre para la categoría", "err"); return; }
-    try {
-      await crearCategoriaGasto({ nombre, color: nuevaCategoriaGasto.color || "#64748b", ordenVisual: nuevaCategoriaGasto.ordenVisual ? Number(nuevaCategoriaGasto.ordenVisual) : undefined, workspaceId: "ws_default" });
-      await refrescarCatalogos();
-      setNuevaCategoriaGasto({ nombre:"", color:"#60a5fa", ordenVisual:"" });
-      toast_("Categoría creada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la categoría", "err"); }
-  };
 
-  const guardarCategoriaGastoEditada = async () => {
-    if (!editCategoriaGasto?.id) return;
-    if (!String(editCategoriaGasto.nombre || "").trim()) { toast_("Ingresá un nombre para la categoría", "err"); return; }
-    try {
-      await actualizarCategoriaGasto({ categoriaGastoId: editCategoriaGasto.id, nombre: editCategoriaGasto.nombre.trim(), color: editCategoriaGasto.color || "#64748b", ordenVisual: Number(editCategoriaGasto.ordenVisual || 99), activo: true });
-      await refrescarCatalogos();
-      setEditCategoriaGasto(null);
-      toast_("Categoría actualizada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la categoría", "err"); }
-  };
 
-  const desactivarCategoriaGastoCfg = async (categoria) => {
-    if (!categoria?.id) return;
-    const ok = await pedirConfirmacion({
-      title: "Desactivar categoría",
-      message: `¿Querés desactivar "${categoria.nombre}"?`,
-      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
-      icon: "⚠️",
-      variant: "warn",
-      confirmLabel: "Desactivar",
-      cancelLabel: "Cancelar",
-    });
-    if (!ok) return;
-    try {
-      await desactivarCategoriaGasto(categoria.id);
-      await refrescarCatalogos();
-      if (editCategoriaGasto?.id === categoria.id) setEditCategoriaGasto(null);
-      toast_("Categoría desactivada", "err");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar la categoría", "err"); }
-  };
 
-  const abrirEditarEtiqueta = (etiqueta) => {
-    setEditEtiqueta({
-      id: etiqueta.id,
-      nombre: etiqueta.nombre || "",
-      color: etiqueta.color || "#64748b",
-      ordenVisual: etiqueta.ordenVisual ?? 99,
-      activo: true,
-    });
-  };
 
-  const crearEtiquetaCfg = async () => {
-    const nombre = String(nuevaEtiqueta.nombre || "").trim();
-    if (!nombre) { toast_("Ingresá un nombre para la etiqueta", "err"); return; }
-    try {
-      await crearEtiqueta({ nombre, color: nuevaEtiqueta.color || "#64748b", ordenVisual: nuevaEtiqueta.ordenVisual ? Number(nuevaEtiqueta.ordenVisual) : undefined, workspaceId: "ws_default" });
-      await refrescarCatalogos();
-      setNuevaEtiqueta({ nombre:"", color:"#f97316", ordenVisual:"" });
-      toast_("Etiqueta creada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo crear la etiqueta", "err"); }
-  };
 
-  const guardarEtiquetaEditada = async () => {
-    if (!editEtiqueta?.id) return;
-    if (!String(editEtiqueta.nombre || "").trim()) { toast_("Ingresá un nombre para la etiqueta", "err"); return; }
-    try {
-      await actualizarEtiqueta({ etiquetaId: editEtiqueta.id, nombre: editEtiqueta.nombre.trim(), color: editEtiqueta.color || "#64748b", ordenVisual: Number(editEtiqueta.ordenVisual || 99), activo: true });
-      await refrescarCatalogos();
-      setEditEtiqueta(null);
-      toast_("Etiqueta actualizada");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo actualizar la etiqueta", "err"); }
-  };
 
-  const desactivarEtiquetaCfg = async (etiqueta) => {
-    if (!etiqueta?.id) return;
-    const ok = await pedirConfirmacion({
-      title: "Desactivar etiqueta",
-      message: `¿Querés desactivar "${etiqueta.nombre}"?`,
-      note: "No se borran gastos históricos. Solo dejará de aparecer como opción activa.",
-      icon: "⚠️",
-      variant: "warn",
-      confirmLabel: "Desactivar",
-      cancelLabel: "Cancelar",
-    });
-    if (!ok) return;
-    try {
-      await desactivarEtiqueta(etiqueta.id);
-      await refrescarCatalogos();
-      if (editEtiqueta?.id === etiqueta.id) setEditEtiqueta(null);
-      toast_("Etiqueta desactivada", "err");
-    } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar la etiqueta", "err"); }
-  };
-
-const ultimoDiaDelMes = (year, monthIndex) => {
-  return new Date(year, monthIndex + 1, 0).getDate();
-};
-
-const moverFechaAlMesSiguiente = (fecha) => {
-  if (!fecha) return "";
-
-  const fechaStr = String(fecha).slice(0, 10);
-  const [anio, mesNumero, diaNumero] = fechaStr.split("-").map(Number);
-
-  if (!anio || !mesNumero || !diaNumero) return "";
-
-  let nuevoMesIndex = mesNumero; // mesNumero viene 1-12; como index siguiente queda igual
-  let nuevoAnio = anio;
-
-  if (nuevoMesIndex > 11) {
-    nuevoMesIndex = 0;
-    nuevoAnio += 1;
-  }
-
-  const diaFinal = Math.min(diaNumero, ultimoDiaDelMes(nuevoAnio, nuevoMesIndex));
-  return `${nuevoAnio}-${String(nuevoMesIndex + 1).padStart(2, "0")}-${String(diaFinal).padStart(2, "0")}`;
-};
-
-const moverDiaAlMesSiguiente = (dia, nextKey) => {
-  const [anio, mesNumero] = String(nextKey).split("-").map(Number);
-  const monthIndex = mesNumero - 1;
-  const diaNum = Number(dia || 1);
-  const diaFinal = Math.min(
-    Number.isFinite(diaNum) && diaNum > 0 ? diaNum : 1,
-    ultimoDiaDelMes(anio, monthIndex)
-  );
-
-  return String(diaFinal);
-};
-
-const prepararSubconceptosParaReplica = (subconceptos = []) => {
-  return (subconceptos || []).map((s, idx) => {
-    const monedaItem = String(s.moneda || "ARS").trim().toUpperCase();
-
-    return {
-      id: undefined,
-      nombre: s.nombre || s.nombreItem || "Item",
-      monto: Number(s.monto ?? s.montoUSD ?? 0),
-      moneda: monedaItem,
-      orden: s.orden || idx + 1,
-      observacion: s.observacion || "",
-
-      // Importante:
-      // Si es USD, NO copiamos tipoCambio ni montoARSCalculado.
-      // El backend lo recalcula con la fecha de vencimiento del nuevo mes.
-      tipoCambio: monedaItem === "USD" ? null : s.tipoCambio ?? null,
-      montoARSCalculado: monedaItem === "USD" ? null : s.montoARSCalculado ?? null,
-    };
-  });
-};
 
   // ── Replicar mes ──
-  const mesKeyAnterior=()=>{ let m=mes.m-1,y=mes.y; if(m<0){m=11;y--;} return getMesKey(y,m); };
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
-  const yaHayMesSiguiente=()=> !!(data.gastos[mesKeySiguiente()]?.length);
   const gastosFuenteReplicar=missingReplicas(gastosDelMes,data.gastos[mesKeySiguiente()]||[]);
   const abrirReplica = () => {
     const recurrent = gastosFuenteReplicar.filter(g=>g.esRecurrente || isAutomaticDebit(g,cfg));
@@ -1849,7 +1462,6 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
 
   // Render gasto en detalle
   // Render gasto en detalle
-  const esDolar_form = esDolarConcepto(form.servicio);
 
   const esConceptoSoloHistorico = (concepto = {}) => {
     const id = String(concepto.id || concepto.conceptoId || "").trim().toLowerCase();
@@ -1867,10 +1479,6 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   const conceptosDisponiblesCarga = conceptosDisponibles.filter(
     (concepto) => !esConceptoSoloHistorico(concepto)
   );
-  const conceptosFiltrados = conceptosDisponiblesCarga.filter((concepto) => {
-    if (!textoConceptoNormalizado) return true;
-    return normalizarTexto(concepto.nombre).includes(textoConceptoNormalizado);
-  });
   const conceptoExactoOcultoCarga = conceptosDisponibles.find(
     (concepto) =>
       esConceptoSoloHistorico(concepto) &&
@@ -1879,15 +1487,36 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
   const conceptoExacto = conceptosDisponiblesCarga.find(
     (concepto) => normalizarTexto(concepto.nombre) === textoConceptoNormalizado
   );
-  const conceptosVisibles = mostrarTodosConceptos
-    ? conceptosFiltrados
-    : conceptosFiltrados.slice(0, textoConceptoNormalizado ? 8 : 10);
 
   const ultimoDiaCarga = new Date(mes.y, mes.m + 1, 0).getDate();
+  const montoDeCarga = (g) => montoReal(g, tc);
+  const atajosCarga = cargarNuevo
+    ? atajosPorNombre(data.gastos, [mesKey, mesAnteriorKey], { limite: 6, montoDe: montoDeCarga, normalizar: normalizarTexto })
+    : [];
+  const resumenCarga = cargarNuevo ? resumenDelMes(data.gastos[mesKey] || [], { montoDe: montoDeCarga }) : null;
+  const comparacionCarga = cargarNuevo
+    ? comparacionConMesAnterior({ conceptoId: form.conceptoId, servicio: form.servicio }, data.gastos[mesAnteriorKey] || [], montoReal(form, tc), { montoDe: montoDeCarga, normalizar: normalizarTexto })
+    : null;
+ const guardarDesdeCarga = async()=>{
+            if(form.estado==="pendiente"&&!form.vencimiento&&!form.requiereRevision){toast_("Agregá una fecha de vencimiento o marcá Revisar después.","err");return;}
+            if(form.tipoGasto==="detalle"&&!form.subconceptos.length){toast_("Agregá los ítems y guardá el desglose.","err");abrirSubconceptosConCotizacion({...form,id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:[]});return;}
+            await guardarGasto();
+          };
+
+ const descartarBorradorCarga = () => {
+  setForm({
+    categoria: "", formaPago: "", servicio: "", monto: "", moneda: "ARS", estado: "pagado", observacion: "",
+    dia: String(now.getDate()), esRecurrente: false, vencimiento: "", subconceptos: [], conceptoId: "",
+    medioPagoId: "", instrumentoId: "", categoriaGastoId: "", etiquetasIds: [], tipoGasto: "simple",
+    accionCompuesto: "nuevo", decisionManual: false, requiereRevision: false, motivoRevision: null,
+    crearConceptoPendiente: false,
+  });
+  setMostrarOpcionesCarga(false);
+};
+
  const aplicarConceptoExistente = (concepto) => {
   if (!concepto) return;
 
-  setMostrarTodosConceptos(false);
   setForm((f) => ({
     ...f,
     conceptoId: concepto.id,
@@ -1902,6 +1531,56 @@ const prepararSubconceptosParaReplica = (subconceptos = []) => {
     formaPago: formaPagoLegacyDesdeInstrumentoId(concepto.instrumentoId || f.instrumentoId),
     decisionManual:false,
     crearConceptoPendiente:false
+  }));
+};
+
+ const mostrarDeshacerCarga = (info) => {
+  if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
+  setDeshacerCarga(info);
+  deshacerTimerRef.current = setTimeout(() => setDeshacerCarga(null), 8000);
+};
+
+ const deshacerUltimoGasto = async () => {
+  const info = deshacerCarga;
+  if (!info || deshaciendoRef.current) return;
+  deshaciendoRef.current = true;
+  const owner = authUser.usuarioId;
+  if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
+  try {
+    await eliminarGasto(info.id);
+    if (sessionRef.current !== owner) return;
+    setData((prev) => ({ ...prev, gastos: { ...prev.gastos, [info.periodo]: (prev.gastos[info.periodo] || []).filter((g) => g.id !== info.id) } }));
+    setDeshacerCarga(null);
+    if (await refrescarMes(info.periodo, owner)) toast_("Listo, el gasto se deshizo");
+  } catch (e) {
+    if (sessionRef.current === owner) {
+      console.error(e);
+      toast_(e.message || "No se pudo deshacer. Buscalo en Movimientos para borrarlo.", "err");
+      setDeshacerCarga(null);
+    }
+  } finally {
+    deshaciendoRef.current = false;
+  }
+};
+
+ const aplicarAtajoCarga = (atajo) => {
+  const u = atajo?.ultimo;
+  if (!atajo) return;
+  const instrumentoId = u?.instrumentoId || "";
+  const medioPagoId = u?.medioPagoId || "";
+  setForm((f) => ({
+    ...f,
+    servicio: atajo.nombre,
+    conceptoId: u?.conceptoId || "",
+    ...(instrumentoId && isAutomaticDebit({ instrumentoId }, cfg) ? { estado: "pendiente" } : {}),
+    medioPagoId: medioPagoId || f.medioPagoId || "mp_sin_definir",
+    instrumentoId: instrumentoId || f.instrumentoId || "",
+    categoriaGastoId: u?.categoriaGastoId || f.categoriaGastoId || "",
+    moneda: u?.moneda || f.moneda || "ARS",
+    categoria: categoriaLegacyDesdeMedioPagoId(medioPagoId || f.medioPagoId),
+    formaPago: formaPagoLegacyDesdeInstrumentoId(instrumentoId || f.instrumentoId),
+    decisionManual: false,
+    crearConceptoPendiente: false,
   }));
 };
 
@@ -2008,37 +1687,6 @@ if (!authUser) {
 // ======================================================
   return (
     <div className="app-shell" data-view={view} style={{ fontFamily:"'DM Sans',sans-serif",minHeight:"100vh",color:"#e2e8f0",margin:"0 auto" }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=Space+Mono:wght@700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0;}
-        input,select{font-family:'DM Sans',sans-serif;}
-        ::-webkit-scrollbar{display:none;}
-        .pb{border:none;border-radius:12px;padding:10px 16px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;font-size:14px;transition:all 0.15s;}
-        .pb:active{transform:scale(0.96);}
-        .card{background:#13131a;border-radius:20px;padding:18px;margin-bottom:12px;border:1px solid #1e1e2e;}
-        .inf{width:100%;background:#1a1a24;border:1.5px solid #2a2a3e;border-radius:12px;padding:11px 13px;color:#e2e8f0;font-size:15px;outline:none;}
-        .inf:focus{border-color:#7c3aed;}
-        select.inf option{background:#1a1a24;}
-        .ni{display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;flex:1;padding:8px 0;border-radius:12px;}
-        .ni:active{background:#1e1e2e;}
-        .toast{position:fixed;top:18px;left:50%;transform:translateX(-50%);z-index:999;display:flex;align-items:flex-start;gap:10px;width:calc(100% - 28px);max-width:440px;padding:12px 14px;border-radius:18px;font-size:14px;animation:fio 2.8s ease;box-shadow:0 18px 45px rgba(0,0,0,.38);backdrop-filter:blur(14px);border:1px solid;}
-        .toast-icon{width:28px;height:28px;border-radius:999px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.08);font-size:15px;flex-shrink:0;}
-        .toast-title{font-weight:800;font-size:13px;margin-bottom:2px;letter-spacing:.01em;}
-        .toast-msg{font-weight:600;font-size:13px;line-height:1.35;overflow-wrap:anywhere;}
-        .toast-ok{background:rgba(20,83,45,.94);border-color:#22c55e;color:#dcfce7;}
-        .toast-err{background:rgba(127,29,29,.94);border-color:#ef4444;color:#fee2e2;}
-        .toast-warn{background:rgba(113,63,18,.94);border-color:#f59e0b;color:#fef3c7;}
-        .toast-info{background:rgba(30,58,95,.94);border-color:#38bdf8;color:#e0f2fe;}
-        @keyframes fio{0%{opacity:0;transform:translateX(-50%) translateY(-10px) scale(.98)}12%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}86%{opacity:1;transform:translateX(-50%) translateY(0) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-8px) scale(.98)}}
-        .pgb{height:6px;border-radius:3px;background:#1e1e2e;overflow:hidden;margin-top:8px;}
-        .pgf{height:100%;border-radius:3px;transition:width 0.5s;}
-        .ov{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;z-index:900;}
-        .ob{background:#13131a;border-radius:20px 20px 0 0;padding:28px 24px;width:100%;max-width:480px;border:1px solid #2a2a3e;}
-        .tb{border:none;border-radius:10px;padding:7px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;font-size:12px;transition:all 0.15s;}
-        .cd{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all 0.15s;flex-shrink:0;}
-        .ei{background:#1a1a24;border:1.5px solid #7c3aed;border-radius:10px;padding:7px 10px;color:#e2e8f0;font-size:14px;outline:none;flex:1;font-family:'DM Sans',sans-serif;}
-        .stat-box{flex:1;background:#13131a;border-radius:16px;padding:12px 14px;border:1px solid #1e1e2e;}
-      `}</style>
       <header className="topbar">
         <div className="brand"><span className="brand-mark"><UiIcon name="chart" size={21}/></span>Mis Finanzas</div>
         <div className="topbar-actions"><span className="avatar" title={authUser.nombre}>{authUser.nombre.slice(0,1)}</span><button className="icon-button" aria-label="Ajustes" onClick={()=>setView("config")}><UiIcon name="settings" size={22}/></button></div>
@@ -2051,6 +1699,14 @@ if (!authUser) {
             <div className="toast-title">{toastVisual.title}</div>
             <div className="toast-msg">{toast.msg}</div>
           </div>
+        </div>
+      )}
+
+      {cargarNuevo&&deshacerCarga&&(
+        <div className="cr-deshacer" role="status" aria-live="polite">
+          <span className="cr-deshacer-icono"><UiIcon name="check" size={18}/></span>
+          <div className="cr-deshacer-texto"><strong>Guardado</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}</small></div>
+          <button type="button" onClick={deshacerUltimoGasto}>Deshacer</button>
         </div>
       )}
 
@@ -2210,14 +1866,11 @@ if (!authUser) {
         {/* CARGAR */}
         {view==="cargar"&&<>
           <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button><button aria-pressed="false" onClick={()=>openSavings({kind:"aporte"})}>Ahorro</button></div>
-          <fieldset className="expense-form-fields" disabled={guardandoGasto}><ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>
+          {cargarNuevo&&resumenCarga&&<div className="cr-mes" aria-label={`Gastos de ${MESES[mes.m].toLowerCase()}`}><div><small>Llevás en {MESES[mes.m].toLowerCase()}</small><strong className="money">{fmtARS(resumenCarga.total)}</strong></div><div className="cr-mes-detalle"><span>Pagado <b className="money">{fmtARS(resumenCarga.pagado)}</b></span><span>Pendiente <b className="money">{fmtARS(resumenCarga.pendiente)}</b></span></div></div>}
+          <fieldset className="expense-form-fields" disabled={guardandoGasto}>{cargarNuevo?<ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} onSelectAtajo={aplicarAtajoCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>:<ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>}
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
-          <button className="primary form-submit" disabled={guardandoGasto} onClick={async()=>{
-            if(form.estado==="pendiente"&&!form.vencimiento&&!form.requiereRevision){toast_("Agregá una fecha de vencimiento o marcá Revisar después.","err");return;}
-            if(form.tipoGasto==="detalle"&&!form.subconceptos.length){toast_("Agregá los ítems y guardá el desglose.","err");abrirSubconceptosConCotizacion({...form,id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:[]});return;}
-            await guardarGasto();
-          }}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button></fieldset>
-          <p className="form-note">Se guardará en {MESES[mes.m].toLowerCase()} de {mes.y}.</p>
+          {cargarNuevo?<div className="cr-guardar"><button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button><p>{(form.servicio||"Gasto")+" · "+fmtARS(montoReal(form,tc))+" · "+(form.estado==="pendiente"?"pendiente":"pagado")+" · "+MESES[mes.m].toLowerCase()+" de "+mes.y}</p></div>:<button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button>}</fieldset>
+          {!cargarNuevo&&<p className="form-note">Se guardará en {MESES[mes.m].toLowerCase()} de {mes.y}.</p>}
           <button className="text-button" onClick={()=>setShowCotizador(!showCotizador)}>{showCotizador?"Ocultar cotización":"Consultar cotización del dólar"}</button>
           {showCotizador&&<CotizadorWidget onSelectTC={(valor,tipo)=>{setCfg(p=>({...p,tipoCambio:valor}));toast_(`Cotización ${tipo}: ${fmtARS(valor)}`);setShowCotizador(false);}}/>}
         </>}
@@ -2382,7 +2035,7 @@ if (!authUser) {
               )}
 
               <div className="card"><span style={lbl}>CONCEPTOS ACTIVOS</span>
-                {conceptosConfigFiltrados.slice(0,80).map(con=>{ const cg=(cfg.categoriasGasto||[]).find(x=>x.id===con.categoriaGastoId); const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); const tags=(con.etiquetasIds||[]).map(id=>(cfg.etiquetas||[]).find(t=>t.id===id)?.nombre).filter(Boolean); return(
+                {conceptosConfigFiltrados.slice(0,80).map(con=>{ const mp=(cfg.mediosPago||[]).find(x=>x.id===con.medioPagoId); const ins=(cfg.instrumentosPago||[]).find(x=>x.id===con.instrumentoId); return(
                   <div key={con.id} style={{ padding:"12px 0",borderBottom:"1px solid #1e1e2e" }}><div style={{ display:"flex",justifyContent:"space-between",gap:10,alignItems:"flex-start" }}><div style={{ flex:1 }}><div style={{ fontSize:15,fontWeight:800,color:"#e2e8f0" }}>{con.nombre}</div><div style={{ fontSize:11,color:"#64748b",marginTop:4,lineHeight:1.6 }}>{normalizarEtiquetaVisual(mp?.nombre, "Medio no definido")} · {normalizarEtiquetaVisual(ins?.nombre, "Manual")} · {con.monedaDefault||"ARS"}</div></div><div style={{ display:"flex",gap:6 }}><button className="icon-button" aria-label={`Editar concepto ${con.nombre}`} onClick={()=>abrirEditarConcepto(con)}><UiIcon name="settings" size={18}/></button><button className="icon-button" aria-label={`Desactivar concepto ${con.nombre}`} onClick={()=>desactivarConceptoCfg(con)}><UiIcon name="trash" size={18}/></button></div></div></div>
                 );})}
                 {conceptosConfigFiltrados.length===0&&<div style={{ fontSize:13,color:"#64748b",padding:"12px 0" }}>No hay conceptos con ese filtro.</div>}

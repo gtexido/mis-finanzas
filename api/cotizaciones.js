@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth } from "./_auth.js";
 import { generarId, normalizarFecha } from "./_db.js";
+import { responderError } from "./_http.js";
 
 export default async function handler(req, res) {
   try {
@@ -126,10 +127,6 @@ export default async function handler(req, res) {
       error: "Método no permitido",
     });
   } catch (error) {
-    console.error("Error en /api/cotizaciones:", error);
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message || "Error interno",
-    });
+    return responderError(res, error, "/api/cotizaciones");
   }
 }

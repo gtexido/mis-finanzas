@@ -30,9 +30,10 @@ CREATE TABLE detalle_movimiento(detalle_id text primary key,movimiento_id text r
 monto numeric check(monto>0),moneda text,tipo_cambio numeric,monto_ars_calculado numeric,orden integer,observacion text,activo boolean);
 CREATE TABLE cotizaciones(fecha date,moneda_origen text,moneda_destino text,tipo text,valor numeric);
 CREATE TABLE parametros(clave text,valor numeric);INSERT INTO parametros VALUES('tipo_cambio_default',1000);
+CREATE TABLE login_fallos(id bigserial primary key,usuario_id text not null,ip text not null,creado_at timestamptz not null default now());
 `);
 async function snapshot(){return Object.fromEntries(await Promise.all(['movimientos','detalle_movimiento','movimiento_etiquetas'].map(async t=>[t,(await pg.query(`SELECT * FROM ${t} ORDER BY 1,2`)).rows])));}
-async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos;');}
+async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos,login_fallos;');}
 async function check(id,title,run){
   await reset();try{results.push({id,title,status:'correcto',...await run()});}
   catch(e){results.push({id,title,status:'fallo',error:String(e.stack)});}
@@ -94,7 +95,7 @@ await check('API-02','Fallo del detalle revierte toda el alta',async()=>{
   return {http:500,databaseUnchanged:true};
 });
 await check('API-03','Violación real de clave foránea revierte el alta',async()=>{
-  const h=await harness();const before=await snapshot();const r=await h.call('gastos.js',{...expense,etiquetasIds:['inexistente']});assert.equal(r.code,500);assert.deepEqual(await snapshot(),before);return {databaseUnchanged:true};
+  const h=await harness();const before=await snapshot();const r=await h.call('gastos.js',{...expense,etiquetasIds:['inexistente']});assert.equal(r.code,409);assert.deepEqual(await snapshot(),before);return {databaseUnchanged:true,http:409};
 });
 await check('API-04','Fallo en edición conserva cabecera, etiquetas y detalle originales',async()=>{
   const id=await seed(),before=await snapshot();const h=await harness({failure:q=>q.startsWith('INSERT INTO detalle_movimiento')});
@@ -163,9 +164,9 @@ await check('API-14','Login por usuario, credenciales inválidas y sin espacio a
   const h=await harness();
   assert.equal((await h.call('auth-login.js',{usuarioId:'  GUSTAVO ',pin:'clave-ficticia-1'})).code,200);
   const before=h.statements.length;
-  assert.equal((await h.call('auth-login.js',{usuarioId:'gustavo',pin:'incorrecta'})).code,401);
   assert.equal((await h.call('auth-login.js',{usuarioId:'desconocido',pin:'incorrecta'})).code,401);
   assert.equal(h.statements.length,before);
+  assert.equal((await h.call('auth-login.js',{usuarioId:'gustavo',pin:'incorrecta'})).code,401);
   assert.equal((await h.call('auth-login.js',{usuarioId:'vane',pin:'clave-ficticia-2'})).code,403);
 });
 await check('API-15','Tercer usuario configurable, acceso propio y fuente sin asignar a Vane',async()=>{
@@ -177,6 +178,31 @@ await check('API-15','Tercer usuario configurable, acceso propio y fuente sin as
     const row=(await snapshot()).movimientos[0];assert.equal(row.usuario_id,'usr_prueba');assert.equal(row.workspace_id,'ws_tercero');assert.equal(row.fuente_ingreso_id,null);
     const original=await harness();assert.equal((await original.call('ingresos-delete.js',{movimientoId:row.movimiento_id},'DELETE')).code,404);
   }finally{await pg.exec("DELETE FROM workspace_usuarios WHERE usuario_id='usr_prueba';DELETE FROM workspaces WHERE workspace_id='ws_tercero'");}
+});
+await check('API-19','Bloqueo de login: 5 fallos, alias del mismo usuario, otro usuario libre y limpieza al entrar',async()=>{
+  const h=await harness();
+  const login=(usuarioId,pin)=>h.call('auth-login.js',{usuarioId,pin});
+  const filas=async()=>Number((await pg.query('SELECT count(*)::int n FROM login_fallos')).rows[0].n);
+  // Usuario inexistente: nunca deja filas
+  for(let i=0;i<8;i++)assert.equal((await login('inventado'+i,'x')).code,401);
+  assert.equal(await filas(),0);
+  // Cinco fallos con alias distintos del mismo usuario suman en un único contador
+  for(const alias of ['gustavo','GUSTAVO','usr_gustavo','  Gustavo ','usr_gustavo'])assert.equal((await login(alias,'mala')).code,401);
+  assert.equal(await filas(),5);
+  // Sexto intento: bloqueado incluso con la clave correcta
+  const bloqueado=await login('gustavo','clave-ficticia-1');
+  assert.equal(bloqueado.code,429);
+  assert.match(bloqueado.payload.error,/Demasiados intentos/);
+  assert.equal(bloqueado.payload.data,undefined);
+  // Otro usuario no se ve afectado y, al entrar bien, sus fallos se limpian
+  assert.equal((await login('vane','mala')).code,401);
+  assert.equal(await filas(),6);
+  assert.equal((await login('vane','clave-ficticia-2')).code,403); // clave correcta; sin espacio activo en este esquema
+  // Pasados 20 minutos el bloqueo de Gustavo vence
+  await pg.exec("UPDATE login_fallos SET creado_at=now()-interval '20 minutes'");
+  assert.equal((await login('gustavo','clave-ficticia-1')).code,200);
+  assert.equal(Number((await pg.query("SELECT count(*)::int n FROM login_fallos WHERE usuario_id='usr_gustavo'")).rows[0].n),0);
+  return {bloqueoTras:5,aliasUnificados:true,inexistentesSinRastro:true};
 });
 await check('API-16','Membresía inactiva rechaza un token todavía válido antes de escribir',async()=>{
   await pg.exec("UPDATE workspace_usuarios SET activo=false WHERE usuario_id='usr_gustavo'");
@@ -290,6 +316,124 @@ await check('SAVE-14','Un gasto convertido conserva su auditoría y rechaza edic
  assert.equal((await h.call('gastos-delete.js',{movimientoId:id},'DELETE')).code,404);
  assert.equal((await h.call('gastos-estado.js',{movimientoId:id,estado:'pendiente'},'PATCH')).code,404);
  assert.deepEqual(await snapshot(),before);assert.equal((await savedRows(h)).length,1);
+});
+
+await check('CALC-02','Réplica al mes siguiente: fechas, día y desglose (src/utils/replicas.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/replicas.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.moverFechaAlMesSiguiente('2026-01-31'),'2026-02-28');assert.equal(m.moverFechaAlMesSiguiente('2028-01-31'),'2028-02-29');
+  assert.equal(m.moverFechaAlMesSiguiente('2026-12-15'),'2027-01-15');assert.equal(m.moverFechaAlMesSiguiente('2026-03-31T00:00:00Z'),'2026-04-30');
+  assert.equal(m.moverFechaAlMesSiguiente(''),'');assert.equal(m.moverFechaAlMesSiguiente('basura'),'');
+  assert.equal(m.moverDiaAlMesSiguiente(31,'2026-02'),'28');assert.equal(m.moverDiaAlMesSiguiente(15,'2026-03'),'15');
+  assert.equal(m.moverDiaAlMesSiguiente(undefined,'2026-03'),'1');assert.equal(m.moverDiaAlMesSiguiente(0,'2026-03'),'1');
+  const items=m.prepararSubconceptosParaReplica([
+    {nombre:'A',monto:10,moneda:'usd',tipoCambio:1000,montoARSCalculado:10000,orden:3},
+    {nombreItem:'B',montoUSD:5},
+    {nombre:'C',monto:20,moneda:'ARS',tipoCambio:1200,montoARSCalculado:24000}]);
+  assert.equal(items.length,3);
+  assert.equal(items[0].moneda,'USD');assert.equal(items[0].tipoCambio,null);assert.equal(items[0].montoARSCalculado,null);assert.equal(items[0].orden,3);assert.equal(items[0].id,undefined);
+  assert.equal(items[1].nombre,'B');assert.equal(items[1].monto,5);assert.equal(items[1].moneda,'ARS');assert.equal(items[1].orden,2);
+  assert.equal(items[2].tipoCambio,1200);assert.equal(items[2].montoARSCalculado,24000);
+  assert.equal(m.prepararSubconceptosParaReplica(null).length,0);assert.equal(m.prepararSubconceptosParaReplica().length,0);
+  return {cases:15};
+});
+
+await check('CALC-04','Conversión a pesos: total del desglose y fecha de conversión (src/utils/conversion.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/conversion.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.calcularTotalARSDetalle([],1000),0);assert.equal(m.calcularTotalARSDetalle(null,1000),0);
+  assert.equal(m.calcularTotalARSDetalle([{monto:100}],1000),100);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'usd'}],1000),10000);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'USD',tipoCambio:1200}],1000),12000);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'USD',montoARSCalculado:15000}],1000),15000);
+  assert.equal(m.calcularTotalARSDetalle([{montoUSD:5,moneda:'USD'},{monto:200}],1000),5200);
+  assert.equal(m.calcularTotalARSDetalle([{monto:10,moneda:'USD'}]),10);
+  const now=new Date(2026,9,15);
+  assert.equal(m.normalizarFechaConversion({vencimiento:'2026-11-05T00:00:00Z'},{now,mesKey:'2026-10'}),'2026-11-05');
+  assert.equal(m.normalizarFechaConversion({fechaOperacion:'2026-10-02'},{now,mesKey:'2026-10'}),'2026-10-02');
+  assert.equal(m.normalizarFechaConversion({fecha_operacion:'2026-10-03'},{now,mesKey:'2026-10'}),'2026-10-03');
+  assert.equal(m.normalizarFechaConversion({dia:7},{now,mesKey:'2026-10'}),'2026-10-07');
+  assert.equal(m.normalizarFechaConversion({},{now,mesKey:'2026-10'}),'2026-10-15');
+  return {cases:13};
+});
+
+await check('CALC-05','Validación de gasto antes de guardar: reglas y orden (src/utils/validarGasto.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/validarGasto.js'));await mod.evaluate();const v=mod.namespace.validarGastoParaGuardar;
+  const ctx={mes:{y:2026,m:1},cfg:{instrumentosPago:[{id:'ins_tarjeta',nombre:'Tarjeta'},{id:'ins_x',nombre:'Sin definir'}]}};
+  const ok={servicio:'  Luz ',monto:'100',dia:'15',medioPagoId:'mp_banco',instrumentoId:'ins_tarjeta',tipoGasto:'simple'};
+  const r=v(ok,ctx);assert.equal(r.ok,true);assert.equal(r.f.servicio,'Luz');assert.equal(r.f.monto,'100');
+  assert.match(v({...ok,servicio:'   '},ctx).mensaje,/concepto/);
+  assert.match(v({...ok,dia:'29'},ctx).mensaje,/entre 1 y 28/);assert.match(v({...ok,dia:'0'},ctx).mensaje,/día válido/);assert.match(v({...ok,dia:'1.5'},ctx).mensaje,/día válido/);
+  assert.equal(v({...ok,dia:'29'},{...ctx,mes:{y:2028,m:1}}).ok,true);
+  assert.match(v({...ok,medioPagoId:'mp_sin_definir'},ctx).mensaje,/medio de pago/);assert.match(v({...ok,medioPagoId:''},ctx).mensaje,/medio de pago/);
+  assert.match(v({...ok,instrumentoId:''},ctx).mensaje,/cómo pagaste/);assert.match(v({...ok,instrumentoId:'ins_sin_definir'},ctx).mensaje,/cómo pagaste/);assert.match(v({...ok,instrumentoId:'ins_x'},ctx).mensaje,/cómo pagaste/);
+  assert.match(v({...ok,monto:'0'},ctx).mensaje,/mayor a cero/);assert.match(v({...ok,monto:'abc'},ctx).mensaje,/mayor a cero/);
+  const d=v({...ok,monto:'',tipoGasto:'detalle',subconceptos:[]},ctx);assert.equal(d.ok,false);assert.equal(d.abrirDesglose,true);
+  assert.equal(v({...ok,monto:'',tipoGasto:'detalle',subconceptos:[{nombre:'a',monto:1}]},ctx).ok,true);
+  assert.match(v({...ok,servicio:'',dia:'99'},ctx).mensaje,/concepto/);
+  return {cases:17};
+});
+
+await check('CALC-06','Cargar nueva: atajos, comparación con el mes anterior y fechas rápidas (src/utils/cargaRapida.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/cargaRapida.js'));await mod.evaluate();const m=mod.namespace;
+  const conceptos=[{id:'c1',nombre:'Supermercado'},{id:'c2',nombre:'Internet'},{id:'c3',nombre:'Alquiler'},{id:'c4',nombre:'Luz'}];
+  const gastos={'2026-10':[{conceptoId:'c2',servicio:'Internet',dia:'5',monto:21900},{conceptoId:'c1',servicio:'Supermercado',dia:'10',monto:30000},{servicio:'supermercado',dia:'20',monto:48500}],'2026-09':[{conceptoId:'c1',servicio:'Supermercado',dia:'12',monto:45000},{conceptoId:'c3',servicio:'Alquiler',dia:'1',monto:320000}]};
+  const a=m.atajosDeConceptos(conceptos,gastos,['2026-10','2026-09'],{limite:3});
+  assert.equal(a.length,3);assert.equal(a[0].concepto.id,'c1');assert.equal(a[0].usos,3);assert.equal(a[0].ultimo.monto,48500);
+  assert.equal(a[1].concepto.id,'c2');assert.equal(a[2].concepto.id,'c3');
+  const todos=m.atajosDeConceptos(conceptos,{},[],{});assert.equal(todos.length,4);assert.equal(todos[0].usos,0);assert.equal(todos[0].ultimo,null);
+  const c1=m.comparacionConMesAnterior({conceptoId:'c1',servicio:'Supermercado'},gastos['2026-09'],48600);assert.equal(c1.anterior,45000);assert.equal(c1.porcentaje,8);assert.equal(c1.estado,'sube');
+  assert.equal(m.comparacionConMesAnterior({conceptoId:'c1'},gastos['2026-09'],45000).estado,'igual');assert.equal(m.comparacionConMesAnterior({conceptoId:'c1'},gastos['2026-09'],22500).estado,'baja');
+  assert.equal(m.comparacionConMesAnterior({conceptoId:'c1'},gastos['2026-09'],0).estado,'sin_importe');assert.equal(m.comparacionConMesAnterior({conceptoId:'c2'},gastos['2026-09'],100),null);
+  assert.equal(m.comparacionConMesAnterior({servicio:' SUPERMERCADO '},gastos['2026-09'],45000).anterior,45000);
+  const v=m.vencimientosRapidos(new Date(2026,9,30));assert.equal(v.length,3);assert.equal(v[0].fecha,'2026-10-31');assert.equal(v[0].detalle,'sáb 31 oct');assert.equal(v[1].fecha,'2026-11-06');assert.equal(v[2].fecha,'2026-11-10');
+  assert.equal(m.vencimientosRapidos(new Date(2026,9,5))[2].fecha,'2026-10-10');assert.equal(m.vencimientosRapidos(new Date(2026,11,28))[1].fecha,'2027-01-04');assert.equal(m.vencimientosRapidos(new Date(2026,11,28))[2].fecha,'2027-01-10');
+  const d=m.diasRapidos(new Date(2026,9,30),{y:2026,m:9});assert.equal(d.length,2);assert.equal(d[0].dia,'30');assert.equal(d[1].dia,'29');assert.equal(d[1].detalle,'jue 29 oct');
+  assert.equal(m.diasRapidos(new Date(2026,9,1),{y:2026,m:9}).length,1);assert.equal(m.diasRapidos(new Date(2026,9,30),{y:2026,m:8}).length,0);
+  const n=m.atajosPorNombre({'2026-10':[{servicio:'Kiosco',dia:'3',monto:1000,medioPagoId:'mp1',instrumentoId:'i1'},{servicio:' kiosco ',dia:'20',monto:2500,medioPagoId:'mp2',instrumentoId:'i2',conceptoId:'c9'},{servicio:'Pollo',dia:'8',monto:7000},{servicio:'',dia:'9',monto:5}],'2026-09':[{servicio:'Pollo',dia:'2',monto:6000},{servicio:'Internet',dia:'5',monto:21900}]},['2026-10','2026-09'],{limite:2});
+  assert.equal(n.length,2);assert.equal(n[0].nombre,'kiosco');assert.equal(n[0].usos,2);assert.equal(n[0].ultimo.monto,2500);assert.equal(n[0].ultimo.medioPagoId,'mp2');assert.equal(n[0].ultimo.conceptoId,'c9');
+  assert.equal(n[1].nombre,'Pollo');assert.equal(n[1].usos,2);assert.equal(n[1].ultimo.monto,7000);assert.equal(m.atajosPorNombre({},[],{}).length,0);
+  const r=m.resumenDelMes([{monto:100,estado:'pagado'},{monto:50,estado:'pendiente'},{monto:25}],{});assert.equal(r.total,175);assert.equal(r.pagado,125);assert.equal(r.pendiente,50);assert.equal(r.cantidad,3);assert.equal(m.resumenDelMes([],{}).total,0);
+  return {cases:33};
+});
+
+// ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
+const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
+await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
+  const h=await harness();const r=await h.call('gastos.js',{...expense,etiquetasIds:['inexistente']});
+  assert.equal(r.code,409,JSON.stringify(r.payload));assert.match(r.payload.error,/no existe/);assert.doesNotMatch(r.payload.error,TECNICO);
+  assert.ok(h.errors.length>=1,'el detalle técnico debe quedar en el log del servidor');
+  return {http:409,message:r.payload.error};
+});
+await check('ERR-02','Falla inesperada responde 500 genérico y deja el detalle solo en el log',async()=>{
+  const h=await harness({failure:q=>q.startsWith('INSERT INTO detalle_movimiento')});const r=await h.call('gastos.js',expense);
+  assert.equal(r.code,500);assert.doesNotMatch(r.payload.error,/Fallo de escritura/);assert.match(r.payload.error,/Intentá de nuevo/);
+  assert.ok(h.errors.some(e=>/Fallo de escritura/.test(e)),'el log debe conservar el detalle');
+  return {http:500,message:r.payload.error};
+});
+await check('ERR-03','Tabla inexistente no filtra nombres internos de la base en la respuesta',async()=>{
+  const h=await harness();const r=await h.call('catalogos-admin.js',{recurso:'concepto',conceptoId:'con_x',nombre:'Prueba'},'PUT');
+  assert.equal(r.code,500,JSON.stringify(r.payload));assert.doesNotMatch(r.payload.error,TECNICO);assert.doesNotMatch(r.payload.error,/conceptos/i);
+  return {http:500,message:r.payload.error};
+});
+await check('ERR-04','Catálogos: datos faltantes responden 400 y recursos inexistentes 404, con su mensaje',async()=>{
+  const h=await harness();
+  const sinNombre=await h.call('catalogos-admin.js',{recurso:'concepto'},'POST');assert.equal(sinNombre.code,400);assert.equal(sinNombre.payload.error,'Falta nombre del concepto');
+  const sinId=await h.call('catalogos-admin.js',{recurso:'etiqueta'},'DELETE');assert.equal(sinId.code,400);assert.equal(sinId.payload.error,'Falta etiquetaId');
+  const sinRecurso=await h.call('catalogos-admin.js',{},'POST');assert.equal(sinRecurso.code,400);
+  return {http:[400,400,400]};
+});
+await check('ERR-05','Traducción de errores reales de PostgreSQL: dato inválido 400, conflicto 409, otro 500',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'api/_http.js'));await mod.evaluate();const {traducirError}=mod.namespace;
+  const fail=async q=>{try{await pg.query(q);}catch(e){return e;}throw Error('La consulta debía fallar: '+q);};
+  const check_=traducirError(await fail("INSERT INTO movimientos(movimiento_id,monto) VALUES('x',-1)"));
+  const nulo=traducirError(await fail("INSERT INTO etiquetas VALUES(NULL)"));
+  const duplicado=traducirError(await fail("INSERT INTO etiquetas VALUES('tag_a')"));
+  const fk=traducirError(await fail("INSERT INTO movimiento_etiquetas VALUES('no_existe','tag_a')"));
+  const sintaxis=traducirError(await fail("SELEC 1"));
+  assert.equal(check_.status,400);assert.equal(nulo.status,400);assert.equal(duplicado.status,409);assert.equal(fk.status,409);assert.equal(sintaxis.status,500);
+  for(const t of [check_,nulo,duplicado,fk,sintaxis])assert.doesNotMatch(t.mensaje,TECNICO);
+  assert.equal(traducirError(Object.assign(Error('Mensaje propio'),{statusCode:403})).mensaje,'Mensaje propio');
+  assert.equal(traducirError(Object.assign(Error('interno'),{statusCode:500})).status,500);
+  return {check:check_.status,notNull:nulo.status,unique:duplicado.status,foreignKey:fk.status,syntax:sintaxis.status};
 });
 
 await fs.writeFile(path.join(out,'resultados-api-postgres.json'),JSON.stringify(results,null,2));await pg.close();

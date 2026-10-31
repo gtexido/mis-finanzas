@@ -1,6 +1,7 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import savingsHandler from "./_savings.js";
+import { responderError } from "./_http.js";
 
 export default async function handler(req, res) {
   try {
@@ -176,11 +177,6 @@ export default async function handler(req, res) {
       },
     });
   } catch (error) {
-    console.error("Error en /api/movimientos:", error);
-
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message || "Error interno",
-    });
+    return responderError(res, error, "/api/movimientos");
   }
 }

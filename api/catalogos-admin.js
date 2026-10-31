@@ -1,5 +1,6 @@
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
+import { responderError, httpError } from "./_http.js";
 
 function normalizarTexto(value) {
   return String(value || "").trim();
@@ -100,7 +101,7 @@ async function crearConcepto(sql, body) {
   const nombre = normalizarTexto(body.nombre);
   const tipoMovimiento = body.tipoMovimiento || body.tipo_movimiento || "GASTO";
 
-  if (!nombre) throw new Error("Falta nombre del concepto");
+  if (!nombre) throw httpError(400, "Falta nombre del concepto");
 
   const existente = await sql`
     SELECT *
@@ -230,7 +231,7 @@ async function crearConcepto(sql, body) {
 
 async function actualizarConcepto(sql, body) {
   const conceptoId = body.conceptoId || body.concepto_id;
-  if (!conceptoId) throw new Error("Falta conceptoId");
+  if (!conceptoId) throw httpError(400, "Falta conceptoId");
 
   const actual = await sql`
     SELECT *
@@ -240,10 +241,10 @@ async function actualizarConcepto(sql, body) {
     LIMIT 1;
   `;
 
-  if (actual.length === 0) throw new Error("Concepto no encontrado");
+  if (actual.length === 0) throw httpError(404, "Concepto no encontrado");
 
   const nombre = normalizarTexto(body.nombre);
-  if (!nombre) throw new Error("Falta nombre del concepto");
+  if (!nombre) throw httpError(400, "Falta nombre del concepto");
 
   const workspaceId =
     body.workspaceId || body.workspace_id || actual[0].workspace_id;
@@ -323,7 +324,7 @@ async function actualizarConcepto(sql, body) {
 
 async function desactivarConcepto(sql, body) {
   const conceptoId = body.conceptoId || body.concepto_id;
-  if (!conceptoId) throw new Error("Falta conceptoId");
+  if (!conceptoId) throw httpError(400, "Falta conceptoId");
   const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
@@ -334,7 +335,7 @@ async function desactivarConcepto(sql, body) {
     RETURNING *;
   `;
 
-  if (updated.length === 0) throw new Error("Concepto no encontrado");
+  if (updated.length === 0) throw httpError(404, "Concepto no encontrado");
 
   return { data: updated[0] };
 }
@@ -345,7 +346,7 @@ async function crearMedioPago(sql, body) {
   const tipo = normalizarTexto(body.tipo || "banco").toLowerCase();
   const color = body.color || colorDefault(tipo);
 
-  if (!nombre) throw new Error("Falta nombre del medio de pago");
+  if (!nombre) throw httpError(400, "Falta nombre del medio de pago");
 
   const existente = await sql`
     SELECT *
@@ -408,7 +409,7 @@ async function crearMedioPago(sql, body) {
 
 async function actualizarMedioPago(sql, body) {
   const medioPagoId = body.medioPagoId || body.medio_pago_id;
-  if (!medioPagoId) throw new Error("Falta medioPagoId");
+  if (!medioPagoId) throw httpError(400, "Falta medioPagoId");
 
   const actual = await sql`
     SELECT *
@@ -418,13 +419,13 @@ async function actualizarMedioPago(sql, body) {
     LIMIT 1;
   `;
 
-  if (actual.length === 0) throw new Error("Medio de pago no encontrado");
+  if (actual.length === 0) throw httpError(404, "Medio de pago no encontrado");
 
   const workspaceId =
     body.workspaceId || body.workspace_id || actual[0].workspace_id;
 
   const nombre = normalizarTexto(body.nombre);
-  if (!nombre) throw new Error("Falta nombre del medio de pago");
+  if (!nombre) throw httpError(400, "Falta nombre del medio de pago");
 
   const duplicado = await sql`
     SELECT medio_pago_id
@@ -474,7 +475,7 @@ async function actualizarMedioPago(sql, body) {
 
 async function desactivarMedioPago(sql, body) {
   const medioPagoId = body.medioPagoId || body.medio_pago_id;
-  if (!medioPagoId) throw new Error("Falta medioPagoId");
+  if (!medioPagoId) throw httpError(400, "Falta medioPagoId");
   const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
@@ -485,7 +486,7 @@ async function desactivarMedioPago(sql, body) {
     RETURNING *;
   `;
 
-  if (updated.length === 0) throw new Error("Medio de pago no encontrado");
+  if (updated.length === 0) throw httpError(404, "Medio de pago no encontrado");
 
   return { data: updated[0] };
 }
@@ -495,7 +496,7 @@ async function crearCategoriaGasto(sql, body) {
   const nombre = normalizarTexto(body.nombre);
   const color = body.color || "#94a3b8";
 
-  if (!nombre) throw new Error("Falta nombre de la categoría");
+  if (!nombre) throw httpError(400, "Falta nombre de la categoría");
 
   const existente = await sql`
     SELECT *
@@ -556,7 +557,7 @@ async function crearCategoriaGasto(sql, body) {
 
 async function actualizarCategoriaGasto(sql, body) {
   const categoriaGastoId = body.categoriaGastoId || body.categoria_gasto_id;
-  if (!categoriaGastoId) throw new Error("Falta categoriaGastoId");
+  if (!categoriaGastoId) throw httpError(400, "Falta categoriaGastoId");
 
   const actual = await sql`
     SELECT *
@@ -566,13 +567,13 @@ async function actualizarCategoriaGasto(sql, body) {
     LIMIT 1;
   `;
 
-  if (actual.length === 0) throw new Error("Categoría no encontrada");
+  if (actual.length === 0) throw httpError(404, "Categoría no encontrada");
 
   const workspaceId =
     body.workspaceId || body.workspace_id || actual[0].workspace_id;
 
   const nombre = normalizarTexto(body.nombre);
-  if (!nombre) throw new Error("Falta nombre de la categoría");
+  if (!nombre) throw httpError(400, "Falta nombre de la categoría");
 
   const duplicado = await sql`
     SELECT categoria_gasto_id
@@ -620,7 +621,7 @@ async function actualizarCategoriaGasto(sql, body) {
 
 async function desactivarCategoriaGasto(sql, body) {
   const categoriaGastoId = body.categoriaGastoId || body.categoria_gasto_id;
-  if (!categoriaGastoId) throw new Error("Falta categoriaGastoId");
+  if (!categoriaGastoId) throw httpError(400, "Falta categoriaGastoId");
   const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
@@ -631,7 +632,7 @@ async function desactivarCategoriaGasto(sql, body) {
     RETURNING *;
   `;
 
-  if (updated.length === 0) throw new Error("Categoría no encontrada");
+  if (updated.length === 0) throw httpError(404, "Categoría no encontrada");
 
   return { data: updated[0] };
 }
@@ -641,7 +642,7 @@ async function crearEtiqueta(sql, body) {
   const nombre = normalizarTexto(body.nombre);
   const color = body.color || "#94a3b8";
 
-  if (!nombre) throw new Error("Falta nombre de la etiqueta");
+  if (!nombre) throw httpError(400, "Falta nombre de la etiqueta");
 
   const existente = await sql`
     SELECT *
@@ -702,7 +703,7 @@ async function crearEtiqueta(sql, body) {
 
 async function actualizarEtiqueta(sql, body) {
   const etiquetaId = body.etiquetaId || body.etiqueta_id;
-  if (!etiquetaId) throw new Error("Falta etiquetaId");
+  if (!etiquetaId) throw httpError(400, "Falta etiquetaId");
 
   const actual = await sql`
     SELECT *
@@ -712,13 +713,13 @@ async function actualizarEtiqueta(sql, body) {
     LIMIT 1;
   `;
 
-  if (actual.length === 0) throw new Error("Etiqueta no encontrada");
+  if (actual.length === 0) throw httpError(404, "Etiqueta no encontrada");
 
   const workspaceId =
     body.workspaceId || body.workspace_id || actual[0].workspace_id;
 
   const nombre = normalizarTexto(body.nombre);
-  if (!nombre) throw new Error("Falta nombre de la etiqueta");
+  if (!nombre) throw httpError(400, "Falta nombre de la etiqueta");
 
   const duplicado = await sql`
     SELECT etiqueta_id
@@ -766,7 +767,7 @@ async function actualizarEtiqueta(sql, body) {
 
 async function desactivarEtiqueta(sql, body) {
   const etiquetaId = body.etiquetaId || body.etiqueta_id;
-  if (!etiquetaId) throw new Error("Falta etiquetaId");
+  if (!etiquetaId) throw httpError(400, "Falta etiquetaId");
   const workspaceId = body.workspaceId || body.workspace_id || "ws_default";
 
   const updated = await sql`
@@ -777,7 +778,7 @@ async function desactivarEtiqueta(sql, body) {
     RETURNING *;
   `;
 
-  if (updated.length === 0) throw new Error("Etiqueta no encontrada");
+  if (updated.length === 0) throw httpError(404, "Etiqueta no encontrada");
 
   return { data: updated[0] };
 }
@@ -845,11 +846,6 @@ export default async function handler(req, res) {
       ...result,
     });
   } catch (error) {
-    console.error("Error en /api/catalogos-admin:", error);
-
-    return res.status(error.statusCode || 500).json({
-      ok: false,
-      error: error.message || "Error interno",
-    });
+    return responderError(res, error, "/api/catalogos-admin");
   }
 }
