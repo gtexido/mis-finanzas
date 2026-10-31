@@ -10,6 +10,7 @@
 // Lógica:
 //   - atajosPorNombre: agrupa los gastos por nombre escrito, los ordena por usos
 //     (más usados primero) y trae el último importe, cuenta y forma de pago.
+//   - resumenDelMes: total, pagado y pendiente del mes para mostrar en Cargar.
 //   - atajosDeConceptos (ya no se usa en pantalla): ordena los conceptos por cantidad de usos en los meses
 //     indicados (más usados primero) y trae el importe del último uso.
 //   - comparacionConMesAnterior: suma lo pagado el mes anterior por el mismo
@@ -102,6 +103,20 @@ export const atajosPorNombre = (
       a.orden - b.orden
     )
     .slice(0, limite);
+};
+
+export const resumenDelMes = (gastos = [], { montoDe = montoBasico } = {}) => {
+  let total = 0;
+  let pagado = 0;
+  let pendiente = 0;
+  (gastos || []).forEach((g) => {
+    const monto = montoDe(g);
+    if (!Number.isFinite(monto)) return;
+    total += monto;
+    if (g.estado === "pendiente") pendiente += monto;
+    else pagado += monto;
+  });
+  return { total, pagado, pendiente, cantidad: (gastos || []).length };
 };
 
 export const comparacionConMesAnterior = (
