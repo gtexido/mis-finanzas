@@ -3,11 +3,14 @@
 // Cálculos de la pantalla Cargar nueva (atajos, comparación y fechas rápidas).
 //
 // Fuentes:
-//   - Conceptos de la configuración (cfg.conceptos).
+//   - Nombre (servicio) escrito en los gastos ya cargados. No depende de que
+//     existan conceptos en la configuración.
 //   - Gastos ya cargados del mes seleccionado y del mes anterior.
 //
 // Lógica:
-//   - atajosDeConceptos: ordena los conceptos por cantidad de usos en los meses
+//   - atajosPorNombre: agrupa los gastos por nombre escrito, los ordena por usos
+//     (más usados primero) y trae el último importe, cuenta y forma de pago.
+//   - atajosDeConceptos (ya no se usa en pantalla): ordena los conceptos por cantidad de usos en los meses
 //     indicados (más usados primero) y trae el importe del último uso.
 //   - comparacionConMesAnterior: suma lo pagado el mes anterior por el mismo
 //     concepto y lo compara con el importe que se está cargando.
@@ -59,6 +62,43 @@ export const atajosDeConceptos = (
       b.usos - a.usos ||
       posicion(a) - posicion(b) ||
       String(a.concepto.nombre || "").localeCompare(String(b.concepto.nombre || ""), "es") ||
+      a.orden - b.orden
+    )
+    .slice(0, limite);
+};
+
+export const atajosPorNombre = (
+  gastosPorMes = {},
+  meses = [],
+  { limite = 6, montoDe = montoBasico, normalizar = normalizarBasico } = {}
+) => {
+  const grupos = new Map();
+  meses.forEach((mesKey, posMes) => {
+    const delMes = [...(gastosPorMes[mesKey] || [])].sort((a, b) => Number(b.dia || 0) - Number(a.dia || 0));
+    delMes.forEach((gasto) => {
+      const clave = normalizar(gasto.servicio);
+      if (!clave) return;
+      let grupo = grupos.get(clave);
+      if (!grupo) {
+        grupo = { nombre: String(gasto.servicio).trim(), usos: 0, ultimo: null, posMes, orden: grupos.size };
+        grupos.set(clave, grupo);
+      }
+      grupo.usos += 1;
+      if (!grupo.ultimo) {
+        grupo.ultimo = {
+          monto: montoDe(gasto), moneda: gasto.moneda || "ARS", periodo: mesKey, dia: gasto.dia,
+          medioPagoId: gasto.medioPagoId || "", instrumentoId: gasto.instrumentoId || "",
+          categoriaGastoId: gasto.categoriaGastoId || "", conceptoId: gasto.conceptoId || "",
+        };
+        grupo.posMes = posMes;
+      }
+    });
+  });
+  return [...grupos.values()]
+    .sort((a, b) =>
+      b.usos - a.usos ||
+      a.posMes - b.posMes ||
+      a.nombre.localeCompare(b.nombre, "es") ||
       a.orden - b.orden
     )
     .slice(0, limite);

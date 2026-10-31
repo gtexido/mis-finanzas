@@ -11,7 +11,7 @@ import { categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId } fr
 export default function ExpenseFieldsRapido({
   value: f, setValue, config, tc, maxDay = 31, suggestions = [], atajos = [], comparacion = null,
   etiquetaMesAnterior = 'el mes pasado', diasRapidos = [], vencimientos = [],
-  onSelectConcept, onBreakdown, advanced, setAdvanced, onRemember, onDescartar,
+  onSelectConcept, onSelectAtajo, onBreakdown, advanced, setAdvanced, onRemember, onDescartar,
 }) {
   const [cambiarPago, setCambiarPago] = useState(false);
   const [otroDia, setOtroDia] = useState(false);
@@ -44,9 +44,9 @@ export default function ExpenseFieldsRapido({
       : <div className="field">
         <label htmlFor="expense-concept">{mostrarAtajos ? 'Tus gastos de siempre' : '¿Qué gasto querés registrar?'}</label>
         {mostrarAtajos && <div className="cr-atajos">{atajos.map(a => {
-          const med = (config.mediosPago || []).find(m => m.id === a.concepto.medioPagoId);
-          const auto = isAutomaticDebit({ instrumentoId: a.concepto.instrumentoId }, config);
-          return <button type="button" key={a.concepto.id} onClick={() => onSelectConcept(a.concepto)}><strong>{a.concepto.nombre}</strong><span className="money">{montoAtajo(a)}</span><small>{med?.nombre || 'Sin cuenta'}{auto ? ' · débito aut.' : ''}</small></button>;
+          const med = (config.mediosPago || []).find(m => m.id === a.ultimo?.medioPagoId);
+          const auto = a.ultimo?.instrumentoId ? isAutomaticDebit({ instrumentoId: a.ultimo.instrumentoId }, config) : false;
+          return <button type="button" key={a.nombre} onClick={() => onSelectAtajo(a)}><strong>{a.nombre}</strong><span className="money">{montoAtajo(a)}</span><small>{med?.nombre || 'Sin cuenta'}{auto ? ' · débito aut.' : ''}</small></button>;
         })}</div>}
         {mostrarAtajos && <p className="cr-o">¿Es otro gasto?</p>}
         <input id="expense-concept" className="inf" placeholder="Ej: Alquiler, supermercado, internet" value={f.servicio || ''} onChange={e => setValue(p => ({ ...p, servicio: e.target.value, conceptoId: '', crearConceptoPendiente: false, guardarComoConceptoFrecuente: false, categoriaGastoId: '', etiquetasIds: [], accionCompuesto: 'nuevo', decisionManual: false }))} />
