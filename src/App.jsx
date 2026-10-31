@@ -78,7 +78,7 @@ import ReplicateModal from "./components/ReplicateModal";
 import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
-import { atajosPorNombre, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
+import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
 import { leerCargarNuevo } from "./utils/interruptores";
 import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
@@ -168,6 +168,9 @@ export default function App() {
   const [replicaCopiados,setReplicaCopiados]=useState(0);
   const [toast,setToast]=useState(null);
   const toastTimerRef = useRef(null);
+  const [deshacerCarga,setDeshacerCarga]=useState(null);
+  const deshacerTimerRef = useRef(null);
+  const deshaciendoRef = useRef(false);
   const [authUser,setAuthUser]=useState(getSessionUser());
   const sessionRef = useRef(authUser?.usuarioId);
   sessionRef.current = authUser?.usuarioId;
@@ -404,6 +407,7 @@ const persistSavings = async (method,payload) => {
   useEffect(() => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
     };
   }, []);
 
@@ -798,7 +802,7 @@ try {
     : Number(f.monto || 0);
 
 
-  await crearGasto({
+  const gastoCreado = await crearGasto({
     periodo: mesKey,
     dia: f.dia,
     categoria: f.categoria || categoriaLegacyDesdeMedioPagoId(f.medioPagoId),
@@ -847,7 +851,10 @@ try {
       crearConceptoPendiente: false,
     });
 
-    if(synced)toast_("Gasto guardado correctamente");
+    if(synced){
+      if(cargarNuevo&&gastoCreado?.movimiento_id)mostrarDeshacerCarga({id:gastoCreado.movimiento_id,periodo:mesKey,servicio:f.servicio,monto:montoReal(f,tc)});
+      else toast_("Gasto guardado correctamente");
+    }
   } catch (e) {
     console.error(e);
     toast_(e.message || "No se pudo guardar", "err");
@@ -1486,6 +1493,7 @@ const eliminar = async () => {
   const atajosCarga = cargarNuevo
     ? atajosPorNombre(data.gastos, [mesKey, mesAnteriorKey], { limite: 6, montoDe: montoDeCarga, normalizar: normalizarTexto })
     : [];
+  const resumenCarga = cargarNuevo ? resumenDelMes(data.gastos[mesKey] || [], { montoDe: montoDeCarga }) : null;
   const comparacionCarga = cargarNuevo
     ? comparacionConMesAnterior({ conceptoId: form.conceptoId, servicio: form.servicio }, data.gastos[mesAnteriorKey] || [], montoReal(form, tc), { montoDe: montoDeCarga, normalizar: normalizarTexto })
     : null;
@@ -1524,6 +1532,35 @@ const eliminar = async () => {
     decisionManual:false,
     crearConceptoPendiente:false
   }));
+};
+
+ const mostrarDeshacerCarga = (info) => {
+  if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
+  setDeshacerCarga(info);
+  deshacerTimerRef.current = setTimeout(() => setDeshacerCarga(null), 8000);
+};
+
+ const deshacerUltimoGasto = async () => {
+  const info = deshacerCarga;
+  if (!info || deshaciendoRef.current) return;
+  deshaciendoRef.current = true;
+  const owner = authUser.usuarioId;
+  if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
+  try {
+    await eliminarGasto(info.id);
+    if (sessionRef.current !== owner) return;
+    setData((prev) => ({ ...prev, gastos: { ...prev.gastos, [info.periodo]: (prev.gastos[info.periodo] || []).filter((g) => g.id !== info.id) } }));
+    setDeshacerCarga(null);
+    if (await refrescarMes(info.periodo, owner)) toast_("Listo, el gasto se deshizo");
+  } catch (e) {
+    if (sessionRef.current === owner) {
+      console.error(e);
+      toast_(e.message || "No se pudo deshacer. Buscalo en Movimientos para borrarlo.", "err");
+      setDeshacerCarga(null);
+    }
+  } finally {
+    deshaciendoRef.current = false;
+  }
 };
 
  const aplicarAtajoCarga = (atajo) => {
@@ -1662,6 +1699,14 @@ if (!authUser) {
             <div className="toast-title">{toastVisual.title}</div>
             <div className="toast-msg">{toast.msg}</div>
           </div>
+        </div>
+      )}
+
+      {cargarNuevo&&deshacerCarga&&(
+        <div className="cr-deshacer" role="status" aria-live="polite">
+          <span className="cr-deshacer-icono"><UiIcon name="check" size={18}/></span>
+          <div className="cr-deshacer-texto"><strong>Guardado</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}</small></div>
+          <button type="button" onClick={deshacerUltimoGasto}>Deshacer</button>
         </div>
       )}
 
@@ -1821,6 +1866,7 @@ if (!authUser) {
         {/* CARGAR */}
         {view==="cargar"&&<>
           <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button><button aria-pressed="false" onClick={()=>openSavings({kind:"aporte"})}>Ahorro</button></div>
+          {cargarNuevo&&resumenCarga&&<div className="cr-mes" aria-label={`Gastos de ${MESES[mes.m].toLowerCase()}`}><div><small>Llevás en {MESES[mes.m].toLowerCase()}</small><strong className="money">{fmtARS(resumenCarga.total)}</strong></div><div className="cr-mes-detalle"><span>Pagado <b className="money">{fmtARS(resumenCarga.pagado)}</b></span><span>Pendiente <b className="money">{fmtARS(resumenCarga.pendiente)}</b></span></div></div>}
           <fieldset className="expense-form-fields" disabled={guardandoGasto}>{cargarNuevo?<ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} onSelectAtajo={aplicarAtajoCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>:<ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>}
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
           {cargarNuevo?<div className="cr-guardar"><button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button><p>{(form.servicio||"Gasto")+" · "+fmtARS(montoReal(form,tc))+" · "+(form.estado==="pendiente"?"pendiente":"pagado")+" · "+MESES[mes.m].toLowerCase()+" de "+mes.y}</p></div>:<button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button>}</fieldset>

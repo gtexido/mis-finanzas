@@ -391,7 +391,8 @@ await check('CALC-06','Cargar nueva: atajos, comparación con el mes anterior y 
   const n=m.atajosPorNombre({'2026-10':[{servicio:'Kiosco',dia:'3',monto:1000,medioPagoId:'mp1',instrumentoId:'i1'},{servicio:' kiosco ',dia:'20',monto:2500,medioPagoId:'mp2',instrumentoId:'i2',conceptoId:'c9'},{servicio:'Pollo',dia:'8',monto:7000},{servicio:'',dia:'9',monto:5}],'2026-09':[{servicio:'Pollo',dia:'2',monto:6000},{servicio:'Internet',dia:'5',monto:21900}]},['2026-10','2026-09'],{limite:2});
   assert.equal(n.length,2);assert.equal(n[0].nombre,'kiosco');assert.equal(n[0].usos,2);assert.equal(n[0].ultimo.monto,2500);assert.equal(n[0].ultimo.medioPagoId,'mp2');assert.equal(n[0].ultimo.conceptoId,'c9');
   assert.equal(n[1].nombre,'Pollo');assert.equal(n[1].usos,2);assert.equal(n[1].ultimo.monto,7000);assert.equal(m.atajosPorNombre({},[],{}).length,0);
-  return {cases:28};
+  const r=m.resumenDelMes([{monto:100,estado:'pagado'},{monto:50,estado:'pendiente'},{monto:25}],{});assert.equal(r.total,175);assert.equal(r.pagado,125);assert.equal(r.pendiente,50);assert.equal(r.cantidad,3);assert.equal(m.resumenDelMes([],{}).total,0);
+  return {cases:33};
 });
 
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
