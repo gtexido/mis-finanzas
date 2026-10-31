@@ -388,7 +388,10 @@ await check('CALC-06','Cargar nueva: atajos, comparación con el mes anterior y 
   assert.equal(m.vencimientosRapidos(new Date(2026,9,5))[2].fecha,'2026-10-10');assert.equal(m.vencimientosRapidos(new Date(2026,11,28))[1].fecha,'2027-01-04');assert.equal(m.vencimientosRapidos(new Date(2026,11,28))[2].fecha,'2027-01-10');
   const d=m.diasRapidos(new Date(2026,9,30),{y:2026,m:9});assert.equal(d.length,2);assert.equal(d[0].dia,'30');assert.equal(d[1].dia,'29');assert.equal(d[1].detalle,'jue 29 oct');
   assert.equal(m.diasRapidos(new Date(2026,9,1),{y:2026,m:9}).length,1);assert.equal(m.diasRapidos(new Date(2026,9,30),{y:2026,m:8}).length,0);
-  return {cases:22};
+  const n=m.atajosPorNombre({'2026-10':[{servicio:'Kiosco',dia:'3',monto:1000,medioPagoId:'mp1',instrumentoId:'i1'},{servicio:' kiosco ',dia:'20',monto:2500,medioPagoId:'mp2',instrumentoId:'i2',conceptoId:'c9'},{servicio:'Pollo',dia:'8',monto:7000},{servicio:'',dia:'9',monto:5}],'2026-09':[{servicio:'Pollo',dia:'2',monto:6000},{servicio:'Internet',dia:'5',monto:21900}]},['2026-10','2026-09'],{limite:2});
+  assert.equal(n.length,2);assert.equal(n[0].nombre,'kiosco');assert.equal(n[0].usos,2);assert.equal(n[0].ultimo.monto,2500);assert.equal(n[0].ultimo.medioPagoId,'mp2');assert.equal(n[0].ultimo.conceptoId,'c9');
+  assert.equal(n[1].nombre,'Pollo');assert.equal(n[1].usos,2);assert.equal(n[1].ultimo.monto,7000);assert.equal(m.atajosPorNombre({},[],{}).length,0);
+  return {cases:28};
 });
 
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
