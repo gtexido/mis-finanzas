@@ -1495,6 +1495,17 @@ const eliminar = async () => {
             await guardarGasto();
           };
 
+ const descartarBorradorCarga = () => {
+  setForm({
+    categoria: "", formaPago: "", servicio: "", monto: "", moneda: "ARS", estado: "pagado", observacion: "",
+    dia: String(now.getDate()), esRecurrente: false, vencimiento: "", subconceptos: [], conceptoId: "",
+    medioPagoId: "", instrumentoId: "", categoriaGastoId: "", etiquetasIds: [], tipoGasto: "simple",
+    accionCompuesto: "nuevo", decisionManual: false, requiereRevision: false, motivoRevision: null,
+    crearConceptoPendiente: false,
+  });
+  setMostrarOpcionesCarga(false);
+};
+
  const aplicarConceptoExistente = (concepto) => {
   if (!concepto) return;
 
@@ -1789,7 +1800,7 @@ if (!authUser) {
         {/* CARGAR */}
         {view==="cargar"&&<>
           <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button><button aria-pressed="false" onClick={()=>openSavings({kind:"aporte"})}>Ahorro</button></div>
-          <fieldset className="expense-form-fields" disabled={guardandoGasto}>{cargarNuevo?<ExpenseFieldsRapido value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>:<ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>}
+          <fieldset className="expense-form-fields" disabled={guardandoGasto}>{cargarNuevo?<ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>:<ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>}
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
           {cargarNuevo?<div className="cr-guardar"><button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button><p>{(form.servicio||"Gasto")+" · "+fmtARS(montoReal(form,tc))+" · "+(form.estado==="pendiente"?"pendiente":"pagado")+" · "+MESES[mes.m].toLowerCase()+" de "+mes.y}</p></div>:<button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button>}</fieldset>
           {!cargarNuevo&&<p className="form-note">Se guardará en {MESES[mes.m].toLowerCase()} de {mes.y}.</p>}
