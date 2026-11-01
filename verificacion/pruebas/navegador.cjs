@@ -330,8 +330,9 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       await nav(s.page,'Detalle');
       assert(await s.page.getByRole('button',{name:'Editar Servicio de prueba',exact:true}).first().isVisible());
       assert.equal(await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).count(),0,'Eliminar no debe estar a la vista antes de abrir el menú');
+      const respuestaEstado=s.page.waitForResponse(r=>r.url().includes('/api/gastos-estado'));
       await s.page.getByRole('button',{name:'Marcar como pagado: Servicio de prueba',exact:true}).first().click();
-      await s.page.waitForResponse(r=>r.url().includes('/api/gastos-estado'));
+      await respuestaEstado;
       const estado=s.requests.find(r=>r.path==='/api/gastos-estado');assert.equal(estado.body.estado,'pagado');
       await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba',exact:true}).first().click();
       await s.page.getByRole('menuitem',{name:'Eliminar'}).click();
@@ -384,8 +385,9 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert.equal(await s.page.getByRole('button',{name:'Revisar',exact:true}).count(),0,'La tarjeta compacta no repite el botón Revisar');
       const ceros=await s.page.locator('.attention-filters button').filter({has:s.page.locator('strong',{hasText:/^0$/})}).count();
       assert.equal(ceros,0,'No se muestran filtros con cero avisos');
+      const respuestaEstado=s.page.waitForResponse(r=>r.url().includes('/api/gastos-estado'));
       await s.page.getByRole('button',{name:'Marcar como pagado: Servicio de prueba',exact:true}).first().click();
-      await s.page.waitForResponse(r=>r.url().includes('/api/gastos-estado'));
+      await respuestaEstado;
       assert.equal(s.requests.find(r=>r.path==='/api/gastos-estado').body.estado,'pagado');
       assert.deepEqual(s.pageErrors,[]);
       return {compactCard:true,payFromList:true,emptyFiltersHidden:true};
@@ -400,6 +402,21 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert(valores.length>0&&valores.every(v=>v!=='0'),'Los cuadros en cero no se muestran: '+valores.join(','));
       assert.deepEqual(s.pageErrors,[]);
       return {previousMonthNamed:true,zeroTilesHidden:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-23','Ventanas de eliminar y replicar explican qué pasa sin jerga',async()=>{
+    const s=await setup({emptyNext:true});try{
+      await nav(s.page,'Detalle');
+      await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).first().click();
+      const dialogo=s.page.getByRole('dialog');
+      assert(await dialogo.getByText('Los demás meses no cambian.',{exact:false}).isVisible());
+      assert.equal(await dialogo.getByText('concepto',{exact:false}).count(),0,'Sin la palabra concepto');
+      assert.equal(s.requests.filter(r=>r.method==='DELETE').length,0);
+      await dialogo.getByRole('button',{name:'Cancelar',exact:true}).click();
+      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
+      assert(await s.page.getByText('Ya marcamos los que se repiten cada mes',{exact:false}).isVisible());
+      assert.deepEqual(s.pageErrors,[]);
+      return {deleteTextClear:true,replicateExplainsPreselection:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

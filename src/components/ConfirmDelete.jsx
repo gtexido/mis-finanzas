@@ -22,7 +22,7 @@ export default function ConfirmDelete({item, amount, busy, error, onClose, onCon
       <span className="delete-symbol"><UiIcon name="trash" size={24}/></span>
       <h2 id="delete-title">¿Eliminar {item.tipo === 'gastos' ? 'este gasto' : item.tipo === 'sueldo' ? 'el sueldo' : 'este ingreso'}?</h2>
       <p className="delete-detail">{item.servicio || item.fuente || 'Sueldo'}<strong className="money">{fmtARS(amount)}</strong></p>
-      <p className="muted small">Se eliminará de {fmtPeriodo(item.periodo)}. Los demás meses y el concepto quedan guardados. Esta acción no se puede deshacer.</p>
+      <p className="muted small">Se elimina solo de {fmtPeriodo(item.periodo)}. Los demás meses no cambian. No se puede deshacer.</p>
       {error && <p className="error-note" role="alert">{error}</p>}
       <div className="dialog-actions"><button className="secondary" disabled={busy} onClick={onClose}>Cancelar</button><button className="danger-button" disabled={busy} onClick={onConfirm}>{busy ? 'Eliminando…' : 'Eliminar'}</button></div>
     </section>
