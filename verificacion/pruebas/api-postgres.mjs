@@ -402,7 +402,9 @@ await check('CALC-07','Textos comunes: plurales, moneda única y períodos con n
   assert.equal(m.fmtPeriodo('2026-09'),'septiembre 2026');assert.equal(m.fmtPeriodo('2027-01'),'enero 2027');assert.equal(m.fmtPeriodo('2026-12'),'diciembre 2026');
   assert.equal(m.fmtPeriodo(''),'');assert.equal(m.fmtPeriodo(undefined),'');assert.equal(m.fmtPeriodo('otro'),'otro');
   assert.match(m.fmtUSD(10),/^USD 10,00$/);assert.equal(m.fmtMonto(10,'USD'),m.fmtUSD(10));assert.doesNotMatch(m.fmtUSD(5),/U\$D/);
-  return {cases:13};
+  assert.match(m.fmtARS(1234.56),/^\$\s?1\.235$/);assert.match(m.fmtARS(1234.4),/^\$\s?1\.234$/);assert.match(m.fmtARS(0),/^\$\s?0$/);assert.match(m.fmtARS(undefined),/^\$\s?0$/);
+  assert.match(m.fmtMonto(1234.56),/^\$\s?1\.235$/);assert.match(m.fmtUSD(1234.5),/^USD 1\.234,50$/);
+  return {cases:19};
 });
 
 await check('CALC-08','Deshacer eliminar: el pedido para recrear conserva importe, moneda, etiquetas y tipo de cambio (src/utils/deshacerBorrado.js)',async()=>{
