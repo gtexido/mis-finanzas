@@ -1,0 +1,23 @@
+/* Movimientos: fila compacta (solo con ?movimientos=nuevo) */
+.mv-fila{position:relative;display:grid;grid-template-columns:auto 1fr auto;align-items:start;column-gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}
+.mv-fila:last-child{border-bottom:0;padding-bottom:0}
+.mv-check{width:28px;height:28px;margin-top:2px;border-radius:50%;border:1.5px solid var(--muted);background:none;color:#07140f;display:flex;align-items:center;justify-content:center;padding:0;position:relative}
+.mv-check:before{content:"";position:absolute;inset:-10px}
+.mv-check.on{background:var(--mint);border-color:var(--mint)}
+.mv-check:disabled{opacity:.5}
+.mv-cuerpo{display:block;min-width:0;text-align:left;background:none;border:0;padding:0;color:var(--text);width:100%}
+.mv-linea1{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.mv-linea1 strong{font-size:15px;font-weight:600;overflow-wrap:anywhere}
+.mv-monto b{font-size:15px;font-weight:600;white-space:nowrap}
+.mv-linea2{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.mv-avisos{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.mv-fila.pagado .mv-linea1 strong{color:var(--muted);font-weight:500}
+.mv-menu-caja{position:relative}
+.mv-mas{width:36px;height:36px;border-radius:10px;border:0;background:none;color:var(--muted);display:flex;align-items:center;justify-content:center;position:relative}
+.mv-mas:before{content:"";position:absolute;inset:-4px}
+.mv-cierre{position:fixed;inset:0;z-index:40;background:transparent;border:0;padding:0}
+.mv-menu{position:absolute;right:0;top:38px;z-index:41;min-width:210px;padding:6px;border-radius:14px;background:#1a2233;border:1px solid var(--line);box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.mv-menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:9px;background:none;color:var(--text);font-size:14px;text-align:left}
+.mv-menu button:hover,.mv-menu button:focus-visible{background:rgba(255,255,255,.07)}
+.mv-menu .peligro{color:#ff9b93}
+.mv-extra{grid-column:2 / 4;margin-top:8px;display:grid;gap:6px}
