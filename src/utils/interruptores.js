@@ -8,22 +8,23 @@
 //   - Vencimientos: ?vencimientos=nuevo / ?vencimientos=actual
 //   - Inicio:  ?inicio=nuevo   / ?inicio=actual
 //   - Movimientos (filas compactas): ?movimientos=nuevo / ?movimientos=actual
-//   - "nuevo" se recuerda en este navegador; "actual" vuelve a la pantalla de siempre.
-//   - Sin parámetro: se usa lo último que se eligió; por defecto, la pantalla actual.
+//   - "actual" vuelve a la pantalla anterior y se recuerda en este navegador;
+//     "nuevo" la vuelve a activar.
+//   - Sin parámetro: se usa lo último que se eligió; por defecto, la pantalla nueva.
 //
 // Propósito:
-//   Probar la pantalla nueva en producción sin que otras personas usuarias
-//   la vean, y volver atrás con un solo link.
+//   Las pantallas nuevas son las de siempre. Este interruptor queda solo como
+//   salida de emergencia: un link con ?...=actual vuelve a la pantalla anterior.
 // =============================================================================
 
 const leerInterruptor = (parametro, clave) => {
   try {
     const param = new URLSearchParams(window.location.search).get(parametro);
-    if (param === "nuevo") { localStorage.setItem(clave, "1"); return true; }
-    if (param === "actual") { localStorage.removeItem(clave); return false; }
-    return localStorage.getItem(clave) === "1";
+    if (param === "nuevo") { localStorage.removeItem(clave); return true; }
+    if (param === "actual") { localStorage.setItem(clave, "0"); return false; }
+    return localStorage.getItem(clave) !== "0";
   } catch {
-    return false;
+    return true;
   }
 };
 

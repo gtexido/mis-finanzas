@@ -34,15 +34,16 @@ function movimiento(periodo, monto, id=`audit_${periodo}`) {
 const results=[];
 let browser;
 let devServer;
-async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNext=false,loadError=false}={}) {
+async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNext=false,loadError=false,nuevas=false}={}) {
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,
     timezoneId:'America/Argentina/Buenos_Aires',locale:'es-AR',acceptDownloads:true,serviceWorkers:'block'});
   const page=await context.newPage();
   await page.clock.setFixedTime(new Date('2026-10-01T12:00:00-03:00'));
-  await page.addInitScript(({user})=>{
+  await page.addInitScript(({user,nuevas})=>{
+    if(!nuevas)for(const k of ['mf_cargar_nuevo','mf_ajustes_nuevo','mf_movimientos_nuevo','mf_inicio_nuevo','mf_vencimientos_nuevo'])if(localStorage.getItem(k)===null)localStorage.setItem(k,'0');
     localStorage.setItem('mf_auth_token','ficticio-sin-acceso-real');
     localStorage.setItem('mf_auth_user',JSON.stringify(user));
-  },{user});
+  },{user,nuevas});
   const requests=[],pageErrors=[],flags={failCreate:false};
   const db=Object.fromEntries([6,7,8,9,10,11].map(m=>{
     const p=`2026-${String(m).padStart(2,'0')}`;
@@ -467,6 +468,26 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert.equal(await s.page.getByText('Sin base para %',{exact:true}).count(),0);
       assert.deepEqual(s.pageErrors,[]);
       return {emptyComparisonHidden:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-26','Pantallas nuevas por defecto: sin parámetros se ven las nuevas y ?...=actual vuelve a la anterior',async()=>{
+    const s=await setup({nuevas:true,emptyNext:true});try{
+      await nav(s.page,'Detalle');
+      assert(await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).first().isVisible(),'Fila compacta por defecto');
+      await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).first().click();
+      await s.page.getByRole('menuitem',{name:'Eliminar'}).click();
+      const respDel=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
+      await s.page.getByRole('dialog').getByRole('button',{name:/Eliminar/}).last().click();await respDel;
+      const barra=s.page.locator('.cr-deshacer');await barra.waitFor();
+      const respNuevo=s.page.waitForResponse(r=>r.url().includes('/api/gastos')&&r.request().method()==='POST');
+      await barra.getByRole('button',{name:'Deshacer',exact:true}).click();await respNuevo;
+      await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).first().waitFor();
+      await s.page.goto(base+'/?movimientos=actual');await s.page.waitForLoadState('networkidle');
+      assert.equal(await s.page.evaluate(()=>localStorage.getItem('mf_movimientos_nuevo')),'0');
+      await nav(s.page,'Detalle');
+      assert.equal(await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).count(),0,'Con ?movimientos=actual vuelve la fila anterior');
+      assert.deepEqual(s.pageErrors,[]);
+      return {newByDefault:true,undoWorksOnNew:true,escapeHatch:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();
