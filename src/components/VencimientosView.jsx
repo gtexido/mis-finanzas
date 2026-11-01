@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { getMesKey, MESES } from '../utils/dates';
-import { fmtARS, fmtFecha } from '../utils/formatters';
+import { fmtARS, fmtFecha, fmtPeriodo } from '../utils/formatters';
 import { montoReal } from '../utils/money';
 import { hasUnconfirmedDue, isAutomaticDebit } from '../utils/paymentStatus';
 import { allExpenses, buildOverview, ATTENTION_FILTERS } from '../utils/overview';
@@ -34,7 +34,7 @@ export default function VencimientosView({ data, mesActual, tc, today, selection
     finally { savingRef.current = false; setSaving(null); }
   }
   const group = (title, items, tone = '') => items.length > 0 && <section className={`due-section ${tone}`}><h2>{title} <span className="muted">· {items.length}</span></h2>{items.map(g => <article className={`due-item ${tone}`} key={`${g.mesKey}_${g.id}`}>
-    <button className="summary-row" onClick={() => onEdit(g,g.mesKey)} aria-label={`Editar ${g.servicio}`}><span className="row-icon"><UiIcon name={isAutomaticDebit(g)?'repeat':'calendar'} size={19}/></span><span className="row-copy"><strong>{g.servicio || 'Sin concepto'}</strong><small>{hasUnconfirmedDue(g)?'Fecha por confirmar':fmtFecha(g.vencimiento)} · {g.mesKey}</small></span><span className="money">{fmtARS(montoReal(g,tc))}</span></button>
+    <button className="summary-row" onClick={() => onEdit(g,g.mesKey)} aria-label={`Editar ${g.servicio}`}><span className="row-icon"><UiIcon name={isAutomaticDebit(g)?'repeat':'calendar'} size={19}/></span><span className="row-copy"><strong>{g.servicio || 'Sin concepto'}</strong><small>{hasUnconfirmedDue(g)?'Fecha por confirmar':fmtFecha(g.vencimiento)} · {fmtPeriodo(g.mesKey)}</small></span><span className="money">{fmtARS(montoReal(g,tc))}</span></button>
     <div className="due-context"><span className="due-relative">{tone==='review'?reason(g):dueLabel(g)}</span>{g.estado==='pagado'&&<span className="due-paid"><UiIcon name="check" size={14}/>Pagado</span>}{isAutomaticDebit(g)&&<span className="due-auto"><UiIcon name="repeat" size={14}/>Débito automático</span>}</div>
     <footer><button className="text-button" onClick={()=>onEdit(g,g.mesKey)}><UiIcon name="edit" size={16}/>Revisar</button>{g.estado === 'pendiente' ? <button disabled={saving!==null} onClick={() => pay(g)}>{saving===g.id?'Guardando…':isAutomaticDebit(g)?'Confirmar débito':'Marcar como pagado'}</button> : <span>Pagado · revisá los datos</span>}</footer>
   </article>)}</section>;

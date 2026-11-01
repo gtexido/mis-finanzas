@@ -9,10 +9,24 @@ export const fmtARS = (n) =>
   }).format(n || 0);
 
 export const fmtUSD = (n) =>
-  `U$D ${new Intl.NumberFormat("es-AR", {
+  `USD ${new Intl.NumberFormat("es-AR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n || 0)}`;
+
+/** Elige singular o plural según la cantidad: plural(1,"gasto") -> "1 gasto", plural(2,"gasto") -> "2 gastos". */
+export const plural = (n, singular, pluralTxt = `${singular}s`) =>
+  `${n} ${Number(n) === 1 ? singular : pluralTxt}`;
+
+const NOMBRES_MES = ["enero","febrero","marzo","abril","mayo","junio","julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+/** Convierte "2026-09" en "septiembre 2026". Si el valor no tiene ese formato, lo devuelve igual. */
+export const fmtPeriodo = (key) => {
+  const m = /^(\d{4})-(\d{2})/.exec(String(key || ""));
+  if (!m) return String(key || "");
+  const nombre = NOMBRES_MES[Number(m[2]) - 1];
+  return nombre ? `${nombre} ${m[1]}` : String(key);
+};
 
 export const fmtFecha = (str) => {
   if (!str) return "";
@@ -55,7 +69,7 @@ export const fmtMonto = (monto, moneda = "ARS") => {
   const n = Number(monto || 0);
 
   if (moneda === "USD") {
-    return `USD ${n.toFixed(2)}`;
+    return fmtUSD(n);
   }
 
   return `$ ${n.toLocaleString("es-AR")}`;

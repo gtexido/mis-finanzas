@@ -395,6 +395,16 @@ await check('CALC-06','Cargar nueva: atajos, comparación con el mes anterior y 
   return {cases:33};
 });
 
+await check('CALC-07','Textos comunes: plurales, moneda única y períodos con nombre de mes (src/utils/formatters.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/formatters.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.plural(1,'gasto'),'1 gasto');assert.equal(m.plural(0,'gasto'),'0 gastos');assert.equal(m.plural(3,'gasto'),'3 gastos');
+  assert.equal(m.plural(1,'gasto copiado','gastos copiados'),'1 gasto copiado');assert.equal(m.plural(2,'gasto copiado','gastos copiados'),'2 gastos copiados');
+  assert.equal(m.fmtPeriodo('2026-09'),'septiembre 2026');assert.equal(m.fmtPeriodo('2027-01'),'enero 2027');assert.equal(m.fmtPeriodo('2026-12'),'diciembre 2026');
+  assert.equal(m.fmtPeriodo(''),'');assert.equal(m.fmtPeriodo(undefined),'');assert.equal(m.fmtPeriodo('otro'),'otro');
+  assert.match(m.fmtUSD(10),/^USD 10,00$/);assert.equal(m.fmtMonto(10,'USD'),m.fmtUSD(10));assert.doesNotMatch(m.fmtUSD(5),/U\$D/);
+  return {cases:13};
+});
+
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
 const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
 await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
