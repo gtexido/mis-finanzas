@@ -376,6 +376,21 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {loadFirst:true,payableBlock:true,emptyTilesHidden:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-21','Vencimientos nuevo: tarjeta compacta, marcar pagado desde la lista y sin avisos en cero',async()=>{
+    const s=await setup();try{
+      await s.page.evaluate(()=>localStorage.setItem('mf_vencimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Vence');
+      assert(await s.page.getByRole('button',{name:'Editar Servicio de prueba',exact:true}).first().isVisible());
+      assert.equal(await s.page.getByRole('button',{name:'Revisar',exact:true}).count(),0,'La tarjeta compacta no repite el botón Revisar');
+      const ceros=await s.page.locator('.attention-filters button').filter({has:s.page.locator('strong',{hasText:/^0$/})}).count();
+      assert.equal(ceros,0,'No se muestran filtros con cero avisos');
+      await s.page.getByRole('button',{name:'Marcar como pagado: Servicio de prueba',exact:true}).first().click();
+      await s.page.waitForResponse(r=>r.url().includes('/api/gastos-estado'));
+      assert.equal(s.requests.find(r=>r.path==='/api/gastos-estado').body.estado,'pagado');
+      assert.deepEqual(s.pageErrors,[]);
+      return {compactCard:true,payFromList:true,emptyFiltersHidden:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});

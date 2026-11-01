@@ -6,7 +6,7 @@ import { hasUnconfirmedDue, isAutomaticDebit } from '../utils/paymentStatus';
 import { allExpenses, buildOverview, ATTENTION_FILTERS } from '../utils/overview';
 import UiIcon from './UiIcon';
 
-export default function VencimientosView({ data, mesActual, tc, today, selection, onSelectionChange, onEdit, onMarcarPagado }) {
+export default function VencimientosView({ data, mesActual, tc, today, selection, onSelectionChange, onEdit, onMarcarPagado, compacto = false }) {
   const [saving, setSaving] = useState(null);
   const savingRef = useRef(false);
   const { filter, scope } = selection;
@@ -33,7 +33,12 @@ export default function VencimientosView({ data, mesActual, tc, today, selection
     try { await onMarcarPagado(g.id, g.mesKey); }
     finally { savingRef.current = false; setSaving(null); }
   }
-  const group = (title, items, tone = '') => items.length > 0 && <section className={`due-section ${tone}`}><h2>{title} <span className="muted">· {items.length}</span></h2>{items.map(g => <article className={`due-item ${tone}`} key={`${g.mesKey}_${g.id}`}>
+  const fechaCorta = g => hasUnconfirmedDue(g) ? 'Fecha por confirmar' : fmtFecha(g.vencimiento).slice(0, 5);
+  const tarjetaCompacta = (g, tone) => <article className={`due-item due-compacta ${tone}`} key={`${g.mesKey}_${g.id}`}>
+    <button className="summary-row" onClick={() => onEdit(g,g.mesKey)} aria-label={`Editar ${g.servicio}`}><span className="row-icon"><UiIcon name={isAutomaticDebit(g)?'repeat':'calendar'} size={19}/></span><span className="row-copy"><strong>{g.servicio || 'Sin concepto'}</strong><small><span className="due-relative">{tone==='review'?reason(g):dueLabel(g)}</span>{hasUnconfirmedDue(g) ? ` · ${fmtPeriodo(g.mesKey)}` : ` · ${fechaCorta(g)}`}</small></span><span className="money">{fmtARS(montoReal(g,tc))}</span></button>
+    {g.estado === 'pendiente' ? <button className="due-pagar" disabled={saving!==null} onClick={() => pay(g)} aria-label={`${isAutomaticDebit(g)?'Confirmar débito':'Marcar como pagado'}: ${g.servicio}`}>{saving===g.id?'Guardando…':isAutomaticDebit(g)?'Confirmar débito':'Marcar pagado'}</button> : <span className="due-paid"><UiIcon name="check" size={14}/>Pagado · revisá los datos</span>}
+  </article>;
+  const group = (title, items, tone = '') => items.length > 0 && <section className={`due-section ${tone}`}><h2>{title} <span className="muted">· {items.length}</span></h2>{items.map(g => compacto ? tarjetaCompacta(g, tone) : <article className={`due-item ${tone}`} key={`${g.mesKey}_${g.id}`}>
     <button className="summary-row" onClick={() => onEdit(g,g.mesKey)} aria-label={`Editar ${g.servicio}`}><span className="row-icon"><UiIcon name={isAutomaticDebit(g)?'repeat':'calendar'} size={19}/></span><span className="row-copy"><strong>{g.servicio || 'Sin concepto'}</strong><small>{hasUnconfirmedDue(g)?'Fecha por confirmar':fmtFecha(g.vencimiento)} · {fmtPeriodo(g.mesKey)}</small></span><span className="money">{fmtARS(montoReal(g,tc))}</span></button>
     <div className="due-context"><span className="due-relative">{tone==='review'?reason(g):dueLabel(g)}</span>{g.estado==='pagado'&&<span className="due-paid"><UiIcon name="check" size={14}/>Pagado</span>}{isAutomaticDebit(g)&&<span className="due-auto"><UiIcon name="repeat" size={14}/>Débito automático</span>}</div>
     <footer><button className="text-button" onClick={()=>onEdit(g,g.mesKey)}><UiIcon name="edit" size={16}/>Revisar</button>{g.estado === 'pendiente' ? <button disabled={saving!==null} onClick={() => pay(g)}>{saving===g.id?'Guardando…':isAutomaticDebit(g)?'Confirmar débito':'Marcar como pagado'}</button> : <span>Pagado · revisá los datos</span>}</footer>
@@ -41,7 +46,7 @@ export default function VencimientosView({ data, mesActual, tc, today, selection
   return <div className="dues-view">
     <div className="filter-chips due-scope" aria-label="Alcance de vencimientos"><button aria-pressed={!soloMes} onClick={() => onSelectionChange({ ...selection, scope: 'all' })}>Todos los meses</button><button aria-pressed={soloMes} onClick={() => onSelectionChange({ ...selection, scope: 'month' })}>Solo {MESES[mesActual.m].toLowerCase()}</button></div>
     <section className="report-total due-total" aria-live="polite"><div className="section-line"><span className="eyebrow muted">{selected ? selected.label : 'Total pendiente'}</span>{selected && <button className="text-button" onClick={() => onSelectionChange({ ...selection, filter: 'all' })}>Ver todos<UiIcon name="close" size={14}/></button>}</div><div className="money">{fmtARS(amount)}</div><p className="small muted">{selected ? `${visible.length} ${filter === 'review' ? 'registros · importe a revisar, incluso si ya se pagó' : 'pagos pendientes'}` : `${overview.pending.length} pagos pendientes${paidReview ? ` · ${paidReview} pagados por revisar` : ''}`} · {soloMes ? MESES[mesActual.m].toLowerCase() : 'todos los meses'}</p></section>
-    <div className="attention-filters" aria-label="Filtrar avisos">{ATTENTION_FILTERS.map(({ id, label, icon }) => <button key={id} className={id} aria-pressed={filter === id} onClick={() => onSelectionChange({ ...selection, filter: filter === id ? 'all' : id })}><UiIcon name={icon} size={16}/><span>{label}</span><strong>{overview.summaries[id].count}</strong></button>)}</div>
+    <div className="attention-filters" aria-label="Filtrar avisos">{ATTENTION_FILTERS.filter(({ id }) => !compacto || overview.summaries[id].count > 0 || filter === id).map(({ id, label, icon }) => <button key={id} className={id} aria-pressed={filter === id} onClick={() => onSelectionChange({ ...selection, filter: filter === id ? 'all' : id })}><UiIcon name={icon} size={16}/><span>{label}</span><strong>{overview.summaries[id].count}</strong></button>)}</div>
     {(!selected || filter === 'urgent') && <>{group('Vencidos',overview.groups.urgent.filter(g => g.daysRemaining < 0),'urgent')}{group('Vencen hoy',overview.groups.urgent.filter(g => g.daysRemaining === 0),'urgent')}</>}
     {(!selected || filter === 'debits') && group('Verificar débitos',overview.groups.debits,'debits')}
     {(!selected || filter === 'soon') && group('Próximos 3 días',overview.groups.soon,'soon')}

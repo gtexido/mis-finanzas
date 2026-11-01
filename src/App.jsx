@@ -79,7 +79,7 @@ import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
 import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
-import { leerCargarNuevo, leerAjustesNuevo, leerMovimientosNuevo, leerInicioNuevo } from "./utils/interruptores";
+import { leerCargarNuevo, leerAjustesNuevo, leerMovimientosNuevo, leerInicioNuevo, leerVencimientosNuevo } from "./utils/interruptores";
 import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
@@ -88,6 +88,7 @@ import "./styles/cargar-rapido.css";
 import "./styles/ajustes-nuevo.css";
 import "./styles/movimientos-nuevo.css";
 import "./styles/inicio-nuevo.css";
+import "./styles/vencimientos-nuevo.css";
 import MovementRowCompacta from "./components/MovementRowCompacta";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
@@ -210,6 +211,7 @@ export default function App() {
   const [ajustesNuevo]=useState(leerAjustesNuevo);
   const [movimientosNuevo]=useState(leerMovimientosNuevo);
   const [inicioNuevo]=useState(leerInicioNuevo);
+  const [vencimientosNuevo]=useState(leerVencimientosNuevo);
   const [cfgTab,setCfgTab]=useState(leerAjustesNuevo()?"":"conceptos");
   const [mostrarNuevoMedio,setMostrarNuevoMedio]=useState(false);
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
@@ -1942,6 +1944,7 @@ if (!authUser) {
         {/* VENCIMIENTOS */}
 {view==="vencimientos"&&(
   <VencimientosView
+    compacto={vencimientosNuevo}
     data={data}
     config={cfg}
     today={today}
