@@ -410,11 +410,11 @@ await check('CALC-08','Deshacer eliminar: el pedido para recrear conserva import
   const base={dia:'5',servicio:'Netflix',monto:12.5,moneda:'USD',estado:'pagado',vencimiento:'2026-10-20',conceptoId:'c1',medioPagoId:'mp1',instrumentoId:'i1',categoriaGastoId:'cg1',etiquetas:[{etiquetaId:'e1'},{id:'e2'}],observacion:'x',esRecurrente:true,subconceptos:[{nombre:'Plan',monto:12.5,moneda:'USD',tipoCambio:1400,montoARSCalculado:17500}]};
   const p=m.payloadParaRecrearGasto(base,'2026-10');
   assert.equal(p.periodo,'2026-10');assert.equal(p.monto,12.5);assert.equal(p.moneda,'USD');assert.equal(p.estado,'pagado');assert.equal(p.vencimiento,'2026-10-20');
-  assert.deepEqual(p.etiquetasIds,['e1','e2']);assert.equal(p.esRecurrente,true);assert.equal(p.subconceptos.length,1);
+  assert.equal(JSON.stringify(p.etiquetasIds),'["e1","e2"]');assert.equal(p.esRecurrente,true);assert.equal(p.subconceptos.length,1);
   assert.equal(p.subconceptos[0].tipoCambio,1400);assert.equal(p.subconceptos[0].montoARSCalculado,17500);assert.equal(p.subconceptos[0].moneda,'USD');assert.equal(p.subconceptos[0].orden,1);
   const q=m.payloadParaRecrearGasto({dia:'1',servicio:'Luz',monto:'100'},'2026-09',{categoria:'cat',formaPago:'fp'});
   assert.equal(q.monto,100);assert.equal(q.moneda,'ARS');assert.equal(q.estado,'pendiente');assert.equal(q.categoria,'cat');assert.equal(q.formaPago,'fp');
-  assert.equal(q.vencimiento,null);assert.deepEqual(q.etiquetasIds,[]);assert.deepEqual(q.subconceptos,[]);assert.equal(q.esRecurrente,false);
+  assert.equal(q.vencimiento,null);assert.equal(q.etiquetasIds.length,0);assert.equal(q.subconceptos.length,0);assert.equal(q.esRecurrente,false);
   return {cases:2};
 });
 
