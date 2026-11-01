@@ -459,6 +459,16 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {undoRecreates:true,failureKeepsDeleted:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-25','Ingresos: sin ingresos en ambos meses no se muestra la comparación vacía',async()=>{
+    const s=await setup();try{
+      await nav(s.page,'Ingresos');
+      await s.page.getByText('Ingresos del mes',{exact:true}).waitFor();
+      assert.equal(await s.page.getByText('Diferencia con',{exact:false}).count(),0);
+      assert.equal(await s.page.getByText('Sin base para %',{exact:true}).count(),0);
+      assert.deepEqual(s.pageErrors,[]);
+      return {emptyComparisonHidden:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});
