@@ -43,7 +43,7 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
     localStorage.setItem('mf_auth_token','ficticio-sin-acceso-real');
     localStorage.setItem('mf_auth_user',JSON.stringify(user));
   },{user});
-  const requests=[],pageErrors=[];
+  const requests=[],pageErrors=[],flags={failCreate:false};
   const db=Object.fromEntries([6,7,8,9,10,11].map(m=>{
     const p=`2026-${String(m).padStart(2,'0')}`;
     return [p,[movimiento(p,m*10000)]];
@@ -67,6 +67,11 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
     if(url.pathname==='/api/cotizaciones')return send({ok:true,data:{valor:1000,fuente:'prueba'}});
     if(r.method()!=='GET'){
       if(delayWrites) await new Promise(resolve=>setTimeout(resolve,350));
+      if(url.pathname==='/api/gastos-delete'){
+        for(const k of Object.keys(db))db[k]=db[k].filter(x=>x.movimiento_id!==entry.body.movimientoId);
+        return send({ok:true,data:{movimiento_id:entry.body.movimientoId}});
+      }
+      if(url.pathname==='/api/gastos'&&flags.failCreate)return send({ok:false,error:'No se pudo guardar (prueba).'},500);
       if(url.pathname==='/api/gastos'){
         const p=entry.body.periodo;
         const mov=movimiento(p,entry.body.monto,`audit_created_${requests.length}`);
@@ -79,7 +84,7 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
   });
   await page.goto(base);
   await page.waitForLoadState('networkidle');
-  return {context,page,requests,db,pageErrors};
+  return {context,page,requests,db,pageErrors,flags};
 }
 const nav=async(page,text)=>{
  if(text==='Ajustes')return page.getByRole('button',{name:'Ajustes',exact:true}).click();
@@ -417,6 +422,41 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert(await s.page.getByText('Ya marcamos los que se repiten cada mes',{exact:false}).isVisible());
       assert.deepEqual(s.pageErrors,[]);
       return {deleteTextClear:true,replicateExplainsPreselection:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-24','Deshacer al eliminar un gasto lo vuelve a crear igual, y si falla avisa',async()=>{
+    const s=await setup({emptyNext:true});try{
+      await nav(s.page,'Detalle');
+      const filas=()=>s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).count();
+      const antes=await filas();assert(antes>0);
+      await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).first().click();
+      const respDel=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
+      await s.page.getByRole('dialog').getByRole('button',{name:/Eliminar/}).last().click();await respDel;
+      const barra=s.page.locator('.cr-deshacer');
+      await barra.waitFor();
+      assert(await barra.getByText('Gasto eliminado',{exact:true}).isVisible());
+      await until(async()=>(await filas())===antes-1);
+      const respNuevo=s.page.waitForResponse(r=>r.url().includes('/api/gastos')&&r.request().method()==='POST');
+      await barra.getByRole('button',{name:'Deshacer',exact:true}).click();await respNuevo;
+      const post=writes(s).at(-1).body;
+      assert.equal(post.periodo,'2026-10');assert.equal(post.monto,100000);assert.equal(post.moneda,'ARS');
+      assert.equal(post.estado,'pendiente');assert.equal(post.vencimiento,'2026-10-15');assert.equal(post.conceptoId,'con_audit');
+      assert.equal(post.medioPagoId,'mp_bancon');assert.equal(post.instrumentoId,'ins_manual');assert.equal(post.categoriaGastoId,'cg_servicios');
+      await until(async()=>(await filas())===antes);
+      await barra.waitFor({state:'detached'});
+      assert.equal(s.requests.filter(r=>r.path==='/api/gastos-delete').length,1);
+      // Si la recreación falla, el gasto sigue eliminado y se avisa.
+      s.flags.failCreate=true;
+      await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).first().click();
+      const respDel2=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
+      await s.page.getByRole('dialog').getByRole('button',{name:/Eliminar/}).last().click();await respDel2;
+      await barra.waitFor();
+      await barra.getByRole('button',{name:'Deshacer',exact:true}).click();
+      await s.page.getByText('El gasto sigue eliminado.',{exact:false}).waitFor();
+      await barra.waitFor({state:'detached'});
+      assert.equal(await filas(),antes-1);
+      assert.deepEqual(s.pageErrors,[]);
+      return {undoRecreates:true,failureKeepsDeleted:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

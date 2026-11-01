@@ -79,6 +79,7 @@ import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
 import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
+import { payloadParaRecrearGasto } from "./utils/deshacerBorrado";
 import { leerCargarNuevo, leerAjustesNuevo, leerMovimientosNuevo, leerInicioNuevo, leerVencimientosNuevo } from "./utils/interruptores";
 import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
@@ -175,6 +176,9 @@ export default function App() {
   const toastTimerRef = useRef(null);
   const [deshacerCarga,setDeshacerCarga]=useState(null);
   const deshacerTimerRef = useRef(null);
+  const [deshacerBorrado,setDeshacerBorrado]=useState(null);
+  const deshacerBorradoTimerRef = useRef(null);
+  const deshaciendoBorradoRef = useRef(false);
   const deshaciendoRef = useRef(false);
   const [authUser,setAuthUser]=useState(getSessionUser());
   const sessionRef = useRef(authUser?.usuarioId);
@@ -417,6 +421,7 @@ const persistSavings = async (method,payload) => {
     return () => {
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
       if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
+      if (deshacerBorradoTimerRef.current) clearTimeout(deshacerBorradoTimerRef.current);
     };
   }, []);
 
@@ -1174,9 +1179,11 @@ const eliminar = async () => {
     else throw new Error("No se reconoce este movimiento");
     if(sessionRef.current!==owner)return;
     setData(prev=>({...prev,[tipo]:{...prev[tipo],[periodo]:tipo==="sueldo"?0:(prev[tipo][periodo]||[]).filter(item=>item.id!==id)}}));
+    const copiaBorrada=confirmDel;
     setConfirmDel(null); if(editingGasto?.id===id){setEditingGasto(null);setEditingMesKey(null);}
     if(ingForm.id===id)setIngForm({fuente:"",monto:"",dia:"1"});
-    if(await refrescarMes(periodo,owner))toast_(tipo==="gastos"?"Gasto eliminado":tipo==="sueldo"?"Sueldo eliminado":"Ingreso eliminado");
+    if(tipo==="gastos")mostrarDeshacerBorrado({gasto:copiaBorrada,periodo,servicio:copiaBorrada.servicio,monto:montoReal(copiaBorrada,tc)});
+    if(await refrescarMes(periodo,owner)&&tipo!=="gastos")toast_(tipo==="sueldo"?"Sueldo eliminado":"Ingreso eliminado");
   }catch(e){if(sessionRef.current===owner)setDeleteError(e.message || "No se pudo eliminar. Intentá nuevamente.");}
   finally{eliminarRef.current=false;setEliminando(false);}
 };
@@ -1544,6 +1551,38 @@ const eliminar = async () => {
   }));
 };
 
+ const mostrarDeshacerBorrado = (info) => {
+  if (deshacerBorradoTimerRef.current) clearTimeout(deshacerBorradoTimerRef.current);
+  setDeshacerCarga(null);
+  setDeshacerBorrado(info);
+  deshacerBorradoTimerRef.current = setTimeout(() => setDeshacerBorrado(null), 10000);
+ };
+
+ const deshacerBorradoGasto = async () => {
+  const info = deshacerBorrado;
+  if (!info || deshaciendoBorradoRef.current) return;
+  deshaciendoBorradoRef.current = true;
+  const owner = authUser.usuarioId;
+  if (deshacerBorradoTimerRef.current) clearTimeout(deshacerBorradoTimerRef.current);
+  try {
+    await crearGasto(payloadParaRecrearGasto(info.gasto, info.periodo, {
+      categoria: categoriaLegacyDesdeMedioPagoId(info.gasto.medioPagoId),
+      formaPago: formaPagoLegacyDesdeInstrumentoId(info.gasto.instrumentoId),
+    }));
+    if (sessionRef.current !== owner) return;
+    setDeshacerBorrado(null);
+    if (await refrescarMes(info.periodo, owner)) toast_("Listo, el gasto volvió");
+  } catch (e) {
+    if (sessionRef.current === owner) {
+      console.error(e);
+      toast_(`${e.message || "No se pudo deshacer."} El gasto sigue eliminado.`, "err");
+      setDeshacerBorrado(null);
+    }
+  } finally {
+    deshaciendoBorradoRef.current = false;
+  }
+ };
+
  const mostrarDeshacerCarga = (info) => {
   if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
   setDeshacerCarga(info);
@@ -1712,7 +1751,15 @@ if (!authUser) {
         </div>
       )}
 
-      {cargarNuevo&&deshacerCarga&&(
+      {deshacerBorrado&&(
+        <div className="cr-deshacer" role="status" aria-live="polite">
+          <span className="cr-deshacer-icono"><UiIcon name="trash" size={18}/></span>
+          <div className="cr-deshacer-texto"><strong>Gasto eliminado</strong><small>{deshacerBorrado.servicio} · {fmtARS(deshacerBorrado.monto)}</small></div>
+          <button type="button" onClick={deshacerBorradoGasto}>Deshacer</button>
+        </div>
+      )}
+
+      {cargarNuevo&&deshacerCarga&&!deshacerBorrado&&(
         <div className="cr-deshacer" role="status" aria-live="polite">
           <span className="cr-deshacer-icono"><UiIcon name="check" size={18}/></span>
           <div className="cr-deshacer-texto"><strong>Guardado</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}</small></div>
