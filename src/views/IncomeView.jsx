@@ -5,7 +5,7 @@ import MonthComparison from '../components/MonthComparison';
 export default function IncomeView({total, previous, hasPrevious, hasCurrent, previousLabel, partial, salary, salaryInput, setSalaryInput, saveSalary, salaryBusy, form, setForm, saveIncome, incomeBusy, sources, items, maxDay, onEdit, onDelete}) {
   return <div className="income-view">
     <section className="report-total"><span className="eyebrow muted">Ingresos del mes</span><div className="money income-total">{fmtARS(total)}</div><p className="muted">Sueldo y otros ingresos registrados</p></section>
-    <MonthComparison income current={total} previous={previous} hasPrevious={hasPrevious} hasCurrent={hasCurrent} previousLabel={previousLabel} partial={partial}/>
+    {(total>0||previous>0)&&<MonthComparison income current={total} previous={previous} hasPrevious={hasPrevious} hasCurrent={hasCurrent} previousLabel={previousLabel} partial={partial}/>}
     <section className="surface income-card">
       <div className="section-line"><h2>Sueldo del mes</h2><UiIcon name="wallet" size={21}/></div>
       {salary > 0 && <div className="income-salary"><strong className="money">{fmtARS(salary)}</strong><div className="row-actions"><button className="text-button" onClick={() => {setSalaryInput(String(salary)); document.getElementById('salary-amount')?.focus();}}><UiIcon name="edit" size={16}/>Editar</button><button className="text-button delete-link" onClick={() => onDelete({tipo:'sueldo', servicio:'Sueldo', monto:salary})}><UiIcon name="trash" size={16}/>Eliminar</button></div></div>}
