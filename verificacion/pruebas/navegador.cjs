@@ -363,6 +363,19 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {pendingCountShown:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-20','Inicio nuevo: cargar arriba, Por pagar y solo los avisos con datos',async()=>{
+    const s=await setup();try{
+      await s.page.evaluate(()=>localStorage.setItem('mf_inicio_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
+      const cargar=await s.page.getByRole('button',{name:/Cargar un gasto/}).first().boundingBox();
+      const avisos=await s.page.getByRole('heading',{name:'Para atender'}).boundingBox();
+      assert(cargar&&avisos&&cargar.y<avisos.y,'Cargar un gasto debe estar antes de los avisos');
+      assert(await s.page.getByText(/Por pagar en octubre/).isVisible());
+      assert.equal(await s.page.getByRole('heading',{name:'Hoy, lo importante'}).count(),0);
+      const ceros=await s.page.locator('.attention-tile:not(.has-items)').count();assert.equal(ceros,0,'No se muestran avisos en cero');
+      assert.deepEqual(s.pageErrors,[]);
+      return {loadFirst:true,payableBlock:true,emptyTilesHidden:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});

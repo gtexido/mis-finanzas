@@ -2,9 +2,9 @@ import { ATTENTION_FILTERS } from '../utils/overview';
 import { fmtARS } from '../utils/formatters';
 import UiIcon from './UiIcon';
 
-export default function AttentionSummary({ overview, hidden = false, onSelect }) {
+export default function AttentionSummary({ overview, hidden = false, onSelect, soloConAvisos = false }) {
   return <div className="attention-grid" aria-label="Avisos de todos los meses">
-    {ATTENTION_FILTERS.map(({ id, label, icon, empty }) => {
+    {ATTENTION_FILTERS.filter(({ id }) => !soloConAvisos || overview.summaries[id].count > 0).map(({ id, label, icon, empty }) => {
       const { count, amount } = overview.summaries[id];
       return <button key={id} className={`attention-tile ${id} ${count ? 'has-items' : ''}`}
         onClick={() => onSelect(id)} aria-label={`${label}: ${count}. ${count ? (hidden ? 'Importe oculto' : fmtARS(amount)) : empty}`}>
