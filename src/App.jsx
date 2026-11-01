@@ -79,7 +79,7 @@ import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
 import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
-import { leerCargarNuevo, leerAjustesNuevo, leerMovimientosNuevo } from "./utils/interruptores";
+import { leerCargarNuevo, leerAjustesNuevo, leerMovimientosNuevo, leerInicioNuevo } from "./utils/interruptores";
 import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
@@ -87,6 +87,7 @@ import "./styles/base.css";
 import "./styles/cargar-rapido.css";
 import "./styles/ajustes-nuevo.css";
 import "./styles/movimientos-nuevo.css";
+import "./styles/inicio-nuevo.css";
 import MovementRowCompacta from "./components/MovementRowCompacta";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
@@ -208,6 +209,7 @@ export default function App() {
   const [filtroEstado,setFiltroEstado]=useState("todos");
   const [ajustesNuevo]=useState(leerAjustesNuevo);
   const [movimientosNuevo]=useState(leerMovimientosNuevo);
+  const [inicioNuevo]=useState(leerInicioNuevo);
   const [cfgTab,setCfgTab]=useState(leerAjustesNuevo()?"":"conceptos");
   const [mostrarNuevoMedio,setMostrarNuevoMedio]=useState(false);
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
@@ -1870,7 +1872,7 @@ if (!authUser) {
         {["analisis","variacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button></div>}
 
         {/* HOME */}
-        {view==="home"&&<PremiumHome key={authUser.usuarioId} userId={authUser.usuarioId} savingsStatus={savingsStatus} savings={savingsSummary(savingsRecords,mesKey,[localDate(today),localDate(new Date(mes.y,mes.m+1,0))].sort()[0])} onSavings={()=>openSavings()} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica}/>}
+        {view==="home"&&<PremiumHome key={authUser.usuarioId} userId={authUser.usuarioId} savingsStatus={savingsStatus} savings={savingsSummary(savingsRecords,mesKey,[localDate(today),localDate(new Date(mes.y,mes.m+1,0))].sort()[0])} onSavings={()=>openSavings()} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica} nuevo={inicioNuevo} replicaPendientes={gastosFuenteReplicar.length}/>}
 
         {/* CARGAR */}
         {view==="cargar"&&<>

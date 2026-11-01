@@ -5,6 +5,7 @@
 // Cómo se activan:
 //   - Cargar:  ?cargar=nuevo   / ?cargar=actual
 //   - Ajustes: ?ajustes=nuevo  / ?ajustes=actual
+//   - Inicio:  ?inicio=nuevo   / ?inicio=actual
 //   - Movimientos (filas compactas): ?movimientos=nuevo / ?movimientos=actual
 //   - "nuevo" se recuerda en este navegador; "actual" vuelve a la pantalla de siempre.
 //   - Sin parámetro: se usa lo último que se eligió; por defecto, la pantalla actual.
@@ -26,5 +27,6 @@ const leerInterruptor = (parametro, clave) => {
 };
 
 export const leerCargarNuevo = () => leerInterruptor("cargar", "mf_cargar_nuevo");
+export const leerInicioNuevo = () => leerInterruptor("inicio", "mf_inicio_nuevo");
 export const leerMovimientosNuevo = () => leerInterruptor("movimientos", "mf_movimientos_nuevo");
 export const leerAjustesNuevo = () => leerInterruptor("ajustes", "mf_ajustes_nuevo");

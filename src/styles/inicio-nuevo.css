@@ -1,0 +1,6 @@
+/* Inicio nuevo (solo con ?inicio=nuevo) */
+.inicio-nuevo .home-add{margin:16px 0 18px}
+.inicio-nuevo .monthly-pending.por-pagar{padding:14px 16px;margin:0 0 22px;background:var(--surface);border:1px solid var(--line);border-radius:16px;font-size:14px;color:var(--text)}
+.inicio-nuevo .monthly-pending.por-pagar strong{font-size:17px;color:#f1c197}
+.inicio-nuevo .attention-grid{grid-template-columns:1fr 1fr}
+.inicio-nuevo .next-payment{margin-bottom:12px}
