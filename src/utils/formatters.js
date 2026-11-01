@@ -1,11 +1,12 @@
 import { MAPA_FUENTES_INGRESO_LEGACY } from "./constants";
 
+/** Importes en pesos: siempre sin decimales (se redondea al peso). Los dólares sí muestran dos decimales. */
 export const fmtARS = (n) =>
   new Intl.NumberFormat("es-AR", {
     style: "currency",
     currency: "ARS",
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(n || 0);
 
 export const fmtUSD = (n) =>
@@ -72,7 +73,7 @@ export const fmtMonto = (monto, moneda = "ARS") => {
     return fmtUSD(n);
   }
 
-  return `$ ${n.toLocaleString("es-AR")}`;
+  return `$ ${n.toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
 };
 
 export const normalizarTexto = (txt = "") =>
