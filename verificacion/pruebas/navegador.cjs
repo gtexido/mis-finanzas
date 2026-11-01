@@ -391,6 +391,17 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {compactCard:true,payFromList:true,emptyFiltersHidden:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-22','Evolución: mes anterior con nombre y sin cuadros de cambio en cero',async()=>{
+    const s=await setup();try{
+      await nav(s.page,'Evol.');
+      assert(await s.page.getByText('Diferencia con Septiembre 2026',{exact:true}).isVisible());
+      assert.equal(await s.page.getByText('2026-09',{exact:false}).count(),0,'No debe verse la clave 2026-09');
+      const valores=await s.page.locator('.change-grid>button strong').allInnerTexts();
+      assert(valores.length>0&&valores.every(v=>v!=='0'),'Los cuadros en cero no se muestran: '+valores.join(','));
+      assert.deepEqual(s.pageErrors,[]);
+      return {previousMonthNamed:true,zeroTilesHidden:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});
