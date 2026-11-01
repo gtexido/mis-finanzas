@@ -33,7 +33,7 @@ import {
 
 // Utils
 import {
-  fmtARS, normalizarEtiquetaVisual, normalizarFuenteIngreso,
+  fmtARS, plural, normalizarEtiquetaVisual, normalizarFuenteIngreso,
   normalizarTexto
 } from './utils/formatters';
 
@@ -1411,12 +1411,12 @@ const eliminar = async () => {
 
     setReplicaCopiados(copiados);
     setReplicarStep("done");
-    toast_(`${copiados} gastos copiados a ${mesNombreSig()}`);
+    toast_(`${plural(copiados,"gasto copiado","gastos copiados")} a ${mesNombreSig()}`);
   } catch (e) {
     console.error("Error replicando mes:", e);
     if(copiados)await refrescarMes(nextKey);
     setReplicarStep(null);
-    toast_(`${copiados ? `Se copiaron ${copiados} gastos. ` : ""}No se completó la copia. Revisá el mes destino antes de reintentar.`, "err");
+    toast_(`${copiados ? `${copiados===1?"Se copió 1 gasto":`Se copiaron ${copiados} gastos`}. ` : ""}No se completó la copia. Revisá el mes destino antes de reintentar.`, "err");
   } finally {
     replicandoRef.current = false;
     setReplicando(false);
