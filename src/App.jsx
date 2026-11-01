@@ -223,9 +223,6 @@ export default function App() {
   const [showCotizador,setShowCotizador]=useState(false);
   const [mostrarOpcionesCarga,setMostrarOpcionesCarga]=useState(false);
   const [cargarNuevo]=useState(leerCargarNuevo);
-  const [gestionServModal,setGestionServModal]=useState(null); // catId para gestionar servicios inline
-  const [gestionCatModal,setGestionCatModal]=useState(false);
-  const [nuevoServInline,setNuevoServInline]=useState("");
   const [replicarStep,setReplicarStep]=useState(null); // null | 'modal' | 'confirmar' | 'done'
   const [excluirReplicar,setExcluirReplicar]=useState(new Set());
   const [mesesAtrasVar,setMesesAtrasVar]=useState(3);
@@ -1773,55 +1770,6 @@ if (!authUser) {
 
       {/* Modal subconceptos USD */}
       {subconceptosGasto&&<SubconceptosModal gasto={subconceptosGasto} tc={subconceptosGasto.tcConversion || tc} onSave={handleSubconceptosSave} onClose={()=>setSubconceptosGasto(null)}/>}
-
-      {/* Modal gestión servicios inline */}
-      {gestionServModal&&(
-        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:955 }} onClick={()=>setGestionServModal(null)}>
-          <div style={{ background:"#13131a",borderRadius:"20px 20px 0 0",padding:"24px 20px",width:"100%",maxWidth:480,border:"1px solid #2a2a3e",maxHeight:"80vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
-            {(()=>{ const cat=cfg.categorias.find(c=>c.id===gestionServModal); const ss=cfg.servicios[gestionServModal]||[]; return(<>
-              <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-                <div style={{ fontWeight:700,fontSize:16 }}>📝 Servicios — <span style={{ color:cat?.color }}>{cat?.label}</span></div>
-                <button onClick={()=>setGestionServModal(null)} style={{ background:"#1e1e2e",border:"none",color:"#94a3b8",borderRadius:10,padding:"6px 12px",cursor:"pointer" }}>✕</button>
-              </div>
-              {/* Agregar nuevo */}
-              <div style={{ display:"flex",gap:8,marginBottom:16 }}>
-                <input className="inf" placeholder="Nuevo servicio..." value={nuevoServInline} onChange={e=>setNuevoServInline(e.target.value)} style={{ flex:1 }}/>
-                <button className="pb" style={{ background:"#7c3aed",color:"#fff" }} onClick={()=>{ if(!nuevoServInline.trim())return; setCfg(p=>{const s={...p.servicios};s[gestionServModal]=[...(s[gestionServModal]||[]),nuevoServInline.trim()];return{...p,servicios:s};}); setNuevoServInline(""); toast_("Servicio agregado"); }}>+</button>
-              </div>
-              {/* Lista */}
-              {ss.map((s,idx)=>(<div key={idx} style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:"1px solid #1e1e2e" }}>
-                <span style={{ fontSize:14 }}>{s}</span>
-                <button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12 }} onClick={()=>{ setCfg(p=>{const sv={...p.servicios};sv[gestionServModal]=(sv[gestionServModal]||[]).filter((_,i)=>i!==idx);return{...p,servicios:sv};}); toast_("Eliminado","err"); }}>✕</button>
-              </div>))}
-              {ss.length===0&&<div style={{ color:"#64748b",fontSize:13,textAlign:"center",padding:"20px 0" }}>Sin servicios. Agregá uno arriba.</div>}
-            </>);})()} 
-          </div>
-        </div>
-      )}
-
-      {/* Modal gestión categorías/formas inline desde Cargar */}
-      {gestionCatModal&&(
-        <div style={{ position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:955 }} onClick={()=>setGestionCatModal(false)}>
-          <div style={{ background:"#13131a",borderRadius:"20px 20px 0 0",padding:"24px 20px",width:"100%",maxWidth:480,border:"1px solid #2a2a3e",maxHeight:"85vh",overflowY:"auto" }} onClick={e=>e.stopPropagation()}>
-            <div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16 }}>
-              <div style={{ fontWeight:700,fontSize:16 }}>⚙️ Gestionar</div>
-              <button onClick={()=>setGestionCatModal(false)} style={{ background:"#1e1e2e",border:"none",color:"#94a3b8",borderRadius:10,padding:"6px 12px",cursor:"pointer" }}>✕</button>
-            </div>
-            <div style={{ fontSize:12,color:"#64748b",marginBottom:14 }}>Para gestión completa usá la sección ⚙️ Config</div>
-            <div style={{ fontWeight:600,fontSize:14,marginBottom:10,color:"#7c3aed" }}>Categorías</div>
-            {cfg.categorias.map(cat=>(<div key={cat.id} style={{ display:"flex",alignItems:"center",gap:8,padding:"8px 0",borderBottom:"1px solid #1e1e2e" }}>
-              <div style={{ width:12,height:12,borderRadius:"50%",background:cat.color }}/>
-              <span style={{ fontSize:14,flex:1 }}>{cat.label}</span>
-              <button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12 }} onClick={()=>{ setCfg(p=>({...p,categorias:p.categorias.filter(c=>c.id!==cat.id)})); toast_("Eliminado","err"); }}>✕</button>
-            </div>))}
-            <div style={{ fontWeight:600,fontSize:14,marginBottom:10,marginTop:16,color:"#7c3aed" }}>Formas de pago</div>
-            {cfg.formasPago.map((fp,idx)=>(<div key={idx} style={{ display:"flex",alignItems:"center",padding:"8px 0",borderBottom:"1px solid #1e1e2e" }}>
-              <span style={{ fontSize:14,flex:1 }}>{fp}</span>
-              <button style={{ background:"#2a1a1a",border:"none",color:"#f87171",borderRadius:8,padding:"4px 10px",cursor:"pointer",fontSize:12 }} onClick={()=>{ setCfg(p=>({...p,formasPago:p.formasPago.filter((_,i)=>i!==idx)})); toast_("Eliminado","err"); }}>✕</button>
-            </div>))}
-          </div>
-        </div>
-      )}
 
       {/* Modal edición */}
       {editingGasto && editingGasto.id && (
