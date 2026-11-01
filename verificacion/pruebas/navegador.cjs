@@ -341,6 +341,28 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {paidWithOneTap:true,deleteBehindMenu:true,confirmationRequired:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-18','Movimientos nuevo: filtros a la vista, Replicar según el mes y botón para cargar en mes vacío',async()=>{
+    const s=await setup({emptyCurrent:true});try{
+      await s.page.evaluate(()=>localStorage.setItem('mf_movimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Detalle');
+      const chip=await s.page.getByRole('button',{name:'Débito automático',exact:true}).boundingBox();
+      assert(chip&&chip.x+chip.width<=390,'El último filtro debe verse completo en 390 px');
+      assert.equal(await s.page.getByRole('button',{name:/Replicar gastos/}).count(),0,'Sin gastos en el mes no se ofrece replicar');
+      await s.page.getByRole('button',{name:'Cargar un gasto',exact:true}).click();
+      assert(await s.page.getByRole('button',{name:'Guardar gasto'}).first().isVisible());
+      assert.equal(writes(s).length,0);assert.deepEqual(s.pageErrors,[]);
+      return {filtersVisible:true,replicateHiddenWhenEmpty:true,loadButton:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-19','Movimientos nuevo: Replicar informa cuántos gastos faltan en el mes siguiente',async()=>{
+    const s=await setup({emptyNext:true});try{
+      await s.page.evaluate(()=>localStorage.setItem('mf_movimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Detalle');
+      const boton=s.page.getByRole('button',{name:/Replicar gastos/});
+      assert.match(await boton.innerText(),/Faltan 1 gasto en noviembre/);
+      return {pendingCountShown:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});

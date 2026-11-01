@@ -1885,9 +1885,11 @@ if (!authUser) {
         </>}
 
         {/* DETALLE / RESUMEN */}
-        {view==="resumen"&&<ReplicateAction nextMonth={mesNombreSig()} onClick={abrirReplica}/>}
+        {view==="resumen"&&(!movimientosNuevo||gastosDelMes.length>0)&&<ReplicateAction nextMonth={mesNombreSig()} onClick={abrirReplica} pendientes={movimientosNuevo?gastosFuenteReplicar.length:undefined}/>}
         {view==="resumen"&&(
           <DetalleViewShell
+            chipsEnVariasLineas={movimientosNuevo}
+            onCargar={movimientosNuevo?()=>setView("cargar"):undefined}
             mes={mes}
             filtroEstado={filtroEstado}
             setFiltroEstado={setFiltroEstado}

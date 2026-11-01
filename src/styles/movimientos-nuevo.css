@@ -21,3 +21,6 @@
 .mv-menu button:hover,.mv-menu button:focus-visible{background:rgba(255,255,255,.07)}
 .mv-menu .peligro{color:#ff9b93}
 .mv-extra{grid-column:2 / 4;margin-top:8px;display:grid;gap:6px}
+
+/* Filtros de estado: todos a la vista, en varias líneas, sin deslizar de costado */
+.filter-chips.filter-chips-wrap{flex-wrap:wrap;overflow:visible}
