@@ -324,6 +324,23 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {selectionAvailable:true,postsBeforeConfirmation:0};
     }finally{await s.context.close();}
   });
+  await probe('UI-17','Movimientos con filas compactas: pagar con un toque y eliminar desde el menú',async()=>{
+    const s=await setup();try{
+      await s.page.evaluate(()=>localStorage.setItem('mf_movimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Detalle');
+      assert(await s.page.getByRole('button',{name:'Editar Servicio de prueba',exact:true}).first().isVisible());
+      assert.equal(await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).count(),0,'Eliminar no debe estar a la vista antes de abrir el menú');
+      await s.page.getByRole('button',{name:'Marcar como pagado: Servicio de prueba',exact:true}).first().click();
+      await s.page.waitForResponse(r=>r.url().includes('/api/gastos-estado'));
+      const estado=s.requests.find(r=>r.path==='/api/gastos-estado');assert.equal(estado.body.estado,'pagado');
+      await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba',exact:true}).first().click();
+      await s.page.getByRole('menuitem',{name:'Eliminar'}).click();
+      assert(await s.page.getByRole('heading',{name:/Eliminar este gasto/}).isVisible());
+      assert.equal(s.requests.filter(r=>r.method==='DELETE').length,0,'No se borra hasta confirmar');
+      assert.deepEqual(s.pageErrors,[]);
+      return {paidWithOneTap:true,deleteBehindMenu:true,confirmationRequired:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});

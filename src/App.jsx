@@ -79,13 +79,15 @@ import PremiumHome from "./components/PremiumHome";
 import ExpenseFields from "./components/ExpenseFields";
 import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
 import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
-import { leerCargarNuevo, leerAjustesNuevo } from "./utils/interruptores";
+import { leerCargarNuevo, leerAjustesNuevo, leerMovimientosNuevo } from "./utils/interruptores";
 import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
 import "./styles/base.css";
 import "./styles/cargar-rapido.css";
 import "./styles/ajustes-nuevo.css";
+import "./styles/movimientos-nuevo.css";
+import MovementRowCompacta from "./components/MovementRowCompacta";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
 const load = () => ({data: {gastos:{}, ingresos:{}, sueldo:{}}, config: DEFAULT_CONFIG, recurrentes: []});
@@ -205,6 +207,7 @@ export default function App() {
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
   const [ajustesNuevo]=useState(leerAjustesNuevo);
+  const [movimientosNuevo]=useState(leerMovimientosNuevo);
   const [cfgTab,setCfgTab]=useState(leerAjustesNuevo()?"":"conceptos");
   const [mostrarNuevoMedio,setMostrarNuevoMedio]=useState(false);
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
@@ -1925,7 +1928,7 @@ if (!authUser) {
                       <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{porcentajeGrupo}% del filtro</div>
                     </div>
                   </div>
-                  {cat.items.map(item => (<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>))}
+                  {cat.items.map(item => (movimientosNuevo?<MovementRowCompacta key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>:<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>))}
                 </div>
               );
             })}
