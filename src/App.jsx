@@ -404,7 +404,9 @@ const persistSavings = async (method,payload) => {
     const normalizedType = type === "error" ? "err" : (type || "ok");
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, type: normalizedType, id: Date.now() });
-    toastTimerRef.current = setTimeout(()=>setToast(null),2800);
+    // Los avisos de error y atención quedan más tiempo en pantalla para poder leerlos.
+    const duracion = ({ ok:2800, info:3500, warn:5500, err:7000 })[normalizedType] || 3500;
+    toastTimerRef.current = setTimeout(()=>setToast(null),duracion);
   };
 
   useEffect(() => {
@@ -1177,10 +1179,10 @@ const eliminar = async () => {
   //const eliminar=(tipo,id)=>{ setData(prev=>({...prev,[tipo]:{...prev[tipo],[mesKey]:(prev[tipo][mesKey]||[]).filter(g=>g.id!==id)}})); setConfirmDel(null); toast_("Eliminado","err"); };
   const cambiarMes=(dir)=>setMes(prev=>{ let m=prev.m+dir,y=prev.y; if(m>11){m=0;y++;} if(m<0){m=11;y--;} return{y,m}; });
 
-  const addFuente=()=>{if(!newFuente.trim()||cfg.fuentesIngreso.includes(newFuente.trim())){toast_("Verificá","err");return;}setCfg(p=>({...p,fuentesIngreso:[...p.fuentesIngreso,newFuente.trim()]}));setNewFuente("");toast_("Agregado");};
-  const saveFuente=()=>{if(!editFuente?.val.trim())return;setCfg(p=>{const f=[...p.fuentesIngreso];f[editFuente.idx]=editFuente.val.trim();return{...p,fuentesIngreso:f};});setEditFuente(null);toast_("Actualizado");};
-  const delFuente=(idx)=>{setCfg(p=>({...p,fuentesIngreso:p.fuentesIngreso.filter((_,i)=>i!==idx)}));toast_("Eliminado","err");};
-  const guardarTC=()=>{if(!Number.isFinite(Number(tcInput))||Number(tcInput)<=0){toast_("Ingresá una cotización mayor a cero","err");return;}setCfg(p=>({...p,tipoCambio:Number(tcInput)}));setTcInput("");toast_("TC actualizado");};
+  const addFuente=()=>{if(!newFuente.trim()||cfg.fuentesIngreso.includes(newFuente.trim())){toast_("Escribí un origen que no esté repetido","warn");return;}setCfg(p=>({...p,fuentesIngreso:[...p.fuentesIngreso,newFuente.trim()]}));setNewFuente("");toast_("Origen agregado");};
+  const saveFuente=()=>{if(!editFuente?.val.trim())return;setCfg(p=>{const f=[...p.fuentesIngreso];f[editFuente.idx]=editFuente.val.trim();return{...p,fuentesIngreso:f};});setEditFuente(null);toast_("Origen actualizado");};
+  const delFuente=(idx)=>{setCfg(p=>({...p,fuentesIngreso:p.fuentesIngreso.filter((_,i)=>i!==idx)}));toast_("Origen eliminado","info");};
+  const guardarTC=()=>{if(!Number.isFinite(Number(tcInput))||Number(tcInput)<=0){toast_("Ingresá una cotización mayor a cero","err");return;}setCfg(p=>({...p,tipoCambio:Number(tcInput)}));setTcInput("");toast_("Cotización del dólar actualizada");};
 
   const refrescarCatalogos = async () => {
     const catalogosApi = await getCatalogos();
@@ -1248,7 +1250,7 @@ const eliminar = async () => {
       await desactivarConcepto(concepto.id);
       await refrescarCatalogos();
       if (editConcepto?.id === concepto.id) setEditConcepto(null);
-      toast_("Concepto desactivado", "err");
+      toast_("Concepto desactivado", "info");
     } catch (e) {
       console.error(e);
       toast_(e.message || "No se pudo desactivar el concepto", "err");
@@ -1313,7 +1315,7 @@ const eliminar = async () => {
       await desactivarMedioPago(medio.id);
       await refrescarCatalogos();
       if (editMedio?.id === medio.id) setEditMedio(null);
-      toast_("Medio de pago desactivado", "err");
+      toast_("Medio de pago desactivado", "info");
     } catch (e) { console.error(e); toast_(e.message || "No se pudo desactivar el medio de pago", "err"); }
   };
 
