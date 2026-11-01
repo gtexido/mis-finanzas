@@ -253,7 +253,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontWeight: 800, fontSize: 17, color: "#e2e8f0" }}>
-              🧾 Desglose
+              Desglose
             </div>
             <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {gasto?.servicio || "Gasto"}

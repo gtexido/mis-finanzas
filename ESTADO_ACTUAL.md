@@ -42,6 +42,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 37 | Ingresos: se oculta la comparación vacía | `6910f99` |
 | 38 | Las cinco pantallas nuevas pasan a ser las de todos | `5d654d6` |
 | 39 | Importes en pesos sin decimales | `89af1df` |
+| 40 | Historial de cambios y guía para volver atrás (solo documentación) | `11dbc29` |
+| 41 | Desglose: título sin emoji, como el resto de la app | pendiente |
 
 Desde el PR 38, las pantallas anteriores se recuperan con `?cargar=actual`, `?ajustes=actual`, `?movimientos=actual`, `?inicio=actual` y `?vencimientos=actual`.
 
