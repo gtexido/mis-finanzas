@@ -9,6 +9,7 @@ Actualizado el 1 de noviembre de 2026.
 - `mis-finanzas-cbvk` es una copia duplicada de Vercel. Está pausada porque ninguno de los dos usuarios la usa.
 - Neon conserva `restore-antes-migracion-20261029` (base previa a la migración V1) y `respaldo-20261101` (base al 1 de noviembre de 2026, tras las mejoras de pantallas), para volver atrás si hiciera falta.
 - GitHub conserva la rama `respaldo-2026-11-01`: el código exacto de producción al 1 de noviembre de 2026 (commit `89af1df`).
+- GitHub conserva la rama `respaldo-2026-11-12`: el código de producción previo a la base de diseño compacta (commit `1824b01`).
 
 ## Qué se hizo
 
@@ -43,7 +44,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 38 | Las cinco pantallas nuevas pasan a ser las de todos | `5d654d6` |
 | 39 | Importes en pesos sin decimales | `89af1df` |
 | 40 | Historial de cambios y guía para volver atrás (solo documentación) | `11dbc29` |
-| 41 | Desglose: título sin emoji, como el resto de la app | pendiente |
+| 41 | Desglose: título sin emoji, como el resto de la app | `1824b01` |
+| 42 | Base de diseño normalizada y pantallas compactas (`src/styles/base-compacta.css`); títulos iguales a la barra de abajo; Cargar mantiene sus pestañas Gasto, Ingreso y Ahorro | pendiente |
 
 Desde el PR 38, las pantallas anteriores se recuperan con `?cargar=actual`, `?ajustes=actual`, `?movimientos=actual`, `?inicio=actual` y `?vencimientos=actual`.
 
