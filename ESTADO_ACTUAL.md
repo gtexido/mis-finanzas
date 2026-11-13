@@ -10,6 +10,7 @@ Actualizado el 1 de noviembre de 2026.
 - Neon conserva `restore-antes-migracion-20261029` (base previa a la migración V1) y `respaldo-20261101` (base al 1 de noviembre de 2026, tras las mejoras de pantallas), para volver atrás si hiciera falta.
 - GitHub conserva la rama `respaldo-2026-11-01`: el código exacto de producción al 1 de noviembre de 2026 (commit `89af1df`).
 - GitHub conserva la rama `respaldo-2026-11-12`: el código de producción previo a la base de diseño compacta (commit `1824b01`).
+- GitHub conserva la rama `respaldo-2026-11-13`: el código de producción previo a borrar las pantallas anteriores (commit `280357b`).
 
 ## Qué se hizo
 
@@ -48,9 +49,10 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 44 | Base de diseño normalizada y pantallas compactas (`src/styles/base-compacta.css`); títulos iguales a la barra de abajo; Cargar mantiene sus pestañas Gasto, Ingreso y Ahorro | `b64bc6a` |
 | 45 | Vencimientos: filas en un renglón en pantallas angostas, cartel de pagado por revisar debajo del nombre, botón "Debitado" para débitos | `faeb156` |
 | 46 | Informes: nueva pestaña "Tu inflación" (compara los mismos gastos entre dos meses; cálculo en `src/utils/inflacion.js`). No toca base ni servidor | `3de17d8` |
-| 47 | Inicio: bloque "¿Llegás a fin de mes?" en el mes en curso (reemplaza a "Por pagar"; cálculo en `src/utils/proyeccion.js`). No toca base ni servidor | pendiente |
+| 47 | Inicio: bloque "¿Llegás a fin de mes?" en el mes en curso (reemplaza a "Por pagar"; cálculo en `src/utils/proyeccion.js`). No toca base ni servidor | `280357b` |
+| 48 | Limpieza: se borra el código de las pantallas anteriores y sus interruptores (`?...=actual` deja de existir). Ajustes suma la fila "Conceptos recordados" | pendiente |
 
-Desde el PR 38, las pantallas anteriores se recuperan con `?cargar=actual`, `?ajustes=actual`, `?movimientos=actual`, `?inicio=actual` y `?vencimientos=actual`.
+Desde el PR 48 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
 ## Cambios de datos en la base
 

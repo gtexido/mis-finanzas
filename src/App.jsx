@@ -72,15 +72,12 @@ import SavingsView from "./views/SavingsView";
 import DuplicateReview from "./components/DuplicateReview";
 import DetalleViewShell from "./views/DetalleView";
 import UiIcon from "./components/UiIcon";
-import MovementRow from "./components/MovementRow";
 import ReplicateAction from "./components/ReplicateAction";
 import ReplicateModal from "./components/ReplicateModal";
 import PremiumHome from "./components/PremiumHome";
-import ExpenseFields from "./components/ExpenseFields";
 import ExpenseFieldsRapido from "./components/ExpenseFieldsRapido";
 import { atajosPorNombre, resumenDelMes, comparacionConMesAnterior, vencimientosRapidos, diasRapidos } from "./utils/cargaRapida";
 import { payloadParaRecrearGasto } from "./utils/deshacerBorrado";
-import { leerCargarNuevo, leerAjustesNuevo, leerMovimientosNuevo, leerInicioNuevo, leerVencimientosNuevo } from "./utils/interruptores";
 import { validarGastoParaGuardar } from "./utils/validarGasto";
 import { normalizarFechaConversion as normalizarFechaConversionPura, calcularTotalARSDetalle as calcularTotalARSDetallePuro } from "./utils/conversion";
 import "./premium.css";
@@ -219,11 +216,7 @@ export default function App() {
   const [subconceptosGasto,setSubconceptosGasto]=useState(null); // gasto en edición de subconceptos
   const [acumModal,setAcumModal]=useState(null); // {existente, nuevo}
   const [filtroEstado,setFiltroEstado]=useState("todos");
-  const [ajustesNuevo]=useState(leerAjustesNuevo);
-  const [movimientosNuevo]=useState(leerMovimientosNuevo);
-  const [inicioNuevo]=useState(leerInicioNuevo);
-  const [vencimientosNuevo]=useState(leerVencimientosNuevo);
-  const [cfgTab,setCfgTab]=useState(leerAjustesNuevo()?"":"conceptos");
+  const [cfgTab,setCfgTab]=useState("");
   const [mostrarNuevoMedio,setMostrarNuevoMedio]=useState(false);
   const [busquedaConceptoCfg,setBusquedaConceptoCfg]=useState("");
   const [editConcepto,setEditConcepto]=useState(null);
@@ -233,7 +226,6 @@ export default function App() {
   const [tcInput,setTcInput]=useState("");
   const [showCotizador,setShowCotizador]=useState(false);
   const [mostrarOpcionesCarga,setMostrarOpcionesCarga]=useState(false);
-  const [cargarNuevo]=useState(leerCargarNuevo);
   const [replicarStep,setReplicarStep]=useState(null); // null | 'modal' | 'confirmar' | 'done'
   const [excluirReplicar,setExcluirReplicar]=useState(new Set());
   const [mesesAtrasVar,setMesesAtrasVar]=useState(3);
@@ -873,7 +865,7 @@ try {
     });
 
     if(synced){
-      if(cargarNuevo&&gastoCreado?.movimiento_id)mostrarDeshacerCarga({id:gastoCreado.movimiento_id,periodo:mesKey,servicio:f.servicio,monto:montoReal(f,tc)});
+      if(gastoCreado?.movimiento_id)mostrarDeshacerCarga({id:gastoCreado.movimiento_id,periodo:mesKey,servicio:f.servicio,monto:montoReal(f,tc)});
       else toast_("Gasto guardado correctamente");
     }
   } catch (e) {
@@ -1131,7 +1123,7 @@ const handleSubconceptosSave = (items) => {
   setEditingGasto(null); setEditingMesKey(null); setConfirmDel(null); setSubconceptosGasto(null); setAcumModal(null); setReplicarStep(null);
   setEditConcepto(null); setEditMedio(null); setNuevoMedio({nombre:"",tipo:"banco",color:"#60a5fa",ordenVisual:""});
   setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null);
-  setCfgTab(ajustesNuevo?"":"conceptos"); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
+  setCfgTab(""); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
 };
 const refrescarMes = async (periodo, owner = authUser?.usuarioId) => {
   try {
@@ -1514,13 +1506,9 @@ const eliminar = async () => {
 
   const ultimoDiaCarga = new Date(mes.y, mes.m + 1, 0).getDate();
   const montoDeCarga = (g) => montoReal(g, tc);
-  const atajosCarga = cargarNuevo
-    ? atajosPorNombre(data.gastos, [mesKey, mesAnteriorKey], { limite: 6, montoDe: montoDeCarga, normalizar: normalizarTexto })
-    : [];
-  const resumenCarga = cargarNuevo ? resumenDelMes(data.gastos[mesKey] || [], { montoDe: montoDeCarga }) : null;
-  const comparacionCarga = cargarNuevo
-    ? comparacionConMesAnterior({ conceptoId: form.conceptoId, servicio: form.servicio }, data.gastos[mesAnteriorKey] || [], montoReal(form, tc), { montoDe: montoDeCarga, normalizar: normalizarTexto })
-    : null;
+  const atajosCarga = atajosPorNombre(data.gastos, [mesKey, mesAnteriorKey], { limite: 6, montoDe: montoDeCarga, normalizar: normalizarTexto });
+  const resumenCarga = resumenDelMes(data.gastos[mesKey] || [], { montoDe: montoDeCarga });
+  const comparacionCarga = comparacionConMesAnterior({ conceptoId: form.conceptoId, servicio: form.servicio }, data.gastos[mesAnteriorKey] || [], montoReal(form, tc), { montoDe: montoDeCarga, normalizar: normalizarTexto });
  const guardarDesdeCarga = async()=>{
             if(form.estado==="pendiente"&&!form.vencimiento&&!form.requiereRevision){toast_("Agregá una fecha de vencimiento o marcá Revisar después.","err");return;}
             if(form.tipoGasto==="detalle"&&!form.subconceptos.length){toast_("Agregá los ítems y guardá el desglose.","err");abrirSubconceptosConCotizacion({...form,id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:[]});return;}
@@ -1766,7 +1754,7 @@ if (!authUser) {
         </div>
       )}
 
-      {cargarNuevo&&deshacerCarga&&!deshacerBorrado&&(
+      {deshacerCarga&&!deshacerBorrado&&(
         <div className="cr-deshacer" role="status" aria-live="polite">
           <span className="cr-deshacer-icono"><UiIcon name="check" size={18}/></span>
           <div className="cr-deshacer-texto"><strong>Guardado</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}</small></div>
@@ -1877,26 +1865,24 @@ if (!authUser) {
         {["analisis","variacion","inflacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button><button aria-pressed={view==="inflacion"} onClick={()=>setView("inflacion")}>Tu inflación</button></div>}
 
         {/* HOME */}
-        {view==="home"&&<PremiumHome key={authUser.usuarioId} userId={authUser.usuarioId} savingsStatus={savingsStatus} savings={savingsSummary(savingsRecords,mesKey,[localDate(today),localDate(new Date(mes.y,mes.m+1,0))].sort()[0])} onSavings={()=>openSavings()} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica} nuevo={inicioNuevo} replicaPendientes={gastosFuenteReplicar.length} hoy={localDate(today)} mesKey={mesKey} esMesActual={mes.y===today.getFullYear()&&mes.m===today.getMonth()} ingresosLista={ingresosDelMes}/>}
+        {view==="home"&&<PremiumHome key={authUser.usuarioId} userId={authUser.usuarioId} savingsStatus={savingsStatus} savings={savingsSummary(savingsRecords,mesKey,[localDate(today),localDate(new Date(mes.y,mes.m+1,0))].sort()[0])} onSavings={()=>openSavings()} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica} replicaPendientes={gastosFuenteReplicar.length} hoy={localDate(today)} mesKey={mesKey} esMesActual={mes.y===today.getFullYear()&&mes.m===today.getMonth()} ingresosLista={ingresosDelMes}/>}
 
         {/* CARGAR */}
         {view==="cargar"&&<>
           <div className="segmented view-tabs" aria-label="Qué querés cargar"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>{setModoCarga(true);setView("ingresos");}}>Ingreso</button><button aria-pressed="false" onClick={()=>{setModoCarga(true);openSavings({kind:"aporte"});}}>Ahorro</button></div>
-          {cargarNuevo&&resumenCarga&&<div className="cr-mes" aria-label={`Gastos de ${MESES[mes.m].toLowerCase()}`}><div><small>Llevás en {MESES[mes.m].toLowerCase()}</small><strong className="money">{fmtARS(resumenCarga.total)}</strong></div><div className="cr-mes-detalle"><span>Pagado <b className="money">{fmtARS(resumenCarga.pagado)}</b></span><span>Pendiente <b className="money">{fmtARS(resumenCarga.pendiente)}</b></span></div></div>}
-          <fieldset className="expense-form-fields" disabled={guardandoGasto}>{cargarNuevo?<ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} onSelectAtajo={aplicarAtajoCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>:<ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>}
+          {resumenCarga&&<div className="cr-mes" aria-label={`Gastos de ${MESES[mes.m].toLowerCase()}`}><div><small>Llevás en {MESES[mes.m].toLowerCase()}</small><strong className="money">{fmtARS(resumenCarga.total)}</strong></div><div className="cr-mes-detalle"><span>Pagado <b className="money">{fmtARS(resumenCarga.pagado)}</b></span><span>Pendiente <b className="money">{fmtARS(resumenCarga.pendiente)}</b></span></div></div>}
+          <fieldset className="expense-form-fields" disabled={guardandoGasto}><ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} onSelectAtajo={aplicarAtajoCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
-          {cargarNuevo?<div className="cr-guardar"><button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button><p>{(form.servicio||"Gasto")+" · "+fmtARS(montoReal(form,tc))+" · "+(form.estado==="pendiente"?"pendiente":"pagado")+" · "+MESES[mes.m].toLowerCase()+" de "+mes.y}</p></div>:<button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button>}</fieldset>
-          {!cargarNuevo&&<p className="form-note">Se guardará en {MESES[mes.m].toLowerCase()} de {mes.y}.</p>}
+          <div className="cr-guardar"><button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button><p>{(form.servicio||"Gasto")+" · "+fmtARS(montoReal(form,tc))+" · "+(form.estado==="pendiente"?"pendiente":"pagado")+" · "+MESES[mes.m].toLowerCase()+" de "+mes.y}</p></div></fieldset>
           <button className="text-button" onClick={()=>setShowCotizador(!showCotizador)}>{showCotizador?"Ocultar cotización":"Consultar cotización del dólar"}</button>
           {showCotizador&&<CotizadorWidget onSelectTC={(valor,tipo)=>{setCfg(p=>({...p,tipoCambio:valor}));toast_(`Cotización ${tipo}: ${fmtARS(valor)}`);setShowCotizador(false);}}/>}
         </>}
 
         {/* DETALLE / RESUMEN */}
-        {view==="resumen"&&(!movimientosNuevo||gastosDelMes.length>0)&&<ReplicateAction nextMonth={mesNombreSig()} onClick={abrirReplica} pendientes={movimientosNuevo?gastosFuenteReplicar.length:undefined}/>}
+        {view==="resumen"&&gastosDelMes.length>0&&<ReplicateAction nextMonth={mesNombreSig()} onClick={abrirReplica} pendientes={gastosFuenteReplicar.length}/>}
         {view==="resumen"&&(
           <DetalleViewShell
-            chipsEnVariasLineas={movimientosNuevo}
-            onCargar={movimientosNuevo?()=>setView("cargar"):undefined}
+            onCargar={()=>setView("cargar")}
             mes={mes}
             filtroEstado={filtroEstado}
             setFiltroEstado={setFiltroEstado}
@@ -1937,7 +1923,7 @@ if (!authUser) {
                       <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{porcentajeGrupo}% del filtro</div>
                     </div>
                   </div>
-                  {cat.items.map(item => (movimientosNuevo?<MovementRowCompacta key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>:<MovementRow key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>))}
+                  {cat.items.map(item => <MovementRowCompacta key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>)}
                 </div>
               );
             })}
@@ -1947,7 +1933,6 @@ if (!authUser) {
         {/* VENCIMIENTOS */}
 {view==="vencimientos"&&(
   <VencimientosView
-    compacto={vencimientosNuevo}
     data={data}
     config={cfg}
     today={today}
@@ -2022,9 +2007,8 @@ if (!authUser) {
 
         {/* CONFIGURACIÓN */}
         {view==="config"&&(<>
-          {(!ajustesNuevo||cfgTab==="")&&<section className="surface account-card"><span className="avatar">{authUser.nombre?.slice(0,1)}</span><div><strong>{authUser.nombre}</strong><p className="small muted">{authUser.workspaceNombre || "Tu espacio"} · Tus movimientos personales</p></div><UiIcon name="lock" size={19}/></section>}
-          {ajustesNuevo
-            ? (cfgTab===""
+          {cfgTab===""&&<section className="surface account-card"><span className="avatar">{authUser.nombre?.slice(0,1)}</span><div><strong>{authUser.nombre}</strong><p className="small muted">{authUser.workspaceNombre || "Tu espacio"} · Tus movimientos personales</p></div><UiIcon name="lock" size={19}/></section>}
+          {(cfgTab===""
               ? (() => {
                   const medios=cfg.mediosPago||[];
                   const nDeb=gastosDelMes.filter(g=>isAutomaticDebit(g,cfg)).length;
@@ -2033,16 +2017,13 @@ if (!authUser) {
                     ["debitos","repeat","Débitos automáticos",nDeb?`${nDeb} servicio${nDeb===1?"":"s"} este mes`:"Ninguno este mes"],
                     ["tc","chart","Dólar",`Hoy: $ ${tc.toLocaleString("es-AR")}`],
                     ["fuentes","down","Orígenes de ingreso",`${(cfg.fuentesIngreso||[]).length} ${(cfg.fuentesIngreso||[]).length===1?"origen":"orígenes"}`],
+                    ["conceptos","edit","Conceptos recordados",`${(cfg.conceptos||[]).length} ${(cfg.conceptos||[]).length===1?"guardado":"guardados"}`],
                     ["backup","export","Copias y datos","Descargar tus movimientos"],
                   ];
                   const fila=([id,icono,titulo,resumen])=><button type="button" className="aj-fila" key={id} onClick={()=>setCfgTab(id)}><span className="aj-icono"><UiIcon name={icono} size={20}/></span><span className="aj-texto"><strong>{titulo}</strong><small>{resumen}</small></span><UiIcon name="chevron" size={18}/></button>;
-                  return <div className="aj-hub"><p className="aj-grupo">TU DINERO</p>{filas.slice(0,4).map(fila)}<p className="aj-grupo">DATOS</p>{filas.slice(4).map(fila)}</div>;
+                  return <div className="aj-hub"><p className="aj-grupo">TU DINERO</p>{filas.slice(0,5).map(fila)}<p className="aj-grupo">DATOS</p>{filas.slice(5).map(fila)}</div>;
                 })()
-              : <div className="aj-cabecera"><button type="button" className="aj-volver" onClick={()=>setCfgTab("")}><UiIcon name="chevron" size={16} style={{transform:"rotate(180deg)"}}/>Ajustes</button><h2 className="aj-titulo">{({medios:"Medios de pago",debitos:"Débitos automáticos",tc:"Dólar",fuentes:"Orígenes de ingreso",backup:"Copias y datos"})[cfgTab]}</h2></div>)
-            : <>
-          <p className="settings-intro">Administrá tus conceptos frecuentes, medios de pago y copias de tus datos.</p>
-          <div className="settings-tabs">{[["conceptos","Conceptos"],["medios","Medios de pago"],["debitos","Débitos automáticos"],["fuentes","Ingresos"],["tc","Dólar"],["backup","Copias y datos"]].map(([id,label])=><button key={id} aria-pressed={cfgTab===id} onClick={()=>setCfgTab(id)}>{label}</button>)}</div>
-            </>}
+              : <div className="aj-cabecera"><button type="button" className="aj-volver" onClick={()=>setCfgTab("")}><UiIcon name="chevron" size={16} style={{transform:"rotate(180deg)"}}/>Ajustes</button><h2 className="aj-titulo">{({medios:"Medios de pago",debitos:"Débitos automáticos",tc:"Dólar",fuentes:"Orígenes de ingreso",conceptos:"Conceptos recordados",backup:"Copias y datos"})[cfgTab]}</h2></div>)}
           {cfgTab==="conceptos"&&(
             <>
               <div className="card">
@@ -2082,13 +2063,13 @@ if (!authUser) {
             </>
           )}
           {cfgTab==="medios"&&(
-            <div className={ajustesNuevo?"aj-medios":undefined}>
+            <div className="aj-medios">
               <div className="card aj-info" style={{ border:"1px solid #1e3a5f",background:"#0f172a" }}>
                 <div style={{ fontWeight:800,fontSize:16,marginBottom:6 }}>Medios de pago</div>
                 <div style={{ fontSize:12,color:"#94a3b8",lineHeight:1.6 }}>Administrá bancos, billeteras, efectivo o cuentas propias. Los cambios impactan en carga, edición, conceptos y análisis.</div>
               </div>
-              {ajustesNuevo&&!mostrarNuevoMedio&&<button type="button" className="aj-agregar" onClick={()=>setMostrarNuevoMedio(true)}>＋ Agregar medio de pago</button>}
-              <div className="card aj-crear" hidden={ajustesNuevo&&!mostrarNuevoMedio}><span style={lbl}>CREAR MEDIO DE PAGO</span>
+              {!mostrarNuevoMedio&&<button type="button" className="aj-agregar" onClick={()=>setMostrarNuevoMedio(true)}>＋ Agregar medio de pago</button>}
+              <div className="card aj-crear" hidden={!mostrarNuevoMedio}><span style={lbl}>CREAR MEDIO DE PAGO</span>
                 <input className="inf" placeholder="Ej: Galicia, BBVA, Ualá, Cuenta negocio" value={nuevoMedio.nombre} onChange={e=>setNuevoMedio(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
                 <div style={{ display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10 }}>
                   <select className="inf" value={nuevoMedio.tipo} onChange={e=>setNuevoMedio(p=>({...p,tipo:e.target.value}))}>{TIPOS_MEDIO_PAGO.map(t=><option key={t.id} value={t.id}>{t.label}</option>)}</select>
@@ -2098,7 +2079,7 @@ if (!authUser) {
                 <div style={{ display:"flex",gap:8,flexWrap:"wrap",marginBottom:12 }}>{COLORES.map(c=><div key={c} className="cd" onClick={()=>setNuevoMedio(p=>({...p,color:c}))} style={{ background:c,borderColor:nuevoMedio.color===c?"#fff":"transparent",transform:nuevoMedio.color===c?"scale(1.2)":"none" }}/>)}</div>
                 <button className="pb" style={{ width:"100%",background:"#7c3aed",color:"#fff" }} onClick={crearMedioPagoCfg}>+ Crear medio</button>
               </div>
-              <div className="card aj-buscar" hidden={ajustesNuevo&&(cfg.mediosPago||[]).length<=6}><span style={lbl}>BUSCAR MEDIO</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaMedioCfg} onChange={e=>setBusquedaMedioCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{mediosConfigFiltrados.length} medio(s) activo(s).</div></div>
+              <div className="card aj-buscar" hidden={(cfg.mediosPago||[]).length<=6}><span style={lbl}>BUSCAR MEDIO</span><input className="inf" placeholder="Buscar por nombre..." value={busquedaMedioCfg} onChange={e=>setBusquedaMedioCfg(e.target.value)} /><div style={{ fontSize:11,color:"#64748b",marginTop:8 }}>{mediosConfigFiltrados.length} medio(s) activo(s).</div></div>
               {editMedio&&(
                 <div className="card aj-editar" style={{ border:"1px solid #7c3aed55",background:"#15111f" }}><span style={lbl}>EDITAR MEDIO</span>
                   <input className="inf" value={editMedio.nombre} onChange={e=>setEditMedio(p=>({...p,nombre:e.target.value}))} style={{ marginBottom:10 }}/>
