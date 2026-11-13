@@ -2,14 +2,11 @@ import UiIcon from './UiIcon';
 import { plural } from '../utils/formatters';
 
 // pendientes: cantidad de gastos del mes que todavía faltan en el mes siguiente.
-// Si no se informa (pantalla de siempre), se muestra el texto genérico.
 export default function ReplicateAction({ nextMonth, onClick, pendientes }) {
   const mes = nextMonth.toLowerCase();
-  const detalle = pendientes === undefined || pendientes === null
-    ? `Elegí qué gastos llevar a ${mes}.`
-    : pendientes === 0
-      ? `Todos los gastos de este mes ya están en ${mes}.`
-      : `Faltan ${plural(pendientes, 'gasto')} en ${mes}. Elegí cuáles llevar.`;
+  const detalle = !pendientes
+    ? `Todos los gastos de este mes ya están en ${mes}.`
+    : `Faltan ${plural(pendientes, 'gasto')} en ${mes}. Elegí cuáles llevar.`;
   return <button type="button" className="replicate-link" onClick={onClick}>
     <span className="replicate-icon"><UiIcon name="calendar" size={21}/></span>
     <span><strong>Replicar gastos</strong><small>{detalle}</small></span>

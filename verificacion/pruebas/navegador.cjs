@@ -34,16 +34,15 @@ function movimiento(periodo, monto, id=`audit_${periodo}`) {
 const results=[];
 let browser;
 let devServer;
-async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNext=false,loadError=false,nuevas=false}={}) {
+async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNext=false,loadError=false}={}) {
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,
     timezoneId:'America/Argentina/Buenos_Aires',locale:'es-AR',acceptDownloads:true,serviceWorkers:'block'});
   const page=await context.newPage();
   await page.clock.setFixedTime(new Date('2026-10-01T12:00:00-03:00'));
-  await page.addInitScript(({user,nuevas})=>{
-    if(!nuevas)for(const k of ['mf_cargar_nuevo','mf_ajustes_nuevo','mf_movimientos_nuevo','mf_inicio_nuevo','mf_vencimientos_nuevo'])if(localStorage.getItem(k)===null)localStorage.setItem(k,'0');
+  await page.addInitScript(({user})=>{
     localStorage.setItem('mf_auth_token','ficticio-sin-acceso-real');
     localStorage.setItem('mf_auth_user',JSON.stringify(user));
-  },{user,nuevas});
+  },{user});
   const requests=[],pageErrors=[],flags={failCreate:false};
   const db=Object.fromEntries([6,7,8,9,10,11].map(m=>{
     const p=`2026-${String(m).padStart(2,'0')}`;
@@ -106,11 +105,16 @@ async function probe(id,title,run){
 
 async function cargar(s) {
   await nav(s.page,'Cargar');
-  await s.page.getByRole('button',{name:'Servicio de prueba',exact:true}).click();
+  await s.page.locator('.cr-atajos button').first().click();
+}
+// Abre el menú de la fila y elige Eliminar (la fila compacta no tiene botón directo).
+async function eliminarFila(page,nombre='Servicio de prueba') {
+  await page.getByRole('button',{name:`Más acciones: ${nombre}`}).first().click();
+  await page.getByRole('menuitem',{name:'Eliminar'}).click();
 }
 async function desglose(s,moneda='ARS') {
   await cargar(s);
-  await s.page.getByRole('button',{name:'Más opciones',exact:true}).click();
+  await s.page.getByRole('button',{name:/Más opciones/}).click();
   if(moneda==='USD')await s.page.getByRole('button',{name:'USD',exact:true}).click();
   await s.page.getByRole('button',{name:'Agregar desglose',exact:true}).click();
   await s.page.getByPlaceholder('Nombre del ítem...', {exact:true}).fill('Ítem ficticio');
@@ -199,7 +203,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
     const s=await setup({emptyCurrent:true});try{
       await desglose(s,moneda);
       await s.page.getByRole('button',{name:'Guardar desglose y volver',exact:true}).click();
-      await s.page.getByRole('button',{name:'Más opciones',exact:true}).click();
+      await s.page.getByRole('button',{name:/Más opciones/}).click();
       assert(await s.page.getByRole('button',{name:'Editar desglose',exact:true}).isVisible());
       const response=s.page.waitForResponse(r=>r.url().includes('/api/gastos'));
       await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).click();await response;
@@ -252,7 +256,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       await nav(s.page,'Cargar');
       assert.equal(await s.page.getByText('TIPO / ETIQUETAS',{exact:true}).count(),0);
       assert.equal(await s.page.getByText('Categoría',{exact:true}).count(),0);
-      await s.page.getByLabel('¿Qué gasto querés registrar?',{exact:true}).fill('Panadería nueva');
+      await s.page.locator('#expense-concept').fill('Panadería nueva');
       await s.page.getByLabel('Importe',{exact:true}).fill('1500.75');
       await s.page.getByLabel('Cuenta o medio de pago',{exact:true}).selectOption('mp_bancon');
       await s.page.getByLabel('Forma de pago',{exact:true}).selectOption('ins_manual');
@@ -310,16 +314,16 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {actionVisible:true,destinationOpened:true,posts:0};
     }finally{await s.context.close();}
   });
-  await probe('UI-15','Mes vacío explica qué necesita la copia',async()=>{
-    const s=await setup({emptyCurrent:true});try{
-      await nav(s.page,'Detalle');
-      await s.page.getByRole('button',{name:/Replicar gastos/}).click();
-      const dialog=s.page.getByRole('dialog');
-      assert(await dialog.getByText('Todavía no hay gastos',{exact:true}).isVisible());
-      assert(await dialog.getByText('Elegí un mes con gastos para preparar el siguiente.',{exact:true}).isVisible());
-      await dialog.getByRole('button',{name:'Cerrar replicación',exact:true}).click();
-      assert.equal(await s.page.getByRole('dialog').count(),0);assert.equal(writes(s).length,0);
-      return {emptyMonthExplained:true,dialogCloses:true,posts:0};
+  await probe('UI-15','Ajustes: los conceptos recordados se pueden abrir y editar',async()=>{
+    const s=await setup();try{
+      await nav(s.page,'Ajustes');
+      await s.page.getByRole('button',{name:/Conceptos recordados/}).click();
+      assert.equal(await s.page.locator('.aj-cabecera h2').innerText(),'Conceptos recordados');
+      await s.page.getByPlaceholder('Buscar: alquiler, netflix, super...').fill('servicio');
+      assert(await s.page.getByText('CONCEPTOS ACTIVOS',{exact:true}).isVisible());
+      assert(await s.page.getByText('Servicio de prueba',{exact:false}).first().isVisible());
+      assert.equal(writes(s).length,0);assert.deepEqual(s.pageErrors,[]);
+      return {conceptsReachable:true};
     }finally{await s.context.close();}
   });
   await probe('UI-16','Replicar desde Movimientos permite elegir los gastos',async()=>{
@@ -332,7 +336,6 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   });
   await probe('UI-17','Movimientos con filas compactas: pagar con un toque y eliminar desde el menú',async()=>{
     const s=await setup();try{
-      await s.page.evaluate(()=>localStorage.setItem('mf_movimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
       await nav(s.page,'Detalle');
       assert(await s.page.getByRole('button',{name:'Editar Servicio de prueba',exact:true}).first().isVisible());
       assert.equal(await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).count(),0,'Eliminar no debe estar a la vista antes de abrir el menú');
@@ -350,7 +353,6 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   });
   await probe('UI-18','Movimientos nuevo: filtros a la vista, Replicar según el mes y botón para cargar en mes vacío',async()=>{
     const s=await setup({emptyCurrent:true});try{
-      await s.page.evaluate(()=>localStorage.setItem('mf_movimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
       await nav(s.page,'Detalle');
       const chip=await s.page.getByRole('button',{name:'Débito automático',exact:true}).boundingBox();
       assert(chip&&chip.x+chip.width<=390,'El último filtro debe verse completo en 390 px');
@@ -363,7 +365,6 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   });
   await probe('UI-19','Movimientos nuevo: Replicar informa cuántos gastos faltan en el mes siguiente',async()=>{
     const s=await setup({emptyNext:true});try{
-      await s.page.evaluate(()=>localStorage.setItem('mf_movimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
       await nav(s.page,'Detalle');
       const boton=s.page.getByRole('button',{name:/Replicar gastos/});
       assert.match(await boton.innerText(),/Faltan 1 gasto en noviembre/);
@@ -372,7 +373,6 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   });
   await probe('UI-20','Inicio nuevo: cargar arriba, Por pagar y solo los avisos con datos',async()=>{
     const s=await setup();try{
-      await s.page.evaluate(()=>localStorage.setItem('mf_inicio_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
       const cargar=await s.page.locator('.home-add').first().boundingBox();
       const avisos=await s.page.getByRole('heading',{name:'Para atender'}).boundingBox();
       assert(cargar&&avisos&&cargar.y<avisos.y,'El botón Cargar debe estar antes de los avisos');
@@ -385,7 +385,6 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   });
   await probe('UI-21','Vencimientos nuevo: tarjeta compacta, marcar pagado desde la lista y sin avisos en cero',async()=>{
     const s=await setup();try{
-      await s.page.evaluate(()=>localStorage.setItem('mf_vencimientos_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
       await nav(s.page,'Vence');
       assert(await s.page.getByRole('button',{name:'Editar Servicio de prueba',exact:true}).first().isVisible());
       assert.equal(await s.page.getByRole('button',{name:'Revisar',exact:true}).count(),0,'La tarjeta compacta no repite el botón Revisar');
@@ -413,7 +412,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   await probe('UI-23','Ventanas de eliminar y replicar explican qué pasa sin jerga',async()=>{
     const s=await setup({emptyNext:true});try{
       await nav(s.page,'Detalle');
-      await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).first().click();
+      await eliminarFila(s.page);
       const dialogo=s.page.getByRole('dialog');
       assert(await dialogo.getByText('Los demás meses no cambian.',{exact:false}).isVisible());
       assert.equal(await dialogo.getByText('concepto',{exact:false}).count(),0,'Sin la palabra concepto');
@@ -428,9 +427,9 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   await probe('UI-24','Deshacer al eliminar un gasto lo vuelve a crear igual, y si falla avisa',async()=>{
     const s=await setup({emptyNext:true});try{
       await nav(s.page,'Detalle');
-      const filas=()=>s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).count();
+      const filas=()=>s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).count();
       const antes=await filas();assert(antes>0);
-      await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).first().click();
+      await eliminarFila(s.page);
       const respDel=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
       await s.page.getByRole('dialog').getByRole('button',{name:/Eliminar/}).last().click();await respDel;
       const barra=s.page.locator('.cr-deshacer');
@@ -448,7 +447,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert.equal(s.requests.filter(r=>r.path==='/api/gastos-delete').length,1);
       // Si la recreación falla, el gasto sigue eliminado y se avisa.
       s.flags.failCreate=true;
-      await s.page.getByRole('button',{name:'Eliminar Servicio de prueba'}).first().click();
+      await eliminarFila(s.page);
       const respDel2=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
       await s.page.getByRole('dialog').getByRole('button',{name:/Eliminar/}).last().click();await respDel2;
       await barra.waitFor();
@@ -470,8 +469,8 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {emptyComparisonHidden:true};
     }finally{await s.context.close();}
   });
-  await probe('UI-26','Pantallas nuevas por defecto: sin parámetros se ven las nuevas y ?...=actual vuelve a la anterior',async()=>{
-    const s=await setup({nuevas:true,emptyNext:true});try{
+  await probe('UI-26','Movimientos: eliminar desde el menú de la fila y deshacer',async()=>{
+    const s=await setup({emptyNext:true});try{
       await nav(s.page,'Detalle');
       assert(await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).first().isVisible(),'Fila compacta por defecto');
       await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).first().click();
@@ -482,16 +481,16 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       const respNuevo=s.page.waitForResponse(r=>r.url().includes('/api/gastos')&&r.request().method()==='POST');
       await barra.getByRole('button',{name:'Deshacer',exact:true}).click();await respNuevo;
       await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).first().waitFor();
+      // Los parámetros de las pantallas anteriores ya no existen: no cambian nada.
       await s.page.goto(base+'/?movimientos=actual');await s.page.waitForLoadState('networkidle');
-      assert.equal(await s.page.evaluate(()=>localStorage.getItem('mf_movimientos_nuevo')),'0');
       await nav(s.page,'Detalle');
-      assert.equal(await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).count(),0,'Con ?movimientos=actual vuelve la fila anterior');
+      assert(await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).first().isVisible(),'La fila compacta es la única');
       assert.deepEqual(s.pageErrors,[]);
-      return {newByDefault:true,undoWorksOnNew:true,escapeHatch:true};
+      return {deleteFromMenu:true,undoWorks:true,oldParamIgnored:true};
     }finally{await s.context.close();}
   });
   await probe('UI-27','Cargar: el título es Cargar y las pestañas Gasto, Ingreso y Ahorro se mantienen al cambiar',async()=>{
-    const s=await setup({nuevas:true});try{
+    const s=await setup();try{
       const titulo=()=>s.page.locator('.page-header h1').innerText();
       const activa=()=>s.page.locator('.bottom-nav .ni[aria-current=page]').innerText();
       const tabs=s.page.getByLabel('Qué querés cargar');
@@ -515,7 +514,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
     }finally{await s.context.close();}
   });
   await probe('UI-28','Informes: Tu inflación compara los mismos gastos, permite no contar uno y lo recuerda',async()=>{
-    const s=await setup({nuevas:true});try{
+    const s=await setup();try{
       const g=(p,id,nombre,monto)=>({...movimiento(p,monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null});
       for(const k of Object.keys(s.db))s.db[k]=[];
       s.db['2026-07']=[g('2026-07','a1','Luz',100000),g('2026-07','a2','Tarjeta',500000),g('2026-07','a3','Internet',20000)];
@@ -540,7 +539,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
     }finally{await s.context.close();}
   });
   await probe('UI-29','Inicio: ¿Llegás a fin de mes? resta cada pago en su fecha y avisa si no alcanza',async()=>{
-    const s=await setup({nuevas:true});try{
+    const s=await setup();try{
       const g=(id,nombre,monto,o={})=>({...movimiento('2026-10',monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null,...o});
       const sueldo=monto=>({...movimiento('2026-10',monto,'sueldo1'),tipo_movimiento:'INGRESO',subtipo_movimiento:'SUELDO',concepto_nombre:'Sueldo',servicio:'Sueldo',estado:'pagado',vencimiento:null});
       const gastos=[g('p1','Colegio',100000,{vencimiento:'2026-10-01'}),g('p2','Internet',50000,{vencimiento:'2026-10-05'}),g('p3','Super',30000,{estado:'pagado',vencimiento:null}),g('p4','Varios',20000,{vencimiento:null})];
