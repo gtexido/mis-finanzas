@@ -11,6 +11,7 @@ Actualizado el 1 de noviembre de 2026.
 - GitHub conserva la rama `respaldo-2026-11-01`: el código exacto de producción al 1 de noviembre de 2026 (commit `89af1df`).
 - GitHub conserva la rama `respaldo-2026-11-12`: el código de producción previo a la base de diseño compacta (commit `1824b01`).
 - GitHub conserva la rama `respaldo-2026-11-13`: el código de producción previo a borrar las pantallas anteriores (commit `280357b`).
+- Neon conserva `respaldo-20261113-antes-cuotas` (base previa a las columnas de cuotas) y `prueba-cuotas-20261113` (copia donde se probó el script; se puede borrar).
 
 ## Qué se hizo
 
@@ -51,7 +52,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 46 | Informes: nueva pestaña "Tu inflación" (compara los mismos gastos entre dos meses; cálculo en `src/utils/inflacion.js`). No toca base ni servidor | `3de17d8` |
 | 47 | Inicio: bloque "¿Llegás a fin de mes?" en el mes en curso (reemplaza a "Por pagar"; cálculo en `src/utils/proyeccion.js`). No toca base ni servidor | `280357b` |
 | 49 | Limpieza: se borra el código de las pantallas anteriores y sus interruptores (`?...=actual` deja de existir). Ajustes suma la fila "Conceptos recordados" | `1f12952` |
-| 50 | Limpieza: se quitan 68 reglas de estilo que ya no usa ninguna pantalla. Comprobado con 28 capturas idénticas antes y después | pendiente |
+| 50 | Limpieza: se quitan 68 reglas de estilo que ya no usa ninguna pantalla. Comprobado con 28 capturas idénticas antes y después | `e985aac` |
+| 51 | Cuotas, paso 1: el servidor crea todas las cuotas de una compra en una operación y permite borrar "esta y las que faltan". Todavía sin pantalla | pendiente |
 
 Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
@@ -60,6 +62,7 @@ Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver 
 | Fecha | Cambio | Respaldo previo en Neon |
 |-------|--------|-------------------------|
 | 12/11/2026 | Forma de pago "QR" agregada para las dos cuentas (`ins_qr_gustavo`, `ins_qr_vane`) en `instrumentos_pago` | `respaldo-20261112-antes-qr` |
+| 13/11/2026 | Script `sql/SQL_CUOTAS_V1.sql`: tres columnas nuevas en `movimientos` (`cuota_plan_id`, `cuota_numero`, `cuota_total`), una restricción y un índice. 302 filas antes y después, sin cambios en los datos | `respaldo-20261113-antes-cuotas` |
 
 ## Cómo volver atrás
 
