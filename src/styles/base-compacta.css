@@ -206,3 +206,14 @@
 .ranking-bar{margin-top:7px;background:var(--surface-2)}
 .ranking-bar span{background:var(--accent)}
 .ranking-meta{margin-top:4px}
+
+/* ---------- Vencimientos: filas en un renglón también en pantallas angostas ---------- */
+/* El ícono se oculta: el texto ya dice si es un débito ("Débito en 8 días") o un pago manual ("Vence en 6 días"). */
+.due-item.due-compacta .row-icon{display:none}
+.due-item.due-compacta{padding:6px 8px 6px 14px}
+.due-item.due-compacta .row-copy strong{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.due-item.due-compacta .row-copy small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.due-item.due-compacta .due-pagar{padding:0 12px}
+/* Pagado por revisar: el cartel va debajo del nombre, no al costado */
+.due-item.due-compacta:has(>.due-paid){grid-template-columns:minmax(0,1fr);gap:2px;padding:8px 14px 10px}
+.due-item.due-compacta>.due-paid{justify-self:start}
