@@ -8,6 +8,7 @@
 // Usa los mismos manejadores que la fila de siempre: no cambia ningún guardado.
 // =============================================================================
 import { useEffect, useState } from 'react';
+import { etiquetaCuota } from '../utils/cuotas';
 import { montoReal, montoUSDReal } from '../utils/money';
 import { fmtARS, fmtUSD, fmtMonto, fmtFecha } from '../utils/formatters';
 import { expenseAttention, hasUnconfirmedDue, isAutomaticDebit, reviewLabel } from '../utils/paymentStatus';
@@ -22,7 +23,7 @@ export default function MovementRowCompacta({ item, tc, month, onEdit, onToggle,
   const revision = reviewLabel(item);
   const textoToggle = pagado ? 'Marcar pendiente' : isAutomaticDebit(item) ? 'Confirmar débito' : 'Marcar como pagado';
   const vence = item.vencimiento && !hasUnconfirmedDue(item) ? `${isAutomaticDebit(item) ? 'Cobro' : 'Vence'} ${fmtFecha(item.vencimiento).slice(0, 5)}` : '';
-  const meta = [`Día ${item.dia}`, item.instrumentoNombre || item.formaPago, vence].filter(Boolean).join(' · ');
+  const meta = [etiquetaCuota(item), `Día ${item.dia}`, item.instrumentoNombre || item.formaPago, vence].filter(Boolean).join(' · ');
 
   useEffect(() => {
     if (!menu) return undefined;

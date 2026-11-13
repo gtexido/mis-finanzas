@@ -4,6 +4,8 @@ import { montoReal, montoUSDReal } from '../utils/money';
 import UiIcon from './UiIcon';
 import { isAutomaticDebit, normalizedPayment } from '../utils/paymentStatus';
 import { categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId } from '../utils/legacy';
+import { resumenCuotas, validarCuotasForm, CUOTAS_MAXIMO } from '../utils/cuotas';
+import { fmtPeriodo } from '../utils/formatters';
 
 // Pantalla Cargar nueva (detrás de interruptor). Misma data y mismos campos que
 // ExpenseFields; cambia la presentación: atajos, resumen de pago, fechas rápidas.
@@ -11,11 +13,14 @@ import { categoriaLegacyDesdeMedioPagoId, formaPagoLegacyDesdeInstrumentoId } fr
 export default function ExpenseFieldsRapido({
   value: f, setValue, config, tc, maxDay = 31, suggestions = [], atajos = [], comparacion = null,
   etiquetaMesAnterior = 'el mes pasado', diasRapidos = [], vencimientos = [],
-  onSelectConcept, onSelectAtajo, onBreakdown, advanced, setAdvanced, onRemember, onDescartar,
+  onSelectConcept, onSelectAtajo, onBreakdown, advanced, setAdvanced, onRemember, onDescartar, mesKey,
 }) {
   const [cambiarPago, setCambiarPago] = useState(false);
   const [otroDia, setOtroDia] = useState(false);
   const [otraFecha, setOtraFecha] = useState(false);
+
+  const tieneDesgloseCuotas = (f.subconceptos || []).length > 0;
+  const resumenC = f.cuotasActivas ? resumenCuotas({ total: f.cuotasTotal, desde: f.cuotasDesde, monto: f.monto, mesKey }) : null;
 
   const change = (key, value) => setValue(p => ({ ...p, [key]: value, ...(key === 'medioPagoId' ? { categoria: categoriaLegacyDesdeMedioPagoId(value) } : {}), ...(key === 'instrumentoId' ? { formaPago: formaPagoLegacyDesdeInstrumentoId(value), instrumentoNombre: '', instrumento: '', ...(isAutomaticDebit({ instrumentoId: value }, config) ? { estado: 'pendiente' } : {}) } : {}) }));
   const automatic = isAutomaticDebit(f, config);
@@ -94,7 +99,20 @@ export default function ExpenseFieldsRapido({
 
     {(advanced || f.requiereRevision || f.estado === 'pendiente') && <label className="check-line review-line"><input type="checkbox" checked={!!f.requiereRevision} onChange={review} /><span>{f.estado === 'pendiente' && !f.vencimiento ? 'Todavía no sé la fecha: revisar después' : 'Revisar después'}<small>Controlar importe, factura o fecha más adelante.</small></span></label>}
 
-    <button type="button" className="disclosure" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><span>Más opciones <small className="muted">· nota, se repite</small></span><UiIcon name="plus" size={18} style={{ transform: advanced ? 'rotate(45deg)' : undefined }} /></button>
-    {advanced && <><div className="field"><label htmlFor="expense-note">Nota <span className="muted">· opcional</span></label><input id="expense-note" className="inf" placeholder="Ej: Cuota 2 de 6" value={f.observacion || ''} onChange={e => change('observacion', e.target.value)} /></div><label className="check-line"><input type="checkbox" checked={!!f.esRecurrente} onChange={e => change('esRecurrente', e.target.checked)} />Se repite todos los meses</label></>}
+    <button type="button" className="disclosure" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><span>Más opciones <small className="muted">· nota, se repite, cuotas</small></span><UiIcon name="plus" size={18} style={{ transform: advanced ? 'rotate(45deg)' : undefined }} /></button>
+    {advanced && <><div className="field"><label htmlFor="expense-note">Nota <span className="muted">· opcional</span></label><input id="expense-note" className="inf" placeholder="Ej: Cuota 2 de 6" value={f.observacion || ''} onChange={e => change('observacion', e.target.value)} /></div><label className="check-line"><input type="checkbox" checked={!!f.esRecurrente && !f.cuotasActivas} disabled={!!f.cuotasActivas} onChange={e => change('esRecurrente', e.target.checked)} />Se repite todos los meses</label>
+      <label className="check-line"><input type="checkbox" id="expense-cuotas" checked={!!f.cuotasActivas} disabled={tieneDesgloseCuotas} onChange={e => setValue(p => ({ ...p, cuotasActivas: e.target.checked, ...(e.target.checked ? { esRecurrente: false } : {}) }))} />Es una compra en cuotas</label>
+      {tieneDesgloseCuotas && <p className="muted small">Un gasto con desglose no se puede cargar en cuotas.</p>}
+      {f.cuotasActivas && <div className="cuotas-bloque">
+        <div className="cuotas-campos">
+          <div className="field"><label htmlFor="expense-cuotas-total">Cantidad de cuotas</label><input id="expense-cuotas-total" className="inf" inputMode="numeric" maxLength={2} placeholder="Ej: 12" value={f.cuotasTotal || ''} onChange={e => change('cuotasTotal', e.target.value.replace(/\D/g, ''))} /></div>
+          <div className="field"><label htmlFor="expense-cuotas-desde">Esta es la cuota n.º</label><input id="expense-cuotas-desde" className="inf" inputMode="numeric" maxLength={2} value={f.cuotasDesde ?? '1'} onChange={e => change('cuotasDesde', e.target.value.replace(/\D/g, ''))} /></div>
+        </div>
+        <p className="muted small">En "Importe" va el valor de una cuota, no el total de la compra.</p>
+        {resumenC
+          ? <p className="cuotas-resumen" role="status">Se van a crear <strong>{resumenC.cantidad} {resumenC.cantidad === 1 ? 'cuota' : 'cuotas'}</strong>{Number(f.monto) > 0 ? <> de <strong>{f.moneda === 'USD' ? fmtUSD(Number(f.monto)) : fmtARS(Number(f.monto))}</strong></> : null}, {resumenC.cantidad === 1 ? `en ${fmtPeriodo(resumenC.desdeKey)}` : `de ${fmtPeriodo(resumenC.desdeKey)} a ${fmtPeriodo(resumenC.hastaKey)}`}. La primera queda como la cargás; las demás, pendientes.</p>
+          : (f.cuotasTotal ? <p className="cuotas-resumen cuotas-error" role="status">{validarCuotasForm({ total: f.cuotasTotal, desde: f.cuotasDesde }).mensaje}</p> : <p className="muted small">Hasta {CUOTAS_MAXIMO} cuotas.</p>)}
+        <p className="cuotas-aviso">Si la compra ya viene dentro del resumen de una tarjeta que cargás por el total, no la cargues acá: se contaría dos veces.</p>
+      </div>}</>}
   </div>;
 }
