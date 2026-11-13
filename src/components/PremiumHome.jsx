@@ -7,8 +7,23 @@ import ReplicateAction from './ReplicateAction';
 import AttentionSummary from './AttentionSummary';
 import { nextAction } from '../utils/smartHints';
 import { formatPercent } from '../utils/comparisons';
+import { proyectarMes } from '../utils/proyeccion';
+import { plural } from '../utils/formatters';
 
-export default function PremiumHome({ userId, savings, savingsStatus, onSavings, increases = [], previousLabel, gastos, ingresos, totalGastos, saldo, pendiente, tc, overview, monthLabel, onOpenAttention, onNavigate, onEdit, onReplicate, nextMonth, nuevo = false, replicaPendientes }) {
+const DIAS_CORTOS = ['dom','lun','mar','mié','jue','vie','sáb'];
+/** Nombre del movimiento más grande y cuántos más hay ese día: "Prevencion y 1 más". */
+const resumenNombres = (items) => {
+  const mayor = [...items].sort((a, b) => Math.abs(b.monto) - Math.abs(a.monto))[0];
+  return items.length > 1 ? `${mayor.nombre} y ${items.length - 1} más` : mayor.nombre;
+};
+/** "Hoy", "Mañana" o "vie 20" para una fecha AAAA-MM-DD respecto de hoy. */
+const etiquetaFecha = (fecha, hoy) => {
+  const d = new Date(`${fecha}T12:00:00`), h = new Date(`${hoy}T12:00:00`);
+  const dias = Math.round((d - h) / 86400000);
+  return dias === 0 ? 'Hoy' : dias === 1 ? 'Mañana' : `${DIAS_CORTOS[d.getDay()]} ${d.getDate()}`;
+};
+
+export default function PremiumHome({ userId, savings, savingsStatus, onSavings, increases = [], previousLabel, gastos, ingresos, totalGastos, saldo, pendiente, tc, overview, monthLabel, onOpenAttention, onNavigate, onEdit, onReplicate, nextMonth, nuevo = false, replicaPendientes, hoy, mesKey, esMesActual = false, ingresosLista = [] }) {
   const recent = [...gastos].sort((a, b) => Number(b.dia) - Number(a.dia)).slice(0, 3);
   const used = ingresos > 0 ? Math.round(totalGastos / ingresos * 100) : null;
   const next = overview.next;
@@ -52,6 +67,25 @@ export default function PremiumHome({ userId, savings, savingsStatus, onSavings,
       </button>
     </section>);
   const bPendiente = <button className={`monthly-pending${nuevo?' por-pagar':''}`} onClick={() => onOpenAttention('all', 'month')}><span>{nuevo?`Por pagar en ${monthLabel}`:`Pendiente de ${monthLabel}`}<small>{nuevo?'Ya está incluido en el balance':'Ya incluido en los gastos del balance'}</small></span><strong className="money">{money(pendiente)}</strong><UiIcon name="chevron" size={15}/></button>;
+  // "¿Llegás a fin de mes?": solo en el mes en curso. Reemplaza a "Por pagar" porque ya incluye ese total y lleva a los mismos pagos.
+  const p = nuevo && esMesActual && hoy ? proyectarMes({ gastos, tc, disponible: available, hoy, mesKey, ingresos: ingresosLista }) : null;
+  const veredicto = !p ? '' : p.cantidad === 0
+    ? (p.finDeMes >= 0 ? `Ya pagaste todo. Te quedan ${money(p.finDeMes)}.` : `Ya pagaste todo. Gastaste ${money(-p.finDeMes)} más de lo que ingresó.`)
+    : p.llega ? `Sí. Después de pagar todo te quedan ${money(p.finDeMes)}.`
+    : p.minimo.fecha ? `No alcanza. ${(() => { const e = etiquetaFecha(p.minimo.fecha, hoy); return e === 'Hoy' || e === 'Mañana' ? e : `El ${e}`; })()} te faltarían ${money(-p.minimo.saldo)}.`
+    : `No alcanza. Te faltarían ${money(-p.minimo.saldo)} para pagar todo.`;
+  const bProyeccion = p && (<section className={`llego surface${p.llega ? '' : ' no-llega'}`} aria-labelledby="llego-title">
+      <div className="section-line"><h2 id="llego-title">¿Llegás a fin de mes?</h2>{p.cantidad > 0 && <button className="text-button" onClick={() => onOpenAttention('all', 'month')}>Ver pagos<UiIcon name="chevron" size={15}/></button>}</div>
+      <p className="llego-veredicto">{veredicto}</p>
+      {p.cantidad > 0 && <p className="small muted llego-resumen">En mano hoy <span className="money">{money(p.enMano)}</span> · por pagar <span className="money">{money(p.porPagar)}</span> en {plural(p.cantidad, 'pago')}</p>}
+      {p.pasos.slice(0, 3).map(paso => <div className={`llego-paso${paso.saldo < 0 ? ' negativo' : ''}`} key={paso.fecha}>
+        <span className="llego-fecha">{etiquetaFecha(paso.fecha, hoy)}</span>
+        <span className="llego-nombres">{resumenNombres(paso.items)}</span>
+        <span className="llego-montos"><strong className="money">{paso.cobros > paso.pagos ? `+${money(paso.cobros - paso.pagos)}` : `−${money(paso.pagos - paso.cobros)}`}</strong><small className="money">quedan {money(paso.saldo)}</small></span>
+      </div>)}
+      {p.pasos.length > 3 && <p className="small muted llego-mas">y {plural(p.pasos.length - 3, 'fecha')} más hasta fin de mes</p>}
+      {p.sinFecha && <div className="llego-paso sin-fecha"><span className="llego-fecha">Sin fecha</span><span className="llego-nombres">{resumenNombres(p.sinFecha.items)}</span><span className="llego-montos"><strong className="money">−{money(p.sinFecha.total)}</strong></span></div>}
+    </section>);
   const bAhorro = <button className="savings-home" onClick={onSavings}><span className="row-icon"><UiIcon name="savings" size={23}/></span><span className="row-copy"><strong>Tu ahorro</strong><small>{savingsReady ? `Acumulado: ${money(savings.ars)} · ${money(savings.usd,'USD')}` : savingsStatus==='error' ? 'No se pudo actualizar. Tocá para reintentar.' : 'Cargando tus ahorros…'}</small>{savingsReady&&savings.net!==0&&<small>{savings.net>0?'Apartado neto del mes: ':'Retirado neto del mes: '}{money(Math.abs(savings.net))}</small>}</span><UiIcon name="chevron" size={18}/></button>;
   const bCargar = <button className="primary home-add" onClick={() => onNavigate('cargar')}><UiIcon name="plus" size={20}/>Cargar<UiIcon name="arrow" size={20}/></button>;
   const bReplicar = (!nuevo || gastos.length > 0) && <ReplicateAction nextMonth={nextMonth} onClick={onReplicate} pendientes={nuevo ? replicaPendientes : undefined}/>;
@@ -59,6 +93,6 @@ export default function PremiumHome({ userId, savings, savingsStatus, onSavings,
   const bLargest = !!largest.length&&<details className="home-largest"><summary>En qué más gastaste<UiIcon name="chart" size={18}/></summary>{largest.map(item=><div className="largest-item" key={item.key}><div className="section-line"><strong>{item.name}</strong><span className="money">{money(item.total)}</span></div>{!hidden&&<div className="largest-bar"><span style={{width:`${totalGastos>0?item.total/totalGastos*100:0}%`}}/></div>}</div>)}<button className="text-button" onClick={()=>onNavigate('analisis')}>Ver distribución completa<UiIcon name="arrow" size={16}/></button></details>;
   const bRecientes = <section className="home-section"><div className="section-line"><h2>Últimos movimientos</h2><button className="text-button" onClick={() => onNavigate('resumen')}>Ver todos<UiIcon name="chevron" size={15}/></button></div><div className="surface">{recent.length ? recent.map(g => <button className="summary-row" key={g.id} onClick={() => onEdit(g)}><span className="row-icon">{String(g.servicio || 'G').slice(0, 1).toUpperCase()}</span><span className="row-copy"><strong>{g.servicio}</strong><small>Día {g.dia} · {g.estado === 'pagado' ? 'Pagado' : 'Pendiente'}</small></span><span className="money">{money(montoReal(g, tc))}</span></button>) : <div className="empty-state"><UiIcon name="wallet" size={30}/><h3>Tu mes empieza acá</h3><p>Cargá tu primer gasto para seguir sus pagos desde el inicio.</p></div>}</div></section>;
   return <div className={`home-view panorama-home${nuevo ? ' inicio-nuevo' : ''}`}>
-    {nuevo ? <>{bBalance}{bCargar}{bPendiente}{bHoy}{bProximo}{bAhorro}{bReplicar}{bCambios}{bLargest}{bRecientes}</> : <>{bBalance}{bHoy}{bProximo}{bPendiente}{bAhorro}{bCargar}{bReplicar}{bCambios}{bLargest}{bRecientes}</>}
+    {nuevo ? <>{bBalance}{bCargar}{bProyeccion || bPendiente}{bHoy}{bProximo}{bAhorro}{bReplicar}{bCambios}{bLargest}{bRecientes}</> : <>{bBalance}{bHoy}{bProximo}{bPendiente}{bAhorro}{bCargar}{bReplicar}{bCambios}{bLargest}{bRecientes}</>}
   </div>;
 }
