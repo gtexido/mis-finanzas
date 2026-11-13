@@ -376,7 +376,7 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       const cargar=await s.page.locator('.home-add').first().boundingBox();
       const avisos=await s.page.getByRole('heading',{name:'Para atender'}).boundingBox();
       assert(cargar&&avisos&&cargar.y<avisos.y,'El botón Cargar debe estar antes de los avisos');
-      assert(await s.page.getByText(/Por pagar en octubre/).isVisible());
+      assert(await s.page.getByRole('heading',{name:'¿Llegás a fin de mes?'}).isVisible());
       assert.equal(await s.page.getByRole('heading',{name:'Hoy, lo importante'}).count(),0);
       const ceros=await s.page.locator('.attention-tile:not(.has-items)').count();assert.equal(ceros,0,'No se muestran avisos en cero');
       assert.deepEqual(s.pageErrors,[]);
@@ -537,6 +537,34 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert.equal(await s.page.getByRole('button',{name:'Volver a contar: Tarjeta',exact:true}).count(),1);
       assert.equal(writes(s).length,0);assert.deepEqual(s.pageErrors,[]);
       return {personalInflation:true,excludeRemembered:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-29','Inicio: ¿Llegás a fin de mes? resta cada pago en su fecha y avisa si no alcanza',async()=>{
+    const s=await setup({nuevas:true});try{
+      const g=(id,nombre,monto,o={})=>({...movimiento('2026-10',monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null,...o});
+      const sueldo=monto=>({...movimiento('2026-10',monto,'sueldo1'),tipo_movimiento:'INGRESO',subtipo_movimiento:'SUELDO',concepto_nombre:'Sueldo',servicio:'Sueldo',estado:'pagado',vencimiento:null});
+      const gastos=[g('p1','Colegio',100000,{vencimiento:'2026-10-01'}),g('p2','Internet',50000,{vencimiento:'2026-10-05'}),g('p3','Super',30000,{estado:'pagado',vencimiento:null}),g('p4','Varios',20000,{vencimiento:null})];
+      for(const k of Object.keys(s.db))s.db[k]=[];
+      s.db['2026-10']=[...gastos,sueldo(150000)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      const bloque=s.page.locator('.llego');await bloque.waitFor();
+      assert.match(await bloque.locator('.llego-veredicto').innerText(),/No alcanza\. Te faltarían \$\s?50\.000 para pagar todo\./);
+      assert.match(await bloque.locator('.llego-resumen').innerText(),/En mano hoy \$\s?120\.000 · por pagar \$\s?170\.000 en 3 pagos/);
+      const pasos=bloque.locator('.llego-paso');
+      assert.equal(await pasos.count(),3);
+      assert.match(await pasos.nth(0).innerText(),/Hoy[\s\S]*Colegio[\s\S]*100\.000[\s\S]*quedan \$\s?20\.000/);
+      assert.match(await pasos.nth(1).innerText(),/lun 5[\s\S]*Internet[\s\S]*50\.000[\s\S]*quedan -?\$\s?-?30\.000/);
+      assert.match(await pasos.nth(2).innerText(),/Sin fecha[\s\S]*Varios[\s\S]*20\.000/);
+      assert.equal(await s.page.getByText(/Por pagar en octubre/).count(),0);
+      s.db['2026-10']=[...gastos,sueldo(500000)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await s.page.locator('.llego-veredicto').filter({hasText:'Sí. Después de pagar todo te quedan'}).waitFor();
+      assert.match(await s.page.locator('.llego-veredicto').innerText(),/300\.000/);
+      // En un mes que no es el actual vuelve "Por pagar".
+      await s.page.getByRole('button',{name:'Mes siguiente'}).click();
+      await s.page.locator('.llego').waitFor({state:'detached'});
+      assert.equal(writes(s).length,0);assert.deepEqual(s.pageErrors,[]);
+      return {projection:true,warnsWhenShort:true,onlyCurrentMonth:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

@@ -1,0 +1,14 @@
+/* Inicio · "¿Llegás a fin de mes?". Usa la base de src/styles/base-compacta.css. */
+.llego{padding:12px var(--pad) 6px;margin:0 0 var(--gap)}
+.llego>.section-line h2{font-size:var(--fs-md)}
+.llego-veredicto{margin:4px 0 2px;font-size:var(--fs-md);font-weight:600;line-height:1.4;color:var(--text)}
+.llego.no-llega .llego-veredicto{color:var(--danger)}
+.llego-resumen{margin:0 0 8px;line-height:1.5}
+.llego-paso{display:grid;grid-template-columns:62px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.llego-fecha{font-size:var(--fs-sm);font-weight:700}
+.llego-nombres{font-size:var(--fs-sm);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.llego-montos{display:grid;justify-items:end;gap:1px}
+.llego-montos strong{font-size:var(--fs-md);font-weight:600}
+.llego-montos small{font-size:var(--fs-xs);color:var(--muted)}
+.llego-paso.negativo .llego-montos small{color:var(--danger);font-weight:600}
+.llego-mas{margin:0;padding:8px 0;border-top:1px solid var(--line)}

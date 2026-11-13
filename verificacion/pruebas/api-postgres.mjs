@@ -447,6 +447,26 @@ await check('CALC-09','Tu inflación: compara los mismos gastos entre dos meses 
   return {cases:6};
 });
 
+await check('CALC-10','¿Llegás a fin de mes?: resta cada pago pendiente en su fecha, suma ingresos futuros y detecta el saldo mínimo (src/utils/proyeccion.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/proyeccion.js'));await mod.evaluate();const m=mod.namespace;
+  const g=(servicio,monto,o={})=>({servicio,monto,moneda:'ARS',estado:'pendiente',...o});
+  const gastos=[g('Colegio',100000,{vencimiento:'2026-11-12'}),g('Viejo',10000,{vencimiento:'2026-11-03'}),g('Internet',50000,{vencimiento:'2026-11-20'}),g('Luz',40000,{vencimiento:'2026-11-20'}),g('Super',30000,{estado:'pagado'}),g('Varios',20000,{vencimiento:''})];
+  const r=m.proyectarMes({gastos,tc:1,disponible:80000,hoy:'2026-11-12',mesKey:'2026-11',ingresos:[]});
+  assert.equal(r.porPagar,220000);assert.equal(r.enMano,300000);assert.equal(r.cantidad,5);assert.equal(r.vencidos,1);
+  assert.equal(r.pasos.length,2);assert.equal(r.pasos[0].fecha,'2026-11-12');assert.equal(r.pasos[0].pagos,110000);assert.equal(r.pasos[0].saldo,190000);
+  assert.equal(r.pasos[1].fecha,'2026-11-20');assert.equal(r.pasos[1].pagos,90000);assert.equal(r.pasos[1].saldo,100000);assert.equal(r.pasos[1].items.length,2);
+  assert.equal(r.sinFecha.total,20000);assert.equal(r.finDeMes,80000);assert.equal(r.llega,true);assert.equal(r.minimo.saldo,80000);
+  const corto=m.proyectarMes({gastos,tc:1,disponible:-30000,hoy:'2026-11-12',mesKey:'2026-11',ingresos:[{fuente:'Extra',monto:60000,dia:'25'},{fuente:'Viejo',monto:1000,dia:'2'}]});
+  assert.equal(corto.porCobrar,60000);assert.equal(corto.enMano,130000);
+  assert.equal(corto.pasos.length,3);assert.equal(corto.pasos[1].saldo,-70000);assert.equal(corto.pasos[2].fecha,'2026-11-25');assert.equal(corto.pasos[2].cobros,60000);assert.equal(corto.pasos[2].saldo,-10000);
+  assert.equal(corto.finDeMes,-30000);assert.equal(corto.llega,false);assert.equal(corto.minimo.saldo,-70000);assert.equal(corto.minimo.fecha,'2026-11-20');
+  const nada=m.proyectarMes({gastos:[g('Super',30000,{estado:'pagado'})],disponible:500,hoy:'2026-11-12',mesKey:'2026-11'});
+  assert.equal(nada.cantidad,0);assert.equal(nada.pasos.length,0);assert.equal(nada.sinFecha,null);assert.equal(nada.finDeMes,500);assert.equal(nada.llega,true);
+  const usd=m.proyectarMes({gastos:[g('Netflix',10,{moneda:'USD',vencimiento:'2026-11-15'})],tc:1500,disponible:0,hoy:'2026-11-12',mesKey:'2026-11'});
+  assert.equal(usd.porPagar,15000);assert.equal(usd.pasos[0].saldo,0);
+  return {cases:4};
+});
+
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
 const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
 await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
