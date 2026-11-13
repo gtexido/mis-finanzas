@@ -373,9 +373,9 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
   await probe('UI-20','Inicio nuevo: cargar arriba, Por pagar y solo los avisos con datos',async()=>{
     const s=await setup();try{
       await s.page.evaluate(()=>localStorage.setItem('mf_inicio_nuevo','1'));await s.page.reload();await s.page.waitForLoadState('networkidle');
-      const cargar=await s.page.getByRole('button',{name:/Cargar un gasto/}).first().boundingBox();
+      const cargar=await s.page.locator('.home-add').first().boundingBox();
       const avisos=await s.page.getByRole('heading',{name:'Para atender'}).boundingBox();
-      assert(cargar&&avisos&&cargar.y<avisos.y,'Cargar un gasto debe estar antes de los avisos');
+      assert(cargar&&avisos&&cargar.y<avisos.y,'El botón Cargar debe estar antes de los avisos');
       assert(await s.page.getByText(/Por pagar en octubre/).isVisible());
       assert.equal(await s.page.getByRole('heading',{name:'Hoy, lo importante'}).count(),0);
       const ceros=await s.page.locator('.attention-tile:not(.has-items)').count();assert.equal(ceros,0,'No se muestran avisos en cero');
@@ -488,6 +488,30 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert.equal(await s.page.getByRole('button',{name:'Más acciones: Servicio de prueba'}).count(),0,'Con ?movimientos=actual vuelve la fila anterior');
       assert.deepEqual(s.pageErrors,[]);
       return {newByDefault:true,undoWorksOnNew:true,escapeHatch:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-27','Cargar: el título es Cargar y las pestañas Gasto, Ingreso y Ahorro se mantienen al cambiar',async()=>{
+    const s=await setup({nuevas:true});try{
+      const titulo=()=>s.page.locator('.page-header h1').innerText();
+      const activa=()=>s.page.locator('.bottom-nav .ni[aria-current=page]').innerText();
+      const tabs=s.page.getByLabel('Qué querés cargar');
+      assert.equal(await titulo(),'Inicio');
+      await s.page.locator('.home-add').click();
+      assert.equal(await titulo(),'Cargar');
+      await tabs.getByRole('button',{name:'Ingreso',exact:true}).click();
+      assert.equal(await titulo(),'Cargar');assert.match(await activa(),/Cargar/);
+      assert.equal(await tabs.getByRole('button',{name:'Ingreso',exact:true}).getAttribute('aria-pressed'),'true');
+      await tabs.getByRole('button',{name:'Ahorro',exact:true}).click();
+      assert.equal(await titulo(),'Cargar');assert.match(await activa(),/Cargar/);
+      assert.equal(await tabs.getByRole('button',{name:'Ahorro',exact:true}).getAttribute('aria-pressed'),'true');
+      await tabs.getByRole('button',{name:'Gasto',exact:true}).click();
+      assert(await s.page.getByRole('button',{name:'Guardar gasto'}).first().isVisible());
+      // Desde Movimientos, Ingresos y Ahorros siguen bajo Movimientos.
+      await nav(s.page,'Ingresos');
+      assert.equal(await titulo(),'Movimientos');assert.match(await activa(),/Movimientos/);
+      assert.equal(await s.page.getByLabel('Qué querés cargar').count(),0);
+      assert.equal(writes(s).length,0);assert.deepEqual(s.pageErrors,[]);
+      return {titleAndTabsStable:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

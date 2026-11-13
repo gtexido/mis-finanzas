@@ -1,0 +1,208 @@
+/* =============================================================================
+   src/styles/base-compacta.css
+   Base de diseño normalizada y pantallas más compactas.
+
+   Descripción:
+     Define una sola base (colores, tamaños de letra, radios y espacios) y la
+     aplica sobre las pantallas existentes sin cambiar su estructura ni sus
+     funciones. Se importa al final para que estas reglas manden.
+
+   Criterio de énfasis:
+     Solo se destacan tres cosas: el disponible del mes, lo vencido o que vence
+     hoy, y la acción principal (cargar o guardar). El resto usa texto y
+     superficies neutras.
+
+   Regla de tamaños: ninguna letra por debajo de 12 px; todo botón de 44 px.
+   ============================================================================= */
+
+:root{
+  /* Colores */
+  --bg:#0c111b;
+  --surface:#141d2a;
+  --surface-2:#1b2636;
+  --line:#263142;
+  --text:#f1f3f9;
+  --muted:#a0aec0;
+  --accent:#b6a0ff;          /* textos, enlaces y estados elegidos */
+  --accent-strong:#7c3aed;   /* relleno de la acción principal */
+  --mint:#94e4c7;            /* pagado, saldo a favor */
+  --amber:#f7c578;           /* vence en los próximos días */
+  --danger:#ffab9e;          /* vencido, vence hoy, saldo en contra */
+  /* Letra */
+  --fs-xs:12px;
+  --fs-sm:13px;
+  --fs-md:15px;
+  --fs-lg:20px;
+  --fs-xl:28px;
+  --fs-2xl:36px;
+  /* Radios y espacios */
+  --r-sm:10px;
+  --r-md:16px;
+  --r-full:999px;
+  --gap:12px;
+  --pad:16px;
+}
+
+/* ---------- Estructura general ---------- */
+.app-shell .app-content{padding:0 var(--pad)!important}
+.app-shell .card{padding:12px var(--pad)!important;margin-bottom:var(--gap)!important;border-radius:var(--r-md)!important}
+.surface{border-radius:var(--r-md)}
+.section-line h2{font-size:var(--fs-md)}
+.eyebrow{font-size:var(--fs-xs)}
+
+/* ---------- Encabezado: marca, título y mes en menos alto ---------- */
+.topbar{height:52px;padding:0 var(--pad)}
+.brand{font-size:var(--fs-md)}
+.brand-mark{width:30px;height:30px;border-radius:var(--r-sm)}
+.page-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:4px 10px;padding:0 var(--pad) 12px}
+.page-header h1{font-size:var(--fs-lg);font-weight:650;letter-spacing:-.4px;line-height:1.2;min-width:0}
+.page-header p{display:none}
+.page-header .period-picker,.home-header .period-picker{margin-top:0;padding-top:0;border-top:0;gap:6px;font-size:var(--fs-sm);color:var(--muted)}
+.app-shell .period-picker .icon-button{width:40px;height:44px;min-height:44px;background:transparent}
+
+/* ---------- Barra inferior ---------- */
+.bottom-nav .ni{font-size:var(--fs-xs);gap:4px;color:var(--muted)}
+.bottom-nav .ni[aria-current=page]{color:var(--accent)}
+.nav-add>svg{background:var(--accent-strong);color:#fff;border-radius:var(--r-full);width:46px}
+
+/* ---------- Acción principal ---------- */
+.primary{background:var(--accent-strong);color:#fff;min-height:48px;border-radius:var(--r-md);font-size:var(--fs-md)}
+
+/* ---------- Controles comunes ---------- */
+.segmented{border-radius:var(--r-md);background:var(--surface);border-color:var(--line)}
+.segmented button{border-radius:var(--r-sm);font-size:var(--fs-sm);color:var(--muted)}
+.segmented button[aria-pressed=true]{background:var(--surface-2);color:var(--text)}
+.filter-chips{gap:8px;margin-bottom:var(--gap)}
+.filter-chips button{border-radius:var(--r-full);border-color:var(--line);color:var(--muted);font-size:var(--fs-sm);padding:0 14px}
+.filter-chips button[aria-pressed=true]{background:rgba(182,160,255,.14);border-color:var(--accent);color:var(--accent)}
+.row-icon{width:36px;height:36px;border-radius:var(--r-sm);background:var(--surface-2);color:var(--accent)}
+.summary-row{padding:11px 14px}
+.summary-row>.money{font-size:var(--fs-md)}
+.expense-badge{font-size:var(--fs-xs);padding:3px 8px;border-radius:var(--r-full)}
+.expense-badge.soon{color:var(--amber);background:rgba(247,197,120,.12)}
+.expense-badge.overdue{color:var(--danger);background:rgba(255,171,158,.14)}
+.expense-badge.paid{color:var(--mint);background:rgba(148,228,199,.12)}
+.small{font-size:var(--fs-xs)}
+
+/* ---------- Inicio ---------- */
+.panorama-home .balance-card{padding:var(--pad);border-radius:var(--r-md);background:var(--surface);border-color:var(--line)}
+.balance-card .eyebrow{color:var(--muted)}
+.panorama-home .balance-value{font-size:var(--fs-2xl);font-weight:700;margin-top:2px;line-height:1.2}
+.balance-caption{font-size:var(--fs-xs);color:var(--muted)}
+.panorama-home .balance-split{margin-top:10px;padding-top:10px;border-top-color:var(--line)}
+.balance-split button+button{border-left-color:var(--line)}
+.balance-split span{font-size:var(--fs-xs);color:var(--muted);margin-bottom:2px}
+.balance-split span svg,.balance-split button+button svg{color:var(--muted)}
+.panorama-home .balance-split strong{font-size:var(--fs-md);font-weight:600}
+.balance-split button:first-child strong,.balance-split button+button strong{color:var(--text)}
+.panorama-home .balance-progress{margin-top:10px;font-size:var(--fs-xs);color:var(--muted)}
+.balance-progress .progress-track span{background:var(--accent)}
+.inicio-nuevo .home-add,.panorama-home .home-add{margin:var(--gap) 0}
+.inicio-nuevo .monthly-pending.por-pagar{padding:10px 14px;margin:0 0 var(--gap);border-radius:var(--r-md);font-size:var(--fs-sm)}
+.inicio-nuevo .monthly-pending.por-pagar strong{font-size:var(--fs-md);color:var(--text)}
+.monthly-pending small{font-size:var(--fs-xs);margin-top:1px}
+.today-overview{margin:4px 0 var(--gap)}
+.today-overview>.section-line{margin-bottom:8px}
+.scope-label{font-size:var(--fs-xs)}
+.attention-tile{padding:8px 12px;border-radius:var(--r-md);background:var(--surface)}
+.attention-tile-label{font-size:var(--fs-xs)}
+.attention-tile-value{margin:0}
+.attention-tile-value strong{font-size:var(--fs-lg)}
+.attention-tile>.money,.tile-empty{font-size:var(--fs-xs);margin-top:0}
+.next-payment{border-color:var(--line)}
+.inicio-nuevo .next-payment{margin-bottom:var(--gap)}
+.next-payment .summary-row{padding:10px 14px}
+.next-payment .row-copy small{font-size:var(--fs-xs);margin:0 0 2px;color:var(--muted)}
+.savings-home{padding:10px 14px;margin:0 0 var(--gap);border-radius:var(--r-md);border-color:var(--line);background:var(--surface)}
+.savings-home .row-icon{color:var(--mint);background:var(--surface-2)}
+.savings-home>svg{color:var(--muted)}
+.replicate-link,.panorama-home .replicate-link{padding:10px 14px;margin:0 0 var(--gap);border-radius:var(--r-md);border-color:var(--line)!important;background:var(--surface)!important}
+.replicate-link>.replicate-icon{width:36px;height:36px;border-radius:var(--r-sm);background:var(--surface-2)}
+.replicate-link .replicate-icon{color:var(--accent)!important}
+.replicate-link strong{font-size:var(--fs-md)}
+.replicate-link small{font-size:var(--fs-xs);margin-top:1px;line-height:1.4}
+.replicate-link>svg{color:var(--muted)}
+.home-largest{margin:0 0 var(--gap);border-radius:var(--r-md);padding:0 14px}
+.home-largest summary{padding:12px 0;font-size:var(--fs-md)}
+.home-largest summary svg{color:var(--muted)}
+.home-section{margin:4px 0 var(--pad)}
+
+/* ---------- Movimientos ---------- */
+.detail-total{padding:0 0 var(--gap)}
+.detail-total .money{font-size:var(--fs-xl);font-weight:700;margin:2px 0}
+.mv-fila{padding:9px 0}
+.mv-linea1 strong,.mv-monto b{font-size:var(--fs-md)}
+.mv-linea2{margin-top:1px;font-size:var(--fs-xs)}
+.mv-avisos{margin-top:5px}
+.mv-extra{margin-top:4px}
+.movement-more{font-size:var(--fs-xs)}
+
+/* ---------- Vencimientos ---------- */
+.report-total{padding:0 0 var(--gap)}
+.report-total .money{font-size:var(--fs-xl);font-weight:700;margin:2px 0}
+.due-total{padding-bottom:var(--gap)}
+.due-total>.section-line{min-height:0}
+.due-total>.money{color:var(--text)}
+.attention-filters{margin-bottom:var(--gap)}
+.attention-filters button{font-size:var(--fs-xs);border-radius:var(--r-md)}
+.due-section{margin-top:var(--pad)}
+.due-section>h2{font-size:var(--fs-sm);font-weight:700;margin-bottom:6px}
+.due-item,.due-section.review .due-item{border-left:1px solid var(--line);margin-bottom:6px;border-radius:var(--r-md)}
+.due-item.soon,.due-item.review{background:var(--surface)}
+.due-item.urgent{background:#2a1f27;border-color:#5a3a40}
+.due-item.due-compacta{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 8px 6px 12px}
+.due-item.due-compacta .summary-row{gap:10px;align-items:center}
+.due-item.due-compacta .row-icon{width:32px;height:32px}
+.due-item.due-compacta .row-copy strong{font-size:var(--fs-md)}
+.due-item.due-compacta .row-copy small{font-size:var(--fs-xs)}
+.due-item.due-compacta .money,.due-item .money{font-size:var(--fs-md)}
+.due-item.due-compacta .due-pagar{background:rgba(148,228,199,.14);color:var(--mint);font-size:var(--fs-sm);font-weight:600;border-radius:var(--r-sm)}
+.due-item.due-compacta .due-paid{font-size:var(--fs-xs)}
+
+/* ---------- Cargar ---------- */
+.cr-guardar{margin:0 calc(var(--pad) * -1);padding:14px var(--pad) 6px}
+.cr-atajos button{border-radius:var(--r-md);border-color:var(--line);background:var(--surface);padding:7px 12px}
+.cr-atajos strong{font-size:var(--fs-md)}
+.cr-atajos .money{font-size:var(--fs-sm);color:var(--muted)}
+.cr-atajos small{font-size:var(--fs-xs)}
+.cr-mes,.cr-pago{border-radius:var(--r-md)}
+.cr-mes-detalle{font-size:var(--fs-xs)}
+
+/* ---------- Ingresos ---------- */
+.income-card{padding:14px var(--pad);margin-bottom:var(--gap)}
+.income-item{padding:11px 0 2px}
+
+/* ---------- Ajustes finos ---------- */
+.monthly-pending small{color:var(--muted)}
+/* Marca de pagado: círculo chico, pero el área para tocar sigue siendo de 46 px */
+.app-shell .mv-check{min-height:0;min-width:0;width:26px;height:26px;flex:none;justify-self:start;margin-top:1px}
+/* El aviso "Vence en N días" solo se muestra si es urgente; la fecha ya está en la línea de datos */
+.mv-avisos .expense-badge.neutral{display:none}
+.mv-avisos:has(>.expense-badge.neutral:only-child){display:none}
+/* Filtros: 38 px a la vista, 46 px para tocar */
+.app-shell .filter-chips button{position:relative;min-height:38px}
+.app-shell .filter-chips button:before{content:"";position:absolute;inset:-4px 0}
+.app-shell .inf,.expense-fields .inf{min-height:46px}
+.search-field{margin-bottom:var(--gap)}
+.search-field>svg{top:13px}
+/* Importe en Cargar */
+.amount-field{padding:12px var(--pad);margin:var(--gap) 0;border-radius:var(--r-md);background:var(--surface);border-color:var(--line)}
+.amount-input{margin:4px 0 2px}
+.amount-input>span{color:var(--muted)}
+.currency-switch button{border-radius:var(--r-sm)}
+.currency-switch button[aria-pressed=true]{background:var(--surface-2);color:var(--text)}
+/* Informes */
+.month-comparison{padding:12px 14px;border-radius:var(--r-md);background:var(--surface);border-color:var(--line)}
+.month-comparison strong{font-size:var(--fs-lg);font-weight:700;margin-top:2px}
+.month-comparison>p{line-height:1.4}
+.comparison-percent{font-size:var(--fs-sm);font-weight:700;border-radius:var(--r-full);background:var(--surface-2);color:var(--text)}
+.comparison-caution{margin-top:4px;line-height:1.4;font-size:var(--fs-xs);color:var(--muted)}
+.report-caption{margin:var(--gap) 0;line-height:1.5}
+/* Ranking de Informes */
+.ranking-row{padding:11px 0}
+.ranking-row .section-line{font-size:var(--fs-sm)}
+.ranking-row .section-line strong{font-size:var(--fs-md);font-weight:600}
+.ranking-row small{font-size:var(--fs-xs)}
+.ranking-bar{margin-top:7px;background:var(--surface-2)}
+.ranking-bar span{background:var(--accent)}
+.ranking-meta{margin-top:4px}

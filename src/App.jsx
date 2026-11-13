@@ -90,6 +90,7 @@ import "./styles/ajustes-nuevo.css";
 import "./styles/movimientos-nuevo.css";
 import "./styles/inicio-nuevo.css";
 import "./styles/vencimientos-nuevo.css";
+import "./styles/base-compacta.css";
 import MovementRowCompacta from "./components/MovementRowCompacta";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
@@ -108,6 +109,9 @@ export default function App() {
   const now=new Date();
   const stored=load();
   const [view,setView]=useState("home");
+  // Verdadero cuando se llegó a Ingreso o Ahorro desde las pestañas de Cargar: mantiene el título, las pestañas y la barra en "Cargar".
+  const [modoCarga,setModoCarga]=useState(false);
+  useEffect(()=>{ if(!["ingresos","ahorros"].includes(view)) setModoCarga(false); },[view]);
   const [dueSelection,setDueSelection]=useState({filter:"all",scope:"all"});
   const [today,setToday]=useState(() => new Date());
   useEffect(() => {
@@ -1860,12 +1864,13 @@ if (!authUser) {
       {confirmDel && <ConfirmDelete item={confirmDel} amount={confirmDel.tipo==="gastos"?montoReal(confirmDel,tc):Number(confirmDel.monto)} busy={eliminando} error={deleteError} onClose={()=>setConfirmDel(null)} onConfirm={eliminar}/>}
 
       <div className={`page-header ${view==="home"?"home-header":""}`}>
-        <h1>{({home:"Tu mes, en claro.",cargar:"Cargar gasto",resumen:"Movimientos",ingresos:"Ingresos",ahorros:"Ahorros",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",config:"Ajustes"})[view]}</h1>
+        <h1>{modoCarga&&["ingresos","ahorros"].includes(view)?"Cargar":({home:"Inicio",cargar:"Cargar",resumen:"Movimientos",ingresos:"Movimientos",ahorros:"Movimientos",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",config:"Ajustes"})[view]}</h1>
         <p>{({home:`Hola, ${authUser.nombre}. Este es tu resumen.`,cargar:"Lo esencial, sin vueltas.",resumen:"Cada gasto, a mano.",ingresos:"Todo lo que entra en el mes.",ahorros:"Lo que reservás para vos.",vencimientos:"Tus pagos, a tiempo.",analisis:"Entendé en qué se va tu plata.",variacion:"Una mirada a lo que cambia.",config:"Tu app, a tu manera."})[view]}</p>
         {view!=="config"&&<div className="period-picker"><span>{MESES[mes.m]} {mes.y}</span><div className="period-controls"><button className="icon-button" aria-label="Mes anterior" onClick={()=>cambiarMes(-1)}><UiIcon name="chevron" size={17} style={{transform:"rotate(180deg)"}}/></button><button className="icon-button" aria-label="Mes siguiente" onClick={()=>cambiarMes(1)}><UiIcon name="chevron" size={17}/></button></div></div>}
       </div>
       <div className="app-content">
-        {["resumen","ingresos","ahorros"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="resumen"} onClick={()=>setView("resumen")}>Gastos</button><button aria-pressed={view==="ingresos"} onClick={()=>setView("ingresos")}>Ingresos</button><button aria-pressed={view==="ahorros"} onClick={()=>openSavings()}>Ahorros</button></div>}
+        {modoCarga&&["ingresos","ahorros"].includes(view)&&<div className="segmented view-tabs" aria-label="Qué querés cargar"><button aria-pressed="false" onClick={()=>setView("cargar")}>Gasto</button><button aria-pressed={view==="ingresos"} onClick={()=>setView("ingresos")}>Ingreso</button><button aria-pressed={view==="ahorros"} onClick={()=>openSavings({kind:"aporte"})}>Ahorro</button></div>}
+        {!modoCarga&&["resumen","ingresos","ahorros"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="resumen"} onClick={()=>setView("resumen")}>Gastos</button><button aria-pressed={view==="ingresos"} onClick={()=>setView("ingresos")}>Ingresos</button><button aria-pressed={view==="ahorros"} onClick={()=>openSavings()}>Ahorros</button></div>}
         {["analisis","variacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button></div>}
 
         {/* HOME */}
@@ -1873,7 +1878,7 @@ if (!authUser) {
 
         {/* CARGAR */}
         {view==="cargar"&&<>
-          <div className="segmented view-tabs"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>setView("ingresos")}>Ingreso</button><button aria-pressed="false" onClick={()=>openSavings({kind:"aporte"})}>Ahorro</button></div>
+          <div className="segmented view-tabs" aria-label="Qué querés cargar"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>{setModoCarga(true);setView("ingresos");}}>Ingreso</button><button aria-pressed="false" onClick={()=>{setModoCarga(true);openSavings({kind:"aporte"});}}>Ahorro</button></div>
           {cargarNuevo&&resumenCarga&&<div className="cr-mes" aria-label={`Gastos de ${MESES[mes.m].toLowerCase()}`}><div><small>Llevás en {MESES[mes.m].toLowerCase()}</small><strong className="money">{fmtARS(resumenCarga.total)}</strong></div><div className="cr-mes-detalle"><span>Pagado <b className="money">{fmtARS(resumenCarga.pagado)}</b></span><span>Pendiente <b className="money">{fmtARS(resumenCarga.pendiente)}</b></span></div></div>}
           <fieldset className="expense-form-fields" disabled={guardandoGasto}>{cargarNuevo?<ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} onSelectAtajo={aplicarAtajoCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>:<ExpenseFields value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}}/>}
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
@@ -2156,7 +2161,8 @@ if (!authUser) {
 
       <nav className="bottom-nav" aria-label="Navegación principal">
         {[{id:"home",icon:"home",label:"Inicio"},{id:"resumen",icon:"movements",label:"Movimientos"},{id:"cargar",icon:"plus",label:"Cargar"},{id:"vencimientos",icon:"calendar",label:"Vencimientos"},{id:"analisis",icon:"chart",label:"Informes"}].map(nav=>{
-          const active=view===nav.id||(nav.id==="resumen"&&["ingresos","ahorros"].includes(view))||(nav.id==="analisis"&&view==="variacion");
+          const enCarga=modoCarga&&["ingresos","ahorros"].includes(view);
+          const active=(view===nav.id&&!enCarga)||(nav.id==="cargar"&&enCarga)||(nav.id==="resumen"&&!enCarga&&["ingresos","ahorros"].includes(view))||(nav.id==="analisis"&&view==="variacion");
           return <button key={nav.id} className={`ni ${nav.id==="cargar"?"nav-add":""}`} aria-current={active?"page":undefined} onClick={()=>{if(nav.id==="vencimientos")setDueSelection({filter:"all",scope:"all"});setView(nav.id);window.scrollTo({top:0,behavior:"instant"});}}><UiIcon name={nav.icon}/><span>{nav.label}</span>{nav.id==="vencimientos"&&vencUrgentes>0&&<span className="nav-dot" aria-label={`${vencUrgentes} registros requieren atención`}/>}</button>;
         })}
       </nav>
