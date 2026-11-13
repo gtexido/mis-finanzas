@@ -420,6 +420,33 @@ await check('CALC-08','Deshacer eliminar: el pedido para recrear conserva import
   return {cases:2};
 });
 
+await check('CALC-09','Tu inflación: compara los mismos gastos entre dos meses y deja afuera dólares, pendientes de revisar y los que se eligen no contar (src/utils/inflacion.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/inflacion.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.mesAnterior('2026-01',1),'2025-12');assert.equal(m.mesAnterior('2026-11',3),'2026-08');assert.equal(m.mesAnterior('2026-03',12),'2025-03');
+  const g=(servicio,monto,o={})=>({servicio,monto,moneda:'ARS',...o});
+  const datos={
+    '2026-08':[g('Luz',100),g('Internet',200),g('Alquiler',1000),g('Tarjeta Visa',500),g('Netflix',10,{moneda:'USD'}),g('Gimnasio',50),g('Viejo',30)],
+    '2026-09':[g('Internet',200),g('Luz',110)],
+    '2026-10':[g('Internet',200),g('Luz',115)],
+    '2026-11':[g('LUZ ',60),g('luz',60),g('Internet',200),g('Alquiler',1200),g('Tarjeta Visa',900),g('Netflix',10,{moneda:'USD'}),g('Gimnasio',50,{requiereRevision:true}),g('Nuevo',40)],
+  };
+  const r=m.calcularInflacion({gastosPorMes:datos,refKey:'2026-11',mesesAtras:3});
+  assert.equal(r.disponible,true);assert.equal(r.baseKey,'2026-08');assert.equal(r.contados,4);
+  assert.equal(r.totalBase,1800);assert.equal(r.totalActual,2420);assert.equal(Math.round(r.porcentaje*10)/10,34.4);
+  assert.equal(r.items[0].nombre,'Tarjeta Visa');assert.equal(r.items[0].delta,400);assert.equal(r.items[0].porcentaje,80);
+  const luz=r.items.find(i=>i.clave==='luz');assert.equal(luz.actual,120);assert.equal(luz.delta,20);
+  const internet=r.items.find(i=>i.clave==='internet');assert.equal(internet.delta,0);assert.equal(internet.mesesIgual,4);
+  assert.equal(r.enDolares.length,1);assert.equal(r.sinConfirmar.length,1);assert.equal(r.soloAhora,1);assert.equal(r.yaNoEstan,1);
+  const sinTarjeta=m.calcularInflacion({gastosPorMes:datos,refKey:'2026-11',mesesAtras:3,excluidos:['tarjeta visa']});
+  assert.equal(sinTarjeta.contados,3);assert.equal(sinTarjeta.totalBase,1300);assert.equal(sinTarjeta.totalActual,1520);assert.equal(Math.round(sinTarjeta.porcentaje*10)/10,16.9);
+  assert.equal(sinTarjeta.items.find(i=>i.clave==='tarjeta visa').contado,false);
+  const sinBase=m.calcularInflacion({gastosPorMes:datos,refKey:'2026-11',mesesAtras:6});
+  assert.equal(sinBase.disponible,false);assert.equal(sinBase.porcentaje,null);
+  assert.equal(m.mesesBaseDisponibles(datos,'2026-11').join(','),'1,2,3');
+  assert.equal(m.calcularInflacion({gastosPorMes:{},refKey:'2026-11'}).disponible,false);
+  return {cases:6};
+});
+
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.
 const TECNICO=/violates|constraint|foreign key|duplicate key|null value|relation|does not exist|movimiento_etiquetas|etiqueta_id|SQLSTATE|syntax error/i;
 await check('ERR-01','Clave foránea inexistente responde 409 con mensaje propio, sin texto técnico de la base',async()=>{
