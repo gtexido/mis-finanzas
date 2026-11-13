@@ -46,7 +46,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 40 | Historial de cambios y guía para volver atrás (solo documentación) | `11dbc29` |
 | 41 | Desglose: título sin emoji, como el resto de la app | `1824b01` |
 | 44 | Base de diseño normalizada y pantallas compactas (`src/styles/base-compacta.css`); títulos iguales a la barra de abajo; Cargar mantiene sus pestañas Gasto, Ingreso y Ahorro | `b64bc6a` |
-| 45 | Vencimientos: filas en un renglón en pantallas angostas, cartel de pagado por revisar debajo del nombre, botón "Debitado" para débitos | pendiente |
+| 45 | Vencimientos: filas en un renglón en pantallas angostas, cartel de pagado por revisar debajo del nombre, botón "Debitado" para débitos | `faeb156` |
+| 46 | Informes: nueva pestaña "Tu inflación" (compara los mismos gastos entre dos meses; cálculo en `src/utils/inflacion.js`). No toca base ni servidor | pendiente |
 
 Desde el PR 38, las pantallas anteriores se recuperan con `?cargar=actual`, `?ajustes=actual`, `?movimientos=actual`, `?inicio=actual` y `?vencimientos=actual`.
 

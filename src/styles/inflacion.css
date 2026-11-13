@@ -1,0 +1,25 @@
+/* Informes · Tu inflación. Usa la base de src/styles/base-compacta.css. */
+.inflacion-plazo{flex-wrap:wrap}
+.inflacion-plazo button:disabled{opacity:.4}
+.inflacion-titular{padding:14px var(--pad);margin-bottom:var(--gap);display:grid;gap:4px}
+.inflacion-frase{font-size:var(--fs-md);font-weight:600}
+.inflacion-titular>strong{font-size:var(--fs-2xl);font-weight:700;letter-spacing:-.8px;line-height:1.1;font-variant-numeric:tabular-nums}
+.inflacion-titular.sube>strong{color:var(--danger)}
+.inflacion-titular.baja>strong{color:var(--mint)}
+.inflacion-titular p{margin:0;line-height:1.5}
+.inflacion-aviso{padding:12px var(--pad);margin-bottom:var(--gap);display:grid;gap:4px}
+.inflacion-aviso strong{display:flex;align-items:center;gap:8px;font-size:var(--fs-md);color:var(--amber)}
+.inflacion-aviso p{margin:0;line-height:1.5}
+.inflacion-lista{padding:12px var(--pad) 4px;margin-bottom:var(--gap)}
+.inflacion-lista>header{margin-bottom:4px}
+.inflacion-fila{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.inflacion-fila-texto{min-width:0;display:grid;gap:1px}
+.inflacion-fila-texto strong{font-size:var(--fs-md);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.inflacion-fila-texto small{font-size:var(--fs-xs);color:var(--muted)}
+.inflacion-pct{font-size:var(--fs-sm);font-weight:700;font-variant-numeric:tabular-nums;color:var(--muted);text-align:right}
+.inflacion-pct.sube{color:var(--danger)}
+.inflacion-pct.baja{color:var(--mint)}
+.inflacion-fila.fuera .inflacion-fila-texto,.inflacion-fila.fuera .inflacion-pct{opacity:.45}
+.inflacion-fila.fuera .inflacion-fila-texto strong{text-decoration:line-through}
+.app-shell .inflacion-contar{min-width:76px;justify-content:flex-end;font-size:var(--fs-xs);color:var(--accent)}
+.inflacion-nota{margin:0 2px var(--pad);line-height:1.6}

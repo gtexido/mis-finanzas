@@ -514,6 +514,31 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {titleAndTabsStable:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-28','Informes: Tu inflación compara los mismos gastos, permite no contar uno y lo recuerda',async()=>{
+    const s=await setup({nuevas:true});try{
+      const g=(p,id,nombre,monto)=>({...movimiento(p,monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null});
+      for(const k of Object.keys(s.db))s.db[k]=[];
+      s.db['2026-07']=[g('2026-07','a1','Luz',100000),g('2026-07','a2','Tarjeta',500000),g('2026-07','a3','Internet',20000)];
+      s.db['2026-10']=[g('2026-10','b1','Luz',120000),g('2026-10','b2','Tarjeta',900000),g('2026-10','b3','Internet',20000),g('2026-10','b4','Solo ahora',5000)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Analizar');
+      await s.page.getByRole('button',{name:'Tu inflación',exact:true}).click();
+      const numero=s.page.locator('.inflacion-numero');
+      await numero.waitFor();
+      assert.equal(await numero.innerText(),'67,7%');
+      assert.match(await s.page.locator('.inflacion-frase').innerText(),/subieron/);
+      assert.equal(await s.page.locator('.inflacion-fila').count(),3);
+      assert.equal(await s.page.getByRole('button',{name:'Hace 6 meses',exact:true}).isDisabled(),true);
+      await s.page.getByRole('button',{name:'No contar: Tarjeta',exact:true}).click();
+      await s.page.locator('.inflacion-numero').filter({hasText:'16,7%'}).waitFor();
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Analizar');await s.page.getByRole('button',{name:'Tu inflación',exact:true}).click();
+      await s.page.locator('.inflacion-numero').filter({hasText:'16,7%'}).waitFor();
+      assert.equal(await s.page.getByRole('button',{name:'Volver a contar: Tarjeta',exact:true}).count(),1);
+      assert.equal(writes(s).length,0);assert.deepEqual(s.pageErrors,[]);
+      return {personalInflation:true,excludeRemembered:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});
