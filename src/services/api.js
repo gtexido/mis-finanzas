@@ -117,13 +117,14 @@ export async function crearGasto(payload) {
   return json.data;
 }
 
-export async function eliminarGasto(movimientoId) {
+// alcance "cuotas_restantes": borra esa cuota y las que le siguen de la misma compra.
+export async function eliminarGasto(movimientoId, alcance = null) {
   const res = await fetch("/api/gastos-delete", {
     method: "DELETE",
     headers: authHeaders({
       "Content-Type": "application/json",
     }),
-    body: JSON.stringify({ movimientoId }),
+    body: JSON.stringify(alcance ? { movimientoId, alcance } : { movimientoId }),
   });
 
   const json = await readResponse(res);

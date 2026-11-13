@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { etiquetaCuota } from '../utils/cuotas';
 import { getMesKey, MESES } from '../utils/dates';
 import { fmtARS, fmtFecha, fmtPeriodo } from '../utils/formatters';
 import { montoReal } from '../utils/money';
@@ -35,7 +36,7 @@ export default function VencimientosView({ data, mesActual, tc, today, selection
   }
   const fechaCorta = g => hasUnconfirmedDue(g) ? 'Fecha por confirmar' : fmtFecha(g.vencimiento).slice(0, 5);
   const tarjetaCompacta = (g, tone) => <article className={`due-item due-compacta ${tone}`} key={`${g.mesKey}_${g.id}`}>
-    <button className="summary-row" onClick={() => onEdit(g,g.mesKey)} aria-label={`Editar ${g.servicio}`}><span className="row-icon"><UiIcon name={isAutomaticDebit(g)?'repeat':'calendar'} size={19}/></span><span className="row-copy"><strong>{g.servicio || 'Sin concepto'}</strong><small><span className="due-relative">{tone==='review'?reason(g):dueLabel(g)}</span>{hasUnconfirmedDue(g) ? ` · ${fmtPeriodo(g.mesKey)}` : ` · ${fechaCorta(g)}`}</small></span><span className="money">{fmtARS(montoReal(g,tc))}</span></button>
+    <button className="summary-row" onClick={() => onEdit(g,g.mesKey)} aria-label={`Editar ${g.servicio}`}><span className="row-icon"><UiIcon name={isAutomaticDebit(g)?'repeat':'calendar'} size={19}/></span><span className="row-copy"><strong>{g.servicio || 'Sin concepto'}</strong><small><span className="due-relative">{tone==='review'?reason(g):dueLabel(g)}</span>{hasUnconfirmedDue(g) ? ` · ${fmtPeriodo(g.mesKey)}` : ` · ${fechaCorta(g)}`}{g.cuotaPlanId ? ` · ${etiquetaCuota(g)}` : ''}</small></span><span className="money">{fmtARS(montoReal(g,tc))}</span></button>
     {g.estado === 'pendiente' ? <button className="due-pagar" disabled={saving!==null} onClick={() => pay(g)} aria-label={`${isAutomaticDebit(g)?'Confirmar débito':'Marcar como pagado'}: ${g.servicio}`}>{saving===g.id?'Guardando…':isAutomaticDebit(g)?'Debitado':'Pagar'}</button> : <span className="due-paid"><UiIcon name="check" size={14}/>Pagado · revisá los datos</span>}
   </article>;
   const group = (title, items, tone = '') => items.length > 0 && <section className={`due-section ${tone}`}><h2>{title} <span className="muted">· {items.length}</span></h2>{items.map(g => tarjetaCompacta(g, tone))}</section>;

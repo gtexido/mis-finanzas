@@ -472,6 +472,22 @@ await check('CALC-10','¿Llegás a fin de mes?: resta cada pago pendiente en su 
   return {cases:4};
 });
 
+await check('CALC-11','Cuotas en pantalla: valida cantidad y número, calcula cuántas se crean y hasta qué mes (src/utils/cuotas.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/cuotas.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.mesSiguiente('2026-11',2),'2027-01');assert.equal(m.mesSiguiente('2026-12',0),'2026-12');
+  assert.equal(m.validarCuotasForm({total:'1'}).ok,false);assert.equal(m.validarCuotasForm({total:'61'}).ok,false);
+  assert.equal(m.validarCuotasForm({total:'6',desde:'7'}).ok,false);assert.equal(m.validarCuotasForm({total:'6,5'}).ok,false);
+  assert.equal(m.validarCuotasForm({total:'6',desde:'1',tieneDesglose:true}).ok,false);
+  const v=m.validarCuotasForm({total:'6',desde:'3'});assert.equal(v.ok,true);assert.equal(v.cantidad,4);
+  assert.equal(m.validarCuotasForm({total:12,desde:''}).cantidad,12);
+  const r=m.resumenCuotas({total:'6',desde:'3',monto:'50000',mesKey:'2026-10'});
+  assert.equal(r.cantidad,4);assert.equal(r.desdeKey,'2026-10');assert.equal(r.hastaKey,'2027-01');assert.equal(r.montoTotal,200000);
+  assert.equal(m.resumenCuotas({total:'',mesKey:'2026-10'}),null);
+  assert.equal(m.etiquetaCuota({cuotaPlanId:'p',cuotaNumero:3,cuotaTotal:12}),'Cuota 3/12');assert.equal(m.etiquetaCuota({servicio:'Luz'}),'');
+  assert.equal(m.cuotasQueFaltan({cuotaPlanId:'p',cuotaNumero:3,cuotaTotal:12}),9);assert.equal(m.cuotasQueFaltan({cuotaNumero:3,cuotaTotal:12}),0);
+  return {cases:15};
+});
+
 // CUO-xx: compras en cuotas
 const compra={periodo:'2026-10',dia:31,servicio:'Compra ficticia',monto:1000,moneda:'ARS',estado:'pagado',vencimiento:'2026-10-31',etiquetasIds:['tag_a'],cuotas:{total:12}};
 const cuotasDe=async()=>(await pg.query("SELECT movimiento_id,periodo,dia,to_char(fecha_operacion,'YYYY-MM-DD') f,to_char(vencimiento,'YYYY-MM-DD') v,estado,monto,cuota_plan_id,cuota_numero,cuota_total FROM movimientos ORDER BY periodo,cuota_numero")).rows;

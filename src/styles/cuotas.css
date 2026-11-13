@@ -1,0 +1,10 @@
+/* Compras en cuotas: bloque dentro de "Más opciones" en Cargar y botones al eliminar una cuota. */
+.cuotas-bloque{display:grid;gap:8px;margin:4px 0 8px;padding:var(--gap);border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface-2)}
+.cuotas-bloque p{margin:0;line-height:1.45}
+.cuotas-campos{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+.cuotas-campos .field{margin:0;min-width:0}
+.cuotas-resumen{font-size:var(--fs-sm);color:var(--text)}
+.cuotas-resumen.cuotas-error{color:var(--danger)}
+.cuotas-aviso{font-size:var(--fs-xs);color:var(--amber)}
+.dialog-actions.cuota-borrar{display:grid;grid-template-columns:1fr;gap:8px}
+.dialog-actions.cuota-borrar button{width:100%}

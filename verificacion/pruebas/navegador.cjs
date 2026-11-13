@@ -68,12 +68,27 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
     if(r.method()!=='GET'){
       if(delayWrites) await new Promise(resolve=>setTimeout(resolve,350));
       if(url.pathname==='/api/gastos-delete'){
-        for(const k of Object.keys(db))db[k]=db[k].filter(x=>x.movimiento_id!==entry.body.movimientoId);
-        return send({ok:true,data:{movimiento_id:entry.body.movimientoId}});
+        // Con alcance "cuotas_restantes" se borran esa cuota y las que le siguen de la misma compra.
+        const victima=Object.values(db).flat().find(x=>x.movimiento_id===entry.body.movimientoId);
+        const cae=x=>x.movimiento_id===entry.body.movimientoId||(entry.body.alcance==='cuotas_restantes'&&victima?.cuota_plan_id&&x.cuota_plan_id===victima.cuota_plan_id&&x.cuota_numero>=victima.cuota_numero);
+        let eliminados=0;
+        for(const k of Object.keys(db)){const antes=db[k].length;db[k]=db[k].filter(x=>!cae(x));eliminados+=antes-db[k].length;}
+        return send({ok:true,data:{movimiento_id:entry.body.movimientoId,eliminados}});
       }
       if(url.pathname==='/api/gastos'&&flags.failCreate)return send({ok:false,error:'No se pudo guardar (prueba).'},500);
       if(url.pathname==='/api/gastos'){
         const p=entry.body.periodo;
+        // Compra en cuotas: una fila por cuota, un mes después de la otra (igual que el servidor real).
+        if(entry.body.cuotas){
+          const {total,desde}=entry.body.cuotas,plan=`plan_${requests.length}`,ids=[];
+          const [y,m]=p.split('-').map(Number);
+          for(let n=desde;n<=total;n++){
+            const t=y*12+(m-1)+(n-desde),k=`${Math.floor(t/12)}-${String(t%12+1).padStart(2,'0')}`;
+            const fila={...movimiento(k,entry.body.monto,`audit_cuota_${requests.length}_${n}`),concepto_nombre:entry.body.servicio||'Servicio de prueba',estado:n===desde?(entry.body.estado||'pagado'):'pendiente',cuota_plan_id:plan,cuota_numero:n,cuota_total:total};
+            (db[k]||=[]).push(fila);ids.push(fila.movimiento_id);
+          }
+          return send({ok:true,data:{movimiento_id:ids[0],cuota_plan_id:plan,movimientos:ids}});
+        }
         const mov=movimiento(p,entry.body.monto,`audit_created_${requests.length}`);
         (db[p]||=[]).push(mov);
         return send({ok:true,data:{movimiento_id:mov.movimiento_id}});
@@ -564,6 +579,76 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       await s.page.locator('.llego').waitFor({state:'detached'});
       assert.equal(writes(s).length,0);assert.deepEqual(s.pageErrors,[]);
       return {projection:true,warnsWhenShort:true,onlyCurrentMonth:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-30','Cargar una compra en cuotas: avisa cuántas crea, las manda al servidor y Deshacer las borra todas',async()=>{
+    const s=await setup({emptyCurrent:true});try{
+      await cargar(s);
+      await s.page.getByLabel('Importe',{exact:true}).fill('50000');
+      await s.page.getByRole('button',{name:/Más opciones/}).click();
+      await s.page.getByLabel('Es una compra en cuotas').check();
+      assert(await s.page.getByLabel('Se repite todos los meses').isDisabled(),'Cuotas y "se repite" no van juntas');
+      // Sin cantidad válida no se guarda.
+      await s.page.getByLabel('Cantidad de cuotas').fill('1');
+      await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).click();
+      await s.page.getByText(/un número entre 2 y 60/).first().waitFor();
+      assert.equal(writes(s).length,0);
+      // Compra ya empezada: cuota 3 de 6 crea cuatro gastos, de octubre a enero.
+      await s.page.getByLabel('Cantidad de cuotas').fill('6');
+      await s.page.getByLabel('Esta es la cuota n.º').fill('3');
+      const resumen=await s.page.locator('.cuotas-resumen').innerText();
+      assert(/4 cuotas/.test(resumen)&&/50\.000/.test(resumen),resumen);
+      assert(/octubre/i.test(resumen)&&/enero/i.test(resumen),resumen);
+      await capture(s.page,'30-cuotas-cargar.png');
+      const resp=s.page.waitForResponse(r=>r.url().includes('/api/gastos')&&r.request().method()==='POST');
+      await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).click();await resp;
+      const b=writes(s)[0].body;
+      assert.deepEqual(b.cuotas,{total:6,desde:3});assert.equal(b.monto,50000);assert.equal(b.esRecurrente,false);
+      const cuotasEnBase=()=>Object.values(s.db).flat().filter(x=>x.cuota_plan_id).length;
+      assert.equal(cuotasEnBase(),4);
+      const barra=s.page.locator('.cr-deshacer');await barra.waitFor();
+      assert(await barra.getByText('Se crearon 4 cuotas',{exact:true}).isVisible());
+      const respDel=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
+      await barra.getByRole('button',{name:'Deshacer',exact:true}).click();await respDel;
+      const del=s.requests.filter(r=>r.path==='/api/gastos-delete').at(-1).body;
+      assert.equal(del.alcance,'cuotas_restantes');
+      assert.equal(cuotasEnBase(),0);
+      assert.deepEqual(s.pageErrors,[]);
+      return {preview:true,payload:true,undoAll:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-31','Una cuota muestra "Cuota n/total" y al eliminar deja elegir solo esa o esa y las que faltan',async()=>{
+    const s=await setup();try{
+      const cuota=(k,n)=>({...movimiento(k,40000,`cuo_${n}`),concepto_nombre:'Heladera',servicio:'Heladera',concepto_id:null,vencimiento:`${k}-10`,cuota_plan_id:'plan_x',cuota_numero:n,cuota_total:4});
+      for(const k of Object.keys(s.db))s.db[k]=[];
+      s.db['2026-10']=[cuota('2026-10',2)];s.db['2026-11']=[cuota('2026-11',3)];s.db['2026-12']=[cuota('2026-12',4)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Detalle');
+      await s.page.getByText('Cuota 2/4',{exact:false}).first().waitFor();
+      await capture(s.page,'31-cuota-en-lista.png');
+      // Solo esta cuota: las otras dos siguen.
+      await eliminarFila(s.page,'Heladera');
+      const dlg=s.page.getByRole('dialog');
+      assert(await dlg.getByRole('heading',{name:'¿Eliminar esta cuota?'}).isVisible());
+      assert(await dlg.getByRole('button',{name:'Esta y las 2 que faltan',exact:true}).isVisible());
+      await capture(s.page,'31-cuota-eliminar.png');
+      const r1=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
+      await dlg.getByRole('button',{name:'Solo esta cuota',exact:true}).click();await r1;
+      assert.equal(s.requests.filter(r=>r.path==='/api/gastos-delete').at(-1).body.alcance,undefined);
+      assert.equal(Object.values(s.db).flat().length,2);
+      await pause(300);
+      assert.equal(await s.page.locator('.cr-deshacer').count(),0,'Una cuota no ofrece Deshacer');
+      // Esta y las que faltan: desde la cuota 3 se va también la 4.
+      s.db['2026-10']=[cuota('2026-10',2)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Detalle');
+      await eliminarFila(s.page,'Heladera');
+      const r2=s.page.waitForResponse(r=>r.url().includes('/api/gastos-delete'));
+      await s.page.getByRole('dialog').getByRole('button',{name:'Esta y las 2 que faltan',exact:true}).click();await r2;
+      assert.equal(s.requests.filter(r=>r.path==='/api/gastos-delete').at(-1).body.alcance,'cuotas_restantes');
+      assert.equal(Object.values(s.db).flat().length,0);
+      assert.deepEqual(s.pageErrors,[]);
+      return {label:true,deleteOne:true,deleteRest:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

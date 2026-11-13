@@ -25,7 +25,9 @@ const leerExcluidos = (clave) => {
   try { const v = JSON.parse(localStorage.getItem(clave) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; }
 };
 
-export default function InflacionView({ gastosPorMes, refKey, usuarioId }) {
+export default function InflacionView({ gastosPorMes: gastosTodos, refKey, usuarioId }) {
+  // Tu inflación compara precios que se repiten: una cuota es una compra, no un precio. Se dejan afuera.
+  const gastosPorMes = useMemo(() => Object.fromEntries(Object.entries(gastosTodos || {}).map(([k, l]) => [k, (l || []).filter(g => !g.cuotaPlanId)])), [gastosTodos]);
   const claveStorage = `mf_inflacion_no_contar_${usuarioId || 'anon'}`;
   const [excluidos, setExcluidos] = useState(() => leerExcluidos(claveStorage));
   const disponibles = useMemo(() => mesesBaseDisponibles(gastosPorMes, refKey), [gastosPorMes, refKey]);

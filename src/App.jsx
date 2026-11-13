@@ -90,7 +90,9 @@ import "./styles/vencimientos-nuevo.css";
 import "./styles/base-compacta.css";
 import "./styles/inflacion.css";
 import "./styles/llego.css";
+import "./styles/cuotas.css";
 import InflacionView from "./views/InflacionView";
+import { validarCuotasForm } from "./utils/cuotas";
 import MovementRowCompacta from "./components/MovementRowCompacta";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
@@ -157,6 +159,9 @@ export default function App() {
   tipoGasto:"simple",
   accionCompuesto:"nuevo",
   decisionManual:false,
+  cuotasActivas:false,
+  cuotasTotal:"",
+  cuotasDesde:"1",
   requiereRevision:false,
   motivoRevision:null,
 });
@@ -643,6 +648,14 @@ const guardarGastoInterno = async (extra = {}) => {
   }
   f = validacion.f;
 
+  // Compra en cuotas: se valida acá para avisar antes de consultar al servidor.
+  let cuotas = null;
+  if (f.cuotasActivas) {
+    const v = validarCuotasForm({ total: f.cuotasTotal, desde: f.cuotasDesde, tieneDesglose: (f.subconceptos || []).length > 0 });
+    if (!v.ok) { toast_(v.mensaje, "err"); return; }
+    cuotas = { total: v.total, desde: v.desde };
+  }
+
   // Refresh this month before writing: a second device may have registered the charge.
   let latest;
   try {
@@ -831,15 +844,19 @@ try {
     estado: f.estado || "pagado",
     observacion: f.observacion || "",
     vencimiento: f.vencimiento || null,
-    esRecurrente: !!f.esRecurrente,
+    // Una compra en cuotas ya genera sus meses: no se marca además como "se repite".
+    esRecurrente: cuotas ? false : !!f.esRecurrente,
     requiereRevision: !!f.requiereRevision,
     motivoRevision: f.requiereRevision ? (f.motivoRevision || "REVISAR_MANUAL") : null,
     origenMovimiento: f.requiereRevision ? (f.origenMovimiento || "CARGA_MANUAL") : null,
     subconceptos: subconceptosPayload,
+    ...(cuotas ? { cuotas } : {}),
   });
 
   if(sessionRef.current!==owner)return;
-  const synced = await refrescarMes(mesKey,owner);
+  // Las cuotas caen en varios meses: se vuelven a traer todos.
+  const cuotasCreadas = cuotas ? cuotas.total - cuotas.desde + 1 : 0;
+  const synced = cuotas ? await refrescarTodosLosMeses(owner) : await refrescarMes(mesKey,owner);
 
     setForm({
       categoria: "",
@@ -862,10 +879,13 @@ try {
       accionCompuesto: "nuevo",
       decisionManual: false,
       crearConceptoPendiente: false,
+      cuotasActivas: false,
+      cuotasTotal: "",
+      cuotasDesde: "1",
     });
 
     if(synced){
-      if(gastoCreado?.movimiento_id)mostrarDeshacerCarga({id:gastoCreado.movimiento_id,periodo:mesKey,servicio:f.servicio,monto:montoReal(f,tc)});
+      if(gastoCreado?.movimiento_id)mostrarDeshacerCarga({id:gastoCreado.movimiento_id,periodo:mesKey,servicio:f.servicio,monto:montoReal(f,tc),cuotas:cuotasCreadas});
       else toast_("Gasto guardado correctamente");
     }
   } catch (e) {
@@ -1125,6 +1145,20 @@ const handleSubconceptosSave = (items) => {
   setBusquedaConceptoCfg(""); setBusquedaMedioCfg(""); setFiltroEstado("todos"); setBusqueda(""); setFiltroCatInicio(null);
   setCfgTab(""); setTcInput(""); setNewFuente(""); setEditFuente(null); setView("home"); setMes(getMesActual()); setCargaEstado("cargando");
 };
+// Vuelve a traer los movimientos de todos los meses. Se usa cuando un cambio toca varios meses (compras en cuotas).
+const refrescarTodosLosMeses = async (owner = authUser?.usuarioId) => {
+  try {
+    const nuevo = mapHistorialDesdeApi(await getMovimientos(null));
+    if (sessionRef.current !== owner) return false;
+    setData(nuevo);
+    return true;
+  } catch (error) {
+    console.error(error);
+    if (sessionRef.current === owner) toast_("El cambio se guardó, pero no pudimos actualizar la pantalla. Cerrá y volvé a abrir la app.", "warn");
+    return false;
+  }
+};
+
 const refrescarMes = async (periodo, owner = authUser?.usuarioId) => {
   try {
     const nuevo = mapMovimientosDesdeApi(await getMovimientos(periodo), periodo);
@@ -1167,12 +1201,15 @@ const guardarSueldo = async () => {
   } catch(e){if(sessionRef.current===owner)toast_(e.message || "No se pudo guardar el sueldo","err");}
   finally{sueldoRef.current=false;setSueldoBusy(false);}
 };
-const eliminar = async () => {
+// alcance "cuotas_restantes": borra esta cuota y las que faltan de la misma compra.
+const eliminar = async (alcance = null) => {
   if(eliminarRef.current || !confirmDel)return;
   eliminarRef.current=true;setEliminando(true);setDeleteError("");
   const {tipo,id,periodo}=confirmDel,owner=authUser.usuarioId;
   try{
-    if(tipo==="gastos")await eliminarGasto(id);
+    const esCuota=tipo==="gastos"&&!!confirmDel.cuotaPlanId;
+    const variasCuotas=esCuota&&alcance==="cuotas_restantes";
+    if(tipo==="gastos")await eliminarGasto(id,variasCuotas?"cuotas_restantes":null);
     else if(tipo==="ingresos")await eliminarIngreso(id);
     else if(tipo==="sueldo")await eliminarSueldo(periodo);
     else throw new Error("No se reconoce este movimiento");
@@ -1181,6 +1218,11 @@ const eliminar = async () => {
     const copiaBorrada=confirmDel;
     setConfirmDel(null); if(editingGasto?.id===id){setEditingGasto(null);setEditingMesKey(null);}
     if(ingForm.id===id)setIngForm({fuente:"",monto:"",dia:"1"});
+    // Una cuota no ofrece "Deshacer": al volver a crearla perdería el vínculo con su compra.
+    if(esCuota){
+      if(variasCuotas?await refrescarTodosLosMeses(owner):await refrescarMes(periodo,owner))toast_(variasCuotas?"Se eliminaron esta cuota y las que faltaban":"Cuota eliminada","info");
+      return;
+    }
     if(tipo==="gastos")mostrarDeshacerBorrado({gasto:copiaBorrada,periodo,servicio:copiaBorrada.servicio,monto:montoReal(copiaBorrada,tc)});
     if(await refrescarMes(periodo,owner)&&tipo!=="gastos")toast_(tipo==="sueldo"?"Sueldo eliminado":"Ingreso eliminado");
   }catch(e){if(sessionRef.current===owner)setDeleteError(e.message || "No se pudo eliminar. Intentá nuevamente.");}
@@ -1342,7 +1384,8 @@ const eliminar = async () => {
   // ── Replicar mes ──
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
-  const gastosFuenteReplicar=missingReplicas(gastosDelMes,data.gastos[mesKeySiguiente()]||[]);
+  // Las cuotas no se replican: ya están creadas en los meses que les corresponden.
+  const gastosFuenteReplicar=missingReplicas(gastosDelMes.filter(g=>!g.cuotaPlanId),data.gastos[mesKeySiguiente()]||[]);
   const abrirReplica = () => {
     const recurrent = gastosFuenteReplicar.filter(g=>g.esRecurrente || isAutomaticDebit(g,cfg));
     setExcluirReplicar(new Set(recurrent.length?gastosFuenteReplicar.filter(g=>!recurrent.includes(g)).map(g=>g.id):[]));
@@ -1591,11 +1634,12 @@ const eliminar = async () => {
   const owner = authUser.usuarioId;
   if (deshacerTimerRef.current) clearTimeout(deshacerTimerRef.current);
   try {
-    await eliminarGasto(info.id);
+    await eliminarGasto(info.id, info.cuotas > 1 ? "cuotas_restantes" : null);
     if (sessionRef.current !== owner) return;
     setData((prev) => ({ ...prev, gastos: { ...prev.gastos, [info.periodo]: (prev.gastos[info.periodo] || []).filter((g) => g.id !== info.id) } }));
     setDeshacerCarga(null);
-    if (await refrescarMes(info.periodo, owner)) toast_("Listo, el gasto se deshizo");
+    if (info.cuotas > 1) { if (await refrescarTodosLosMeses(owner)) toast_(`Listo, se deshicieron las ${info.cuotas} cuotas`); }
+    else if (await refrescarMes(info.periodo, owner)) toast_("Listo, el gasto se deshizo");
   } catch (e) {
     if (sessionRef.current === owner) {
       console.error(e);
@@ -1757,7 +1801,7 @@ if (!authUser) {
       {deshacerCarga&&!deshacerBorrado&&(
         <div className="cr-deshacer" role="status" aria-live="polite">
           <span className="cr-deshacer-icono"><UiIcon name="check" size={18}/></span>
-          <div className="cr-deshacer-texto"><strong>Guardado</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}</small></div>
+          <div className="cr-deshacer-texto"><strong>{deshacerCarga.cuotas>1?`Se crearon ${deshacerCarga.cuotas} cuotas`:"Guardado"}</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}{deshacerCarga.cuotas>1?" cada una":""}</small></div>
           <button type="button" onClick={deshacerUltimoGasto}>Deshacer</button>
         </div>
       )}
@@ -1852,7 +1896,7 @@ if (!authUser) {
         </div>
       )}
 
-      {confirmDel && <ConfirmDelete item={confirmDel} amount={confirmDel.tipo==="gastos"?montoReal(confirmDel,tc):Number(confirmDel.monto)} busy={eliminando} error={deleteError} onClose={()=>setConfirmDel(null)} onConfirm={eliminar}/>}
+      {confirmDel && <ConfirmDelete item={confirmDel} amount={confirmDel.tipo==="gastos"?montoReal(confirmDel,tc):Number(confirmDel.monto)} busy={eliminando} error={deleteError} onClose={()=>setConfirmDel(null)} onConfirm={(alcance)=>eliminar(alcance==="cuotas_restantes"?alcance:null)}/>}
 
       <div className={`page-header ${view==="home"?"home-header":""}`}>
         <h1>{modoCarga&&["ingresos","ahorros"].includes(view)?"Cargar":({home:"Inicio",cargar:"Cargar",resumen:"Movimientos",ingresos:"Movimientos",ahorros:"Movimientos",vencimientos:"Vencimientos",analisis:"Informes",variacion:"Informes",inflacion:"Informes",config:"Ajustes"})[view]}</h1>
@@ -1871,7 +1915,7 @@ if (!authUser) {
         {view==="cargar"&&<>
           <div className="segmented view-tabs" aria-label="Qué querés cargar"><button aria-pressed="true">Gasto</button><button aria-pressed="false" onClick={()=>{setModoCarga(true);setView("ingresos");}}>Ingreso</button><button aria-pressed="false" onClick={()=>{setModoCarga(true);openSavings({kind:"aporte"});}}>Ahorro</button></div>
           {resumenCarga&&<div className="cr-mes" aria-label={`Gastos de ${MESES[mes.m].toLowerCase()}`}><div><small>Llevás en {MESES[mes.m].toLowerCase()}</small><strong className="money">{fmtARS(resumenCarga.total)}</strong></div><div className="cr-mes-detalle"><span>Pagado <b className="money">{fmtARS(resumenCarga.pagado)}</b></span><span>Pendiente <b className="money">{fmtARS(resumenCarga.pendiente)}</b></span></div></div>}
-          <fieldset className="expense-form-fields" disabled={guardandoGasto}><ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} onSelectAtajo={aplicarAtajoCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>
+          <fieldset className="expense-form-fields" disabled={guardandoGasto}><ExpenseFieldsRapido onDescartar={descartarBorradorCarga} value={form} setValue={setForm} mesKey={mesKey} config={cfg} tc={tc} maxDay={ultimoDiaCarga} suggestions={conceptosDisponiblesCarga} onSelectConcept={aplicarConceptoExistente} advanced={mostrarOpcionesCarga} setAdvanced={setMostrarOpcionesCarga} onRemember={()=>form.crearConceptoPendiente?setForm(f=>({...f,crearConceptoPendiente:false})):crearConceptoDesdeTexto()} onBreakdown={()=>{abrirSubconceptosConCotizacion({...form,tipoGasto:"detalle",id:"new_"+Date.now(),moneda:form.moneda||"ARS",subconceptos:form.subconceptos||[]});}} atajos={atajosCarga} onSelectAtajo={aplicarAtajoCarga} comparacion={comparacionCarga} etiquetaMesAnterior={MESES[Number(mesAnteriorKey.slice(5,7))-1].toLowerCase()} diasRapidos={diasRapidos(now,mes)} vencimientos={vencimientosRapidos(now)}/>
           {form.servicio&&gastoCompuestoExistente&&<div className="compound-choice"><p>Ya existe <strong>{gastoCompuestoExistente.servicio}</strong> este mes. ¿Cómo querés guardarlo?</p><div className="segmented"><button aria-pressed={form.accionCompuesto==="nuevo"} onClick={()=>setForm(f=>({...f,accionCompuesto:"nuevo",decisionManual:true}))}>Como nuevo movimiento</button><button aria-pressed={form.accionCompuesto==="existente"} onClick={()=>setForm(f=>({...f,accionCompuesto:"existente",decisionManual:true}))}>Sumar al gasto existente</button></div></div>}
           <div className="cr-guardar"><button className="primary form-submit" disabled={guardandoGasto} onClick={guardarDesdeCarga}>{guardandoGasto?"Guardando…":"Guardar gasto"}<UiIcon name="check" size={18}/></button><p>{(form.servicio||"Gasto")+" · "+fmtARS(montoReal(form,tc))+" · "+(form.estado==="pendiente"?"pendiente":"pagado")+" · "+MESES[mes.m].toLowerCase()+" de "+mes.y}</p></div></fieldset>
           <button className="text-button" onClick={()=>setShowCotizador(!showCotizador)}>{showCotizador?"Ocultar cotización":"Consultar cotización del dólar"}</button>
