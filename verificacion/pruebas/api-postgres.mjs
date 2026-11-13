@@ -517,7 +517,9 @@ await check('CUO-06','Eliminar: una sola cuota, o esta y las que faltan; nunca l
   const ids=a.payload.data.movimientos;
   const una=await h.call('gastos-delete.js',{movimientoId:ids[1]},'DELETE');assert.equal(una.code,200);assert.equal(una.payload.data.eliminados,1);
   assert.equal((await cuotasDe()).filter(f=>f.cuota_plan_id===a.payload.data.cuota_plan_id).length,11);
-  const ajeno=await harness({userId:'usr_vane'});assert.equal((await ajeno.call('gastos-delete.js',{movimientoId:ids[4],alcance:'cuotas_restantes'},'DELETE')).code,404);
+  // Otra persona no puede borrar: el servidor responde 403 (sin acceso al espacio) o 404 (gasto ajeno), y no se borra nada.
+  const ajeno=await harness({userId:'usr_vane'});assert([403,404].includes((await ajeno.call('gastos-delete.js',{movimientoId:ids[4],alcance:'cuotas_restantes'},'DELETE')).code));
+  assert.equal((await cuotasDe()).filter(f=>f.cuota_plan_id===a.payload.data.cuota_plan_id).length,11);
   const resto=await h.call('gastos-delete.js',{movimientoId:ids[4],alcance:'cuotas_restantes'},'DELETE');assert.equal(resto.code,200,JSON.stringify(resto.payload));assert.equal(resto.payload.data.eliminados,8);
   const quedan=await cuotasDe();
   assert.equal(quedan.filter(f=>f.cuota_plan_id===a.payload.data.cuota_plan_id).map(f=>f.cuota_numero).join(','),'1,3,4');
