@@ -54,7 +54,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 49 | Limpieza: se borra el código de las pantallas anteriores y sus interruptores (`?...=actual` deja de existir). Ajustes suma la fila "Conceptos recordados" | `1f12952` |
 | 50 | Limpieza: se quitan 68 reglas de estilo que ya no usa ninguna pantalla. Comprobado con 28 capturas idénticas antes y después | `e985aac` |
 | 51 | Cuotas, paso 1: el servidor crea todas las cuotas de una compra en una operación y permite borrar "esta y las que faltan". Todavía sin pantalla | `3cc1bf5` |
-| 52 | Cuotas, paso 2: opción "Es una compra en cuotas" en Cargar (dentro de Más opciones), marca "Cuota 3/12" en Movimientos y Vencimientos, y al eliminar una cuota se elige "solo esta" o "esta y las que faltan". Las cuotas no entran en Replicar ni en Tu inflación | pendiente |
+| 52 | Cuotas, paso 2: opción "Es una compra en cuotas" en Cargar (dentro de Más opciones), marca "Cuota 3/12" en Movimientos y Vencimientos, y al eliminar una cuota se elige "solo esta" o "esta y las que faltan". Las cuotas no entran en Replicar ni en Tu inflación | `53a81fa` |
+| 53 | Cuotas: las cuotas de los meses siguientes nacen con la fecha de vencimiento "para confirmar" (la primera queda como se cargó). No suman avisos en Inicio hasta que llega su mes | pendiente |
 
 Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
