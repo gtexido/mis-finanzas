@@ -17,6 +17,8 @@ export const allExpenses = data => Object.entries(data.gastos || {})
 export function buildOverview(expenses, tc, today = new Date()) {
   const groups = { urgent: [], soon: [], debits: [], review: [], later: [] };
   const pending = [], dated = [];
+  const fechaHoy = today instanceof Date ? today : new Date(`${String(today).slice(0, 10)}T12:00:00`);
+  const mesDeHoy = `${fechaHoy.getFullYear()}-${String(fechaHoy.getMonth() + 1).padStart(2, '0')}`;
   for (const expense of expenses) {
     const isPending = expense.estado === 'pendiente';
     if (!isPending && !expense.requiereRevision) continue;
@@ -24,7 +26,11 @@ export function buildOverview(expenses, tc, today = new Date()) {
     const item = { ...expense, daysRemaining };
     if (isPending) pending.push(item);
     if (isPending && daysRemaining !== null) dated.push(item);
-    const group = !isPending || daysRemaining === null ? 'review'
+    // Una cuota de un mes que todavía no llegó no es algo para atender hoy:
+    // su fecha se confirma cuando llega ese mes.
+    const cuotaFutura = isPending && !!expense.cuotaPlanId && !!expense.mesKey && expense.mesKey > mesDeHoy;
+    const group = cuotaFutura && (daysRemaining === null || daysRemaining > 3) ? 'later'
+      : !isPending || daysRemaining === null ? 'review'
       : daysRemaining <= 0 ? (isAutomaticDebit(item) ? 'debits' : 'urgent')
       : daysRemaining <= 3 ? 'soon'
       : item.requiereRevision ? 'review' : 'later';

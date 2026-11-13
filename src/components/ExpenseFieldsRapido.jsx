@@ -110,7 +110,7 @@ export default function ExpenseFieldsRapido({
         </div>
         <p className="muted small">En "Importe" va el valor de una cuota, no el total de la compra.</p>
         {resumenC
-          ? <p className="cuotas-resumen" role="status">Se van a crear <strong>{resumenC.cantidad} {resumenC.cantidad === 1 ? 'cuota' : 'cuotas'}</strong>{Number(f.monto) > 0 ? <> de <strong>{f.moneda === 'USD' ? fmtUSD(Number(f.monto)) : fmtARS(Number(f.monto))}</strong></> : null}, {resumenC.cantidad === 1 ? `en ${fmtPeriodo(resumenC.desdeKey)}` : `de ${fmtPeriodo(resumenC.desdeKey)} a ${fmtPeriodo(resumenC.hastaKey)}`}. La primera queda como la cargás; las demás, pendientes.</p>
+          ? <p className="cuotas-resumen" role="status">Se van a crear <strong>{resumenC.cantidad} {resumenC.cantidad === 1 ? 'cuota' : 'cuotas'}</strong>{Number(f.monto) > 0 ? <> de <strong>{f.moneda === 'USD' ? fmtUSD(Number(f.monto)) : fmtARS(Number(f.monto))}</strong></> : null}, {resumenC.cantidad === 1 ? `en ${fmtPeriodo(resumenC.desdeKey)}` : `de ${fmtPeriodo(resumenC.desdeKey)} a ${fmtPeriodo(resumenC.hastaKey)}`}. La primera queda como la cargás; las demás quedan pendientes y con la fecha de vencimiento para confirmar.</p>
           : (f.cuotasTotal ? <p className="cuotas-resumen cuotas-error" role="status">{validarCuotasForm({ total: f.cuotasTotal, desde: f.cuotasDesde }).mensaje}</p> : <p className="muted small">Hasta {CUOTAS_MAXIMO} cuotas.</p>)}
         <p className="cuotas-aviso">Si la compra ya viene dentro del resumen de una tarjeta que cargás por el total, no la cargues acá: se contaría dos veces.</p>
       </div>}</>}

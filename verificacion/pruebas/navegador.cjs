@@ -84,7 +84,7 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
           const [y,m]=p.split('-').map(Number);
           for(let n=desde;n<=total;n++){
             const t=y*12+(m-1)+(n-desde),k=`${Math.floor(t/12)}-${String(t%12+1).padStart(2,'0')}`;
-            const fila={...movimiento(k,entry.body.monto,`audit_cuota_${requests.length}_${n}`),concepto_nombre:entry.body.servicio||'Servicio de prueba',estado:n===desde?(entry.body.estado||'pagado'):'pendiente',cuota_plan_id:plan,cuota_numero:n,cuota_total:total};
+            const fila={...movimiento(k,entry.body.monto,`audit_cuota_${requests.length}_${n}`),concepto_nombre:entry.body.servicio||'Servicio de prueba',estado:n===desde?(entry.body.estado||'pagado'):'pendiente',...(n===desde?{}:{requiere_revision:true,motivo_revision:'REVISAR_VENCIMIENTO',origen_movimiento:'CUOTA'}),cuota_plan_id:plan,cuota_numero:n,cuota_total:total};
             (db[k]||=[]).push(fila);ids.push(fila.movimiento_id);
           }
           return send({ok:true,data:{movimiento_id:ids[0],cuota_plan_id:plan,movimientos:ids}});
@@ -649,6 +649,23 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert.equal(Object.values(s.db).flat().length,0);
       assert.deepEqual(s.pageErrors,[]);
       return {label:true,deleteOne:true,deleteRest:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-32','Las cuotas de meses siguientes piden confirmar la fecha, pero no suman avisos en Inicio hasta que llega su mes',async()=>{
+    const s=await setup();try{
+      const cuota=(k,n,o={})=>({...movimiento(k,40000,`cuo_${n}`),concepto_nombre:'Heladera',servicio:'Heladera',concepto_id:null,vencimiento:`${k}-20`,cuota_plan_id:'plan_x',cuota_numero:n,cuota_total:3,...o});
+      const rev={requiere_revision:true,motivo_revision:'REVISAR_VENCIMIENTO',origen_movimiento:'CUOTA'};
+      for(const k of Object.keys(s.db))s.db[k]=[];
+      s.db['2026-10']=[cuota('2026-10',1)];s.db['2026-11']=[cuota('2026-11',2,rev)];s.db['2026-12']=[cuota('2026-12',3,rev)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      assert.equal(await s.page.locator('.attention-tile.has-items').count(),0,'Las cuotas futuras no generan avisos en Inicio');
+      await nav(s.page,'Detalle');
+      await s.page.getByRole('button',{name:/Mes siguiente|siguiente/i}).first().click();
+      await s.page.getByText('Cuota 2/3',{exact:false}).first().waitFor();
+      await s.page.getByText('Confirmar fecha',{exact:false}).first().waitFor();
+      await capture(s.page,'32-cuota-confirmar-fecha.png');
+      assert.deepEqual(s.pageErrors,[]);
+      return {futureNotInAlerts:true,asksDateInItsMonth:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

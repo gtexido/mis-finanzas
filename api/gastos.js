@@ -222,6 +222,11 @@ export default async function handler(req, res) {
         vencimiento: i === 0 ? vencimiento || null : desplazarFechaMeses(vencimiento, i),
         // Solo la primera cuota respeta el estado elegido; las siguientes nacen pendientes.
         estado: i === 0 ? estado || "pendiente" : "pendiente",
+        // Las cuotas siguientes nacen "para revisar": su vencimiento es una fecha estimada
+        // (la de la primera, corrida un mes por cuota) y hay que confirmarla cuando llegue el resumen.
+        requiereRevision: i === 0 ? !!requiereRevision : true,
+        motivoRevision: i === 0 ? motivoRevision || null : "REVISAR_VENCIMIENTO",
+        origenMovimiento: i === 0 ? origenMovimiento || null : origenMovimiento || "CUOTA",
         cuotaNumero: cuotas ? cuotaDesde + i : null,
       });
     }
@@ -333,9 +338,9 @@ export default async function handler(req, res) {
         ${fila.vencimiento},
         ${observacion || null},
         ${!!esRecurrente},
-        ${!!requiereRevision},
-        ${motivoRevision || null},
-        ${origenMovimiento || null},
+        ${fila.requiereRevision},
+        ${fila.motivoRevision},
+        ${fila.origenMovimiento},
         ${cuotaPlanId},
         ${fila.cuotaNumero},
         ${cuotaTotal},

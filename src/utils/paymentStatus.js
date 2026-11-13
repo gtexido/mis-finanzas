@@ -27,7 +27,9 @@ export function expenseAttention(item, remaining = item.vencimiento ? diasRestan
 
 export function reviewLabel(item = {}) {
   if (!item.requiereRevision) return '';
-  if (item.estado !== 'pagado' && hasUnconfirmedDue(item)) return 'Confirmar importe y fecha';
+  const revisaImporte = item.origenMovimiento === 'REPLICA_MES' || String(item.motivoRevision || '').includes('MONTO');
+  // Una cuota tiene importe fijo: solo queda confirmar cuándo vence.
+  if (item.estado !== 'pagado' && hasUnconfirmedDue(item)) return revisaImporte || !item.cuotaPlanId ? 'Confirmar importe y fecha' : 'Confirmar fecha';
   if (item.origenMovimiento === 'REPLICA_MES' || String(item.motivoRevision || '').includes('MONTO')) return 'Confirmar importe';
   return 'Datos por revisar';
 }

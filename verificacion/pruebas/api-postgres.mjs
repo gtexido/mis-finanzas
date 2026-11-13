@@ -504,6 +504,14 @@ await check('CUO-01','Compra en 12 cuotas: crea una por mes en una sola operaciÃ
   assert.equal((await snapshot()).movimiento_etiquetas.length,12);
   return {rows:12,batches:1,lastPeriod:'2027-09'};
 });
+await check('CUO-08','Las cuotas siguientes nacen para revisar la fecha de vencimiento; la primera queda como se cargÃ³',async()=>{
+  const h=await harness();const r=await h.call('gastos.js',{...compra,cuotas:{total:3,desde:1}});assert.equal(r.code,200,JSON.stringify(r.payload));
+  const ids=r.payload.data.movimientos;assert.equal(ids.length,3);
+  const filas=(await pg.query('SELECT cuota_numero,requiere_revision,motivo_revision,origen_movimiento FROM movimientos WHERE movimiento_id = ANY($1) ORDER BY cuota_numero',[ids])).rows;
+  assert.equal(filas[0].requiere_revision,false);assert.equal(filas[0].motivo_revision,null);
+  assert(filas.slice(1).every(f=>f.requiere_revision===true&&f.motivo_revision==='REVISAR_VENCIMIENTO'&&f.origen_movimiento==='CUOTA'),JSON.stringify(filas));
+  return {rows:3};
+});
 await check('CUO-02','Compra ya empezada: desde la cuota 3 de 6 crea solo las cuotas 3 a 6',async()=>{
   const h=await harness();const r=await h.call('gastos.js',{...compra,dia:10,vencimiento:null,estado:'pendiente',cuotas:{total:6,desde:3}});assert.equal(r.code,200,JSON.stringify(r.payload));
   const filas=await cuotasDe();assert.equal(filas.length,4);assert.equal(filas.map(f=>f.cuota_numero).join(','),'3,4,5,6');
