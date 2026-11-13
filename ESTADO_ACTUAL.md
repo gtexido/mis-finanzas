@@ -50,9 +50,9 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 45 | Vencimientos: filas en un renglón en pantallas angostas, cartel de pagado por revisar debajo del nombre, botón "Debitado" para débitos | `faeb156` |
 | 46 | Informes: nueva pestaña "Tu inflación" (compara los mismos gastos entre dos meses; cálculo en `src/utils/inflacion.js`). No toca base ni servidor | `3de17d8` |
 | 47 | Inicio: bloque "¿Llegás a fin de mes?" en el mes en curso (reemplaza a "Por pagar"; cálculo en `src/utils/proyeccion.js`). No toca base ni servidor | `280357b` |
-| 48 | Limpieza: se borra el código de las pantallas anteriores y sus interruptores (`?...=actual` deja de existir). Ajustes suma la fila "Conceptos recordados" | pendiente |
+| 49 | Limpieza: se borra el código de las pantallas anteriores y sus interruptores (`?...=actual` deja de existir). Ajustes suma la fila "Conceptos recordados" | pendiente |
 
-Desde el PR 48 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
+Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
 ## Cambios de datos en la base
 
