@@ -32,6 +32,9 @@ CREATE TABLE cotizaciones(fecha date,moneda_origen text,moneda_destino text,tipo
 CREATE TABLE parametros(clave text,valor numeric);INSERT INTO parametros VALUES('tipo_cambio_default',1000);
 CREATE TABLE login_fallos(id bigserial primary key,usuario_id text not null,ip text not null,creado_at timestamptz not null default now());
 `);
+// Se aplica el script real de cuotas sobre el esquema de prueba (dos veces: debe poder repetirse sin efecto).
+const sqlCuotas=await fs.readFile(path.join(project,'sql/SQL_CUOTAS_V1.sql'),'utf8');
+await pg.exec(sqlCuotas);await pg.exec(sqlCuotas);
 async function snapshot(){return Object.fromEntries(await Promise.all(['movimientos','detalle_movimiento','movimiento_etiquetas'].map(async t=>[t,(await pg.query(`SELECT * FROM ${t} ORDER BY 1,2`)).rows])));}
 async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos,login_fallos;');}
 async function check(id,title,run){
@@ -465,6 +468,70 @@ await check('CALC-10','¿Llegás a fin de mes?: resta cada pago pendiente en su 
   const usd=m.proyectarMes({gastos:[g('Netflix',10,{moneda:'USD',vencimiento:'2026-11-15'})],tc:1500,disponible:0,hoy:'2026-11-12',mesKey:'2026-11'});
   assert.equal(usd.porPagar,15000);assert.equal(usd.pasos[0].saldo,0);
   return {cases:4};
+});
+
+// CUO-xx: compras en cuotas
+const compra={periodo:'2026-10',dia:31,servicio:'Compra ficticia',monto:1000,moneda:'ARS',estado:'pagado',vencimiento:'2026-10-31',etiquetasIds:['tag_a'],cuotas:{total:12}};
+const cuotasDe=async()=>(await pg.query("SELECT movimiento_id,periodo,dia,to_char(fecha_operacion,'YYYY-MM-DD') f,to_char(vencimiento,'YYYY-MM-DD') v,estado,monto,cuota_plan_id,cuota_numero,cuota_total FROM movimientos ORDER BY periodo,cuota_numero")).rows;
+await check('CUO-01','Compra en 12 cuotas: crea una por mes en una sola operación, con fechas corridas y solo la primera pagada',async()=>{
+  const h=await harness();const r=await h.call('gastos.js',compra);assert.equal(r.code,200,JSON.stringify(r.payload));
+  const filas=await cuotasDe();assert.equal(filas.length,12);assert.equal(h.batches.length,1);
+  assert.equal(r.payload.data.movimientos.length,12);assert.equal(r.payload.data.movimiento_id,filas[0].movimiento_id);assert.equal(r.payload.data.cuota_plan_id,filas[0].cuota_plan_id);
+  assert.equal(new Set(filas.map(f=>f.cuota_plan_id)).size,1);assert.equal(new Set(filas.map(f=>f.movimiento_id)).size,12);
+  assert.equal(filas.map(f=>f.cuota_numero).join(','),'1,2,3,4,5,6,7,8,9,10,11,12');assert(filas.every(f=>f.cuota_total===12&&Number(f.monto)===1000));
+  assert.equal(filas[0].periodo,'2026-10');assert.equal(filas[2].periodo,'2026-12');assert.equal(filas[3].periodo,'2027-01');assert.equal(filas[11].periodo,'2027-09');
+  assert.equal(filas[0].v,'2026-10-31');assert.equal(filas[1].v,'2026-11-30');assert.equal(filas[4].v,'2027-02-28');assert.equal(filas[5].v,'2027-03-31');
+  assert.equal(filas[1].dia,30);assert.equal(filas[1].f,'2026-11-30');assert.equal(filas[4].f,'2027-02-28');
+  assert.equal(filas[0].estado,'pagado');assert(filas.slice(1).every(f=>f.estado==='pendiente'));
+  assert.equal((await snapshot()).movimiento_etiquetas.length,12);
+  return {rows:12,batches:1,lastPeriod:'2027-09'};
+});
+await check('CUO-02','Compra ya empezada: desde la cuota 3 de 6 crea solo las cuotas 3 a 6',async()=>{
+  const h=await harness();const r=await h.call('gastos.js',{...compra,dia:10,vencimiento:null,estado:'pendiente',cuotas:{total:6,desde:3}});assert.equal(r.code,200,JSON.stringify(r.payload));
+  const filas=await cuotasDe();assert.equal(filas.length,4);assert.equal(filas.map(f=>f.cuota_numero).join(','),'3,4,5,6');
+  assert.equal(filas[0].periodo,'2026-10');assert.equal(filas[3].periodo,'2027-01');assert(filas.every(f=>f.v===null&&f.estado==='pendiente'&&f.cuota_total===6));
+  return {rows:4};
+});
+await check('CUO-03','Datos de cuotas inválidos se rechazan sin escribir nada',async()=>{
+  const h=await harness();const before=await snapshot();
+  const casos=[{total:1},{total:61},{total:2.5},{total:6,desde:7},{total:6,desde:0},'doce',[12]];
+  for(const cuotas of casos){const r=await h.call('gastos.js',{...compra,cuotas});assert.equal(r.code,400,JSON.stringify(cuotas));}
+  const conDesglose=await h.call('gastos.js',{...compra,subconceptos:[{nombre:'Ítem',monto:1000,moneda:'ARS'}]});assert.equal(conDesglose.code,400);assert.match(conDesglose.payload.error,/desglose/);
+  assert.deepEqual(await snapshot(),before);assert.equal(h.batches.length,0);
+  return {rejected:casos.length+1,databaseUnchanged:true};
+});
+await check('CUO-04','Si falla una cuota se revierte la compra completa',async()=>{
+  let inserts=0;const h=await harness({failure:q=>q.startsWith('INSERT INTO movimientos')&&++inserts===7});const before=await snapshot();
+  const r=await h.call('gastos.js',compra);assert.equal(r.code,500);assert.deepEqual(await snapshot(),before);
+  return {http:500,databaseUnchanged:true};
+});
+await check('CUO-05','Un gasto sin cuotas sigue igual y sus columnas de cuota quedan vacías',async()=>{
+  await seed();const filas=await cuotasDe();assert.equal(filas.length,1);
+  assert.equal(filas[0].cuota_plan_id,null);assert.equal(filas[0].cuota_numero,null);assert.equal(filas[0].cuota_total,null);
+  return {plainExpenseUnchanged:true};
+});
+await check('CUO-06','Eliminar: una sola cuota, o esta y las que faltan; nunca las de otra compra ni las de otra persona',async()=>{
+  const h=await harness();const a=await h.call('gastos.js',compra),b=await h.call('gastos.js',{...compra,servicio:'Otra compra',cuotas:{total:3}});
+  const ids=a.payload.data.movimientos;
+  const una=await h.call('gastos-delete.js',{movimientoId:ids[1]},'DELETE');assert.equal(una.code,200);assert.equal(una.payload.data.eliminados,1);
+  assert.equal((await cuotasDe()).filter(f=>f.cuota_plan_id===a.payload.data.cuota_plan_id).length,11);
+  const ajeno=await harness({userId:'usr_vane'});assert.equal((await ajeno.call('gastos-delete.js',{movimientoId:ids[4],alcance:'cuotas_restantes'},'DELETE')).code,404);
+  const resto=await h.call('gastos-delete.js',{movimientoId:ids[4],alcance:'cuotas_restantes'},'DELETE');assert.equal(resto.code,200,JSON.stringify(resto.payload));assert.equal(resto.payload.data.eliminados,8);
+  const quedan=await cuotasDe();
+  assert.equal(quedan.filter(f=>f.cuota_plan_id===a.payload.data.cuota_plan_id).map(f=>f.cuota_numero).join(','),'1,3,4');
+  assert.equal(quedan.filter(f=>f.cuota_plan_id===b.payload.data.cuota_plan_id).length,3);
+  assert.equal((await snapshot()).movimiento_etiquetas.length,6);
+  assert.equal((await h.call('gastos-delete.js',{movimientoId:ids[0],alcance:'todo'},'DELETE')).code,400);
+  await reset();const comun=await seed();assert.equal((await h.call('gastos-delete.js',{movimientoId:comun,alcance:'cuotas_restantes'},'DELETE')).code,400);assert.equal((await cuotasDe()).length,1);
+  return {single:1,remaining:8,otherPlanIntact:true,otherUserBlocked:true};
+});
+await check('CUO-07','La base rechaza datos de cuota incoherentes',async()=>{
+  const id=await seed();
+  for(const set of ["cuota_numero=1","cuota_plan_id='p',cuota_numero=3,cuota_total=2","cuota_plan_id='p',cuota_numero=0,cuota_total=5","cuota_plan_id='p',cuota_numero=1,cuota_total=1","cuota_plan_id='p',cuota_numero=1,cuota_total=61"]){
+    await assert.rejects(pg.query(`UPDATE movimientos SET ${set} WHERE movimiento_id=$1`,[id]),set);
+  }
+  await pg.query("UPDATE movimientos SET cuota_plan_id='p',cuota_numero=2,cuota_total=3 WHERE movimiento_id=$1",[id]);
+  return {constraintEnforced:true};
 });
 
 // ERR-xx: errores unificados (api/_http.js). Ningún texto técnico de la base llega a la pantalla.

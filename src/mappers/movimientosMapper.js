@@ -172,6 +172,10 @@ export const mapMovimientosDesdeApi = (apiData, periodo = getPeriodoActual()) =>
         requiereRevision: !!m.requiere_revision,
         motivoRevision: m.motivo_revision || "",
         origenMovimiento: m.origen_movimiento || "",
+        // Compra en cuotas: vacíos cuando es un gasto común.
+        cuotaPlanId: m.cuota_plan_id || "",
+        cuotaNumero: m.cuota_numero ? Number(m.cuota_numero) : null,
+        cuotaTotal: m.cuota_total ? Number(m.cuota_total) : null,
 
         // Nuevo modelo multidimensional.
         workspaceId: m.workspace_id || "",

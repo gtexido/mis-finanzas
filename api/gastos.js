@@ -1,7 +1,7 @@
 import { validarGasto } from "./_validation.js";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
-import { generarId, mapServicioId, normalizarFecha, normalizarListaIds, normalizarMoneda, toNumber } from "./_db.js";
+import { desplazarFechaMeses, generarId, mapServicioId, normalizarFecha, normalizarListaIds, normalizarMoneda, sumarMeses, toNumber, ultimoDiaDelMes } from "./_db.js";
 import { responderError } from "./_http.js";
 
 function mapCategoriaId(categoria) {
@@ -175,6 +175,7 @@ export default async function handler(req, res) {
       motivoRevision = null,
       origenMovimiento = null,
       subconceptos = [],
+      cuotas = null,
     } = body;
 
     const userWorkspace = await resolveWorkspaceForUser(sql, user);
@@ -202,6 +203,28 @@ export default async function handler(req, res) {
 
     const movimientoId = generarId("mov");
     const fechaOperacion = `${periodo}-${String(dia || 1).padStart(2, "0")}`;
+
+    // Compra en cuotas: una fila por cuota, un mes después de la anterior.
+    // Sin cuotas, la lista tiene una sola fila y el comportamiento es el de siempre.
+    const cuotaTotal = cuotas ? Number(cuotas.total) : null;
+    const cuotaDesde = cuotas ? Number(cuotas.desde ?? 1) : null;
+    const cuotaPlanId = cuotas ? generarId("plan") : null;
+    const filas = [];
+    const cantidadFilas = cuotas ? cuotaTotal - cuotaDesde + 1 : 1;
+    for (let i = 0; i < cantidadFilas; i += 1) {
+      const periodoFila = sumarMeses(periodo, i);
+      const diaFila = Math.min(Number(dia || 1), ultimoDiaDelMes(periodoFila));
+      filas.push({
+        movimientoId: i === 0 ? movimientoId : generarId("mov"),
+        periodo: periodoFila,
+        dia: diaFila,
+        fechaOperacion: `${periodoFila}-${String(diaFila).padStart(2, "0")}`,
+        vencimiento: i === 0 ? vencimiento || null : desplazarFechaMeses(vencimiento, i),
+        // Solo la primera cuota respeta el estado elegido; las siguientes nacen pendientes.
+        estado: i === 0 ? estado || "pendiente" : "pendiente",
+        cuotaNumero: cuotas ? cuotaDesde + i : null,
+      });
+    }
     const fechaConversion = normalizarFecha(vencimiento || fechaOperacion);
 
     const categoriaId = mapCategoriaId(categoria);
@@ -251,6 +274,7 @@ export default async function handler(req, res) {
         : toNumber(monto, 0);
 
     const queries = [];
+    for (const fila of filas) {
     queries.push(sql`
       INSERT INTO movimientos (
         movimiento_id,
@@ -280,14 +304,17 @@ export default async function handler(req, res) {
         requiere_revision,
         motivo_revision,
         origen_movimiento,
+        cuota_plan_id,
+        cuota_numero,
+        cuota_total,
         activo
       ) VALUES (
-        ${movimientoId},
+        ${fila.movimientoId},
         'GASTO',
         'GASTO',
-        ${fechaOperacion},
-        ${periodo},
-        ${Number(dia || 1)},
+        ${fila.fechaOperacion},
+        ${fila.periodo},
+        ${fila.dia},
         ${categoriaId},
         ${formaPagoId},
         ${servicioId},
@@ -302,13 +329,16 @@ export default async function handler(req, res) {
         ${categoriaGastoNuevoId},
         ${montoCabecera},
         ${monedaMovimiento},
-        ${estado || "pendiente"},
-        ${vencimiento || null},
+        ${fila.estado},
+        ${fila.vencimiento},
         ${observacion || null},
         ${!!esRecurrente},
         ${!!requiereRevision},
         ${motivoRevision || null},
         ${origenMovimiento || null},
+        ${cuotaPlanId},
+        ${fila.cuotaNumero},
+        ${cuotaTotal},
         true
       );
     `);
@@ -320,12 +350,13 @@ export default async function handler(req, res) {
             movimiento_id,
             etiqueta_id
           ) VALUES (
-            ${movimientoId},
+            ${fila.movimientoId},
             ${etiquetaId}
           )
           ON CONFLICT (movimiento_id, etiqueta_id) DO NOTHING;
         `);
       }
+    }
     }
 
     if (detallesNormalizados.length > 0) {
@@ -370,6 +401,7 @@ export default async function handler(req, res) {
       ok: true,
       data: {
         movimiento_id: movimientoId,
+        ...(cuotaPlanId ? { cuota_plan_id: cuotaPlanId, movimientos: filas.map((fila) => fila.movimientoId) } : {}),
       },
     });
   } catch (error) {
