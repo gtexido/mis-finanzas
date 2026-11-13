@@ -40,7 +40,9 @@ async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCA
 async function check(id,title,run){
   await reset();try{results.push({id,title,status:'correcto',...await run()});}
   catch(e){results.push({id,title,status:'fallo',error:String(e.stack)});}
-  console.log(id,results.at(-1).status);
+  // Si falla, se muestra el motivo en el registro para no tener que abrir el archivo de resultados.
+  const ultimo=results.at(-1);
+  console.log(id,ultimo.status,ultimo.status==='fallo'?String(ultimo.error).split('\n').slice(0,4).join(' | '):'');
 }
 async function harness({failure=null, userId="usr_gustavo", env={}}={}) {
   const statements=[],batches=[],errors=[];
