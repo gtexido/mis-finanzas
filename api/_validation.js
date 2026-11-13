@@ -45,4 +45,28 @@ export function validarGasto(body) {
     const ars = item.montoARSCalculado ?? item.monto_ars_calculado;
     if (ars !== undefined && ars !== null && ars !== "") validarImporte(ars, "equivalente en pesos");
   }
+  validarCuotas(body.cuotas, items);
+}
+
+export const CUOTAS_MAXIMO = 60;
+
+/**
+ * Compra en cuotas (opcional): { total, desde }.
+ *   total: cantidad de cuotas de la compra, entre 2 y 60.
+ *   desde: número de la primera cuota que se carga (por defecto 1). Permite cargar
+ *          una compra ya empezada: desde 3 y total 6 crea las cuotas 3, 4, 5 y 6.
+ * No se combina con desglose: cada cuota es un importe único.
+ */
+export function validarCuotas(cuotas, items = []) {
+  if (cuotas === undefined || cuotas === null) return;
+  if (typeof cuotas !== "object" || Array.isArray(cuotas)) invalid("Los datos de las cuotas no son válidos.");
+  const total = Number(cuotas.total);
+  const desde = Number(cuotas.desde ?? 1);
+  if (!Number.isInteger(total) || total < 2 || total > CUOTAS_MAXIMO) {
+    invalid(`La cantidad de cuotas debe ser un número entre 2 y ${CUOTAS_MAXIMO}.`);
+  }
+  if (!Number.isInteger(desde) || desde < 1 || desde > total) {
+    invalid(`La primera cuota debe ser un número entre 1 y ${total}.`);
+  }
+  if (items.length) invalid("Una compra en cuotas no puede tener desglose.");
 }

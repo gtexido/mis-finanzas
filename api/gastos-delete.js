@@ -20,7 +20,11 @@ export default async function handler(req, res) {
     user.workspaceId = workspaceId;
     user.workspaceNombre = userWorkspace.workspaceNombre || user.workspaceNombre;
 
-    const { movimientoId } = req.body || {};
+    // alcance "cuotas_restantes": borra esta cuota y las que le siguen de la misma compra.
+    const { movimientoId, alcance = null } = req.body || {};
+    if (alcance !== null && alcance !== "cuotas_restantes") {
+      return res.status(400).json({ ok: false, error: "Alcance no válido." });
+    }
 
     if (!movimientoId) {
       return res.status(400).json({
@@ -30,7 +34,7 @@ export default async function handler(req, res) {
     }
 
     const movimientoPropio = await sql`
-      SELECT movimiento_id
+      SELECT movimiento_id, cuota_plan_id, cuota_numero
       FROM movimientos
       WHERE movimiento_id = ${movimientoId}
         AND usuario_id = ${user.usuarioId}
@@ -46,17 +50,37 @@ export default async function handler(req, res) {
       });
     }
 
+    // Lista de gastos a borrar: uno solo, o esta cuota y las siguientes de la misma compra.
+    let ids = [movimientoId];
+    const { cuota_plan_id: planId, cuota_numero: cuotaNumero } = movimientoPropio[0];
+    if (alcance === "cuotas_restantes") {
+      if (!planId) {
+        return res.status(400).json({ ok: false, error: "Este gasto no forma parte de una compra en cuotas." });
+      }
+      const restantes = await sql`
+        SELECT movimiento_id
+        FROM movimientos
+        WHERE cuota_plan_id = ${planId}
+          AND cuota_numero >= ${cuotaNumero}
+          AND usuario_id = ${user.usuarioId}
+          AND workspace_id = ${workspaceId}
+          AND tipo_movimiento = 'GASTO' AND activo = true
+        ORDER BY cuota_numero;
+      `;
+      ids = restantes.map((fila) => fila.movimiento_id);
+    }
+
     const queries = [];
     // Serialize with conversion to savings; archived sources must remain intact.
     queries.push(sql`
       SELECT movimiento_id FROM movimientos
-      WHERE movimiento_id = ${movimientoId} AND usuario_id = ${user.usuarioId}
+      WHERE movimiento_id = ANY(${ids}) AND usuario_id = ${user.usuarioId}
         AND workspace_id = ${workspaceId} AND tipo_movimiento = 'GASTO' AND activo = true
       FOR UPDATE;
     `);
     queries.push(sql`
       DELETE FROM movimiento_etiquetas
-      WHERE movimiento_id = ${movimientoId}
+      WHERE movimiento_id = ANY(${ids})
         AND movimiento_id IN (
           SELECT movimiento_id
           FROM movimientos
@@ -68,7 +92,7 @@ export default async function handler(req, res) {
 
     queries.push(sql`
       DELETE FROM detalle_movimiento
-      WHERE movimiento_id = ${movimientoId}
+      WHERE movimiento_id = ANY(${ids})
         AND movimiento_id IN (
           SELECT movimiento_id
           FROM movimientos
@@ -80,7 +104,7 @@ export default async function handler(req, res) {
 
     queries.push(sql`
       DELETE FROM movimientos
-      WHERE movimiento_id = ${movimientoId}
+      WHERE movimiento_id = ANY(${ids})
         AND usuario_id = ${user.usuarioId}
         AND workspace_id = ${workspaceId}
         AND tipo_movimiento = 'GASTO' AND activo = true;
@@ -93,6 +117,7 @@ export default async function handler(req, res) {
       ok: true,
       data: {
         movimientoId,
+        eliminados: ids.length,
       },
     });
   } catch (error) {

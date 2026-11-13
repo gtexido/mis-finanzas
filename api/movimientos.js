@@ -75,6 +75,9 @@ export default async function handler(req, res) {
         m.requiere_revision,
         m.motivo_revision,
         m.origen_movimiento,
+        m.cuota_plan_id,
+        m.cuota_numero,
+        m.cuota_total,
         m.activo,
         m.created_at,
         m.updated_at

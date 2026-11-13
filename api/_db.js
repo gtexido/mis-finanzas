@@ -93,3 +93,28 @@ export function mapServicioId(servicio) {
 
   return map[servicio] || null;
 }
+
+/** Devuelve el período "AAAA-MM" que está `meses` después del indicado. */
+export function sumarMeses(periodo, meses = 0) {
+  const [anio, mes] = String(periodo).split("-").map(Number);
+  const total = anio * 12 + (mes - 1) + Number(meses || 0);
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, "0")}`;
+}
+
+/** Último día del mes de un período "AAAA-MM". */
+export function ultimoDiaDelMes(periodo) {
+  const [anio, mes] = String(periodo).split("-").map(Number);
+  return new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+}
+
+/**
+ * Mueve una fecha "AAAA-MM-DD" la cantidad de meses indicada, conservando el día.
+ * Si el mes de destino es más corto, usa su último día (31/01 + 1 mes = 28/02 o 29/02).
+ */
+export function desplazarFechaMeses(fecha, meses = 0) {
+  if (!fecha) return null;
+  const texto = String(fecha).slice(0, 10);
+  const periodo = sumarMeses(texto.slice(0, 7), meses);
+  const dia = Math.min(Number(texto.slice(8, 10)), ultimoDiaDelMes(periodo));
+  return `${periodo}-${String(dia).padStart(2, "0")}`;
+}
