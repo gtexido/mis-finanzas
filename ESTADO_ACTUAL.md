@@ -55,7 +55,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 50 | Limpieza: se quitan 68 reglas de estilo que ya no usa ninguna pantalla. Comprobado con 28 capturas idénticas antes y después | `e985aac` |
 | 51 | Cuotas, paso 1: el servidor crea todas las cuotas de una compra en una operación y permite borrar "esta y las que faltan". Todavía sin pantalla | `3cc1bf5` |
 | 52 | Cuotas, paso 2: opción "Es una compra en cuotas" en Cargar (dentro de Más opciones), marca "Cuota 3/12" en Movimientos y Vencimientos, y al eliminar una cuota se elige "solo esta" o "esta y las que faltan". Las cuotas no entran en Replicar ni en Tu inflación | `53a81fa` |
-| 53 | Cuotas: las cuotas de los meses siguientes nacen con la fecha de vencimiento "para confirmar" (la primera queda como se cargó). No suman avisos en Inicio hasta que llega su mes | pendiente |
+| 53 | Cuotas: las cuotas de los meses siguientes nacen con la fecha de vencimiento "para confirmar" (la primera queda como se cargó). No suman avisos en Inicio hasta que llega su mes | `c5e4ff3` |
+| 54 | Cuotas, paso 3: bloque "Tus cuotas" en Inicio, con lo que se va este mes, qué cuota es, cuándo termina cada compra y cuánto queda por pagar | pendiente |
 
 Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
@@ -65,6 +66,7 @@ Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver 
 |-------|--------|-------------------------|
 | 12/11/2026 | Forma de pago "QR" agregada para las dos cuentas (`ins_qr_gustavo`, `ins_qr_vane`) en `instrumentos_pago` | `respaldo-20261112-antes-qr` |
 | 13/11/2026 | Script `sql/SQL_CUOTAS_V1.sql`: tres columnas nuevas en `movimientos` (`cuota_plan_id`, `cuota_numero`, `cuota_total`), una restricción y un índice. 302 filas antes y después, sin cambios en los datos | `respaldo-20261113-antes-cuotas` |
+| 13/11/2026 | Cuotas 2 a 12 de Aire acondicionado (`plan_q2opfzmiei`): se marcaron con la fecha de vencimiento para confirmar (`requiere_revision`, motivo `REVISAR_VENCIMIENTO`, origen `CUOTA`). 11 filas; sin cambios en importes, fechas ni estados. Para revertir: poner `requiere_revision=false` y `motivo_revision`, `origen_movimiento` en NULL en esas 11 filas | no hizo falta (cambio chico y reversible) |
 
 ## Cómo volver atrás
 

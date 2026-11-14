@@ -66,3 +66,58 @@ export const etiquetaCuota = (gasto) =>
 /** Cuántas cuotas faltan después de esta (0 si es la última o no es cuota). */
 export const cuotasQueFaltan = (gasto) =>
   gasto?.cuotaPlanId ? Math.max(0, Number(gasto.cuotaTotal || 0) - Number(gasto.cuotaNumero || 0)) : 0;
+
+/**
+ * Resumen de las compras en cuotas para Inicio.
+ *
+ * Entrada:
+ *   gastosPorMes: { "AAAA-MM": [gastos] } con todos los meses cargados.
+ *   mesKey:       mes que se está mirando.
+ *   importe:      función (gasto) => importe en pesos (por defecto, gasto.monto).
+ *
+ * Lógica:
+ *   Agrupa las cuotas por compra (cuotaPlanId). Una compra entra si le queda
+ *   alguna cuota en el mes mirado o después; las que ya terminaron no aparecen.
+ *
+ * Salida:
+ *   planes: una fila por compra, ordenadas por la que termina antes:
+ *     { planId, nombre, total, cuotaDelMes (número o null si este mes no tiene),
+ *       montoCuota, terminaKey, cuotasPorPagar, montoPorPagar }
+ *   totalMes:      suma de las cuotas del mes mirado (pagadas o no).
+ *   totalPorPagar: suma de las cuotas pendientes desde el mes mirado en adelante.
+ */
+export function resumenPlanes({ gastosPorMes = {}, mesKey, importe = (g) => Number(g.monto) || 0 } = {}) {
+  const porPlan = new Map();
+  for (const [key, lista] of Object.entries(gastosPorMes || {})) {
+    for (const g of lista || []) {
+      if (!g?.cuotaPlanId) continue;
+      if (!porPlan.has(g.cuotaPlanId)) porPlan.set(g.cuotaPlanId, []);
+      porPlan.get(g.cuotaPlanId).push({ ...g, mesKey: key });
+    }
+  }
+  const planes = [];
+  for (const [planId, cuotas] of porPlan) {
+    const vigentes = cuotas.filter((c) => c.mesKey >= mesKey);
+    if (!vigentes.length) continue;
+    const delMes = vigentes.find((c) => c.mesKey === mesKey) || null;
+    const referencia = delMes || [...vigentes].sort((a, b) => a.mesKey.localeCompare(b.mesKey))[0];
+    const porPagar = vigentes.filter((c) => c.estado !== "pagado");
+    planes.push({
+      planId,
+      nombre: referencia.servicio || referencia.conceptoNombre || "Compra en cuotas",
+      total: Number(referencia.cuotaTotal) || 0,
+      cuotaDelMes: delMes ? Number(delMes.cuotaNumero) : null,
+      montoCuota: importe(referencia),
+      montoDelMes: delMes ? importe(delMes) : 0,
+      terminaKey: cuotas.map((c) => c.mesKey).sort().at(-1),
+      cuotasPorPagar: porPagar.length,
+      montoPorPagar: porPagar.reduce((s, c) => s + importe(c), 0),
+    });
+  }
+  planes.sort((a, b) => a.terminaKey.localeCompare(b.terminaKey) || a.nombre.localeCompare(b.nombre, "es"));
+  return {
+    planes,
+    totalMes: planes.reduce((s, p) => s + p.montoDelMes, 0),
+    totalPorPagar: planes.reduce((s, p) => s + p.montoPorPagar, 0),
+  };
+}

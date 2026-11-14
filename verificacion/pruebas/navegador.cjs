@@ -668,6 +668,25 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {futureNotInAlerts:true,asksDateInItsMonth:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-33','Inicio muestra "Tus cuotas": cuánto se va este mes, qué cuota es y cuándo termina cada compra',async()=>{
+    const s=await setup();try{
+      const cuota=(k,plan,nombre,n,total,monto,estado='pendiente')=>({...movimiento(k,monto,`cuo_${plan}_${n}`),concepto_nombre:nombre,servicio:nombre,concepto_id:null,estado,vencimiento:`${k}-20`,cuota_plan_id:plan,cuota_numero:n,cuota_total:total});
+      assert.equal(await s.page.locator('.tus-cuotas').count(),0,'Sin compras en cuotas no aparece el bloque');
+      s.db['2026-10'].push(cuota('2026-10','pa','Aire acondicionado',2,4,50000),cuota('2026-10','pb','Heladera',3,3,30000,'pagado'));
+      (s.db['2026-11']||=[]).push(cuota('2026-11','pa','Aire acondicionado',3,4,50000));
+      (s.db['2026-12']||=[]).push(cuota('2026-12','pa','Aire acondicionado',4,4,50000));
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      const bloque=s.page.locator('.tus-cuotas');await bloque.waitFor();
+      const texto=(await bloque.innerText()).replace(/\s+/g,' ');
+      assert(/80\.000 este mes/.test(texto),texto);
+      assert(/Aire acondicionado Cuota 2\/4 · termina en diciembre 2026/.test(texto),texto);
+      assert(/Heladera Cuota 3\/3 · termina en octubre 2026/.test(texto),texto);
+      assert(/Te queda por pagar \$\s?150\.000 en 3 cuotas/.test(texto),texto);
+      await bloque.scrollIntoViewIfNeeded();await capture(s.page,'33-tus-cuotas.png');
+      assert.deepEqual(s.pageErrors,[]);
+      return {block:true,totals:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});
