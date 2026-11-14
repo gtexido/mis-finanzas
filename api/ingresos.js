@@ -4,49 +4,26 @@ import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { fuenteDefaultPorUsuario, generarId, normalizarTexto } from "./_db.js";
 import { responderError } from "./_http.js";
 
+// Nombre con el que se guarda y se muestra el ingreso: el que escribió la persona.
+// Solo se unifica la escritura de las cuatro fuentes genéricas ("ventas" o "venta" quedan
+// como "Ventas") para que no aparezcan duplicadas en la lista de sugerencias.
 function fuenteVisibleIngreso(fuente) {
-  const normalizada = normalizarTexto(fuente);
-
-  const map = {
+  const genericas = {
     hogar: "Hogar",
     ventas: "Ventas",
     venta: "Ventas",
     "trabajo diario": "Trabajo Diario",
-    trabajo: "Trabajo Diario",
-    diario: "Trabajo Diario",
     otros: "Otros",
     otro: "Otros",
-
-    // Compatibilidad con fuentes históricas.
-    vane: "Hogar",
-    gustavo: "Otros",
-    anses: "Trabajo Diario",
-    "descartables v&g": "Ventas",
-    "descartables vg": "Ventas",
   };
-
-  return map[normalizada] || String(fuente || "Otros").trim() || "Otros";
+  const texto = String(fuente || "").trim().replace(/\s+/g, " ");
+  return genericas[normalizarTexto(texto)] || texto || "Otros";
 }
 
-function mapFuenteIngresoId(fuente, usuarioId) {
-  const fuenteNormalizada = normalizarTexto(fuente);
-
-  const map = {
-    vane: "fi_vane",
-    gustavo: "fi_gustavo",
-    anses: "fi_anses",
-    "descartables v&g": "fi_descartables_vg",
-    "descartables vg": "fi_descartables_vg",
-
-    // Las fuentes genéricas se muestran desde concepto_manual.
-    // fuente_ingreso_id queda como bucket técnico por usuario para no migrar esquema ahora.
-    hogar: fuenteDefaultPorUsuario(usuarioId),
-    ventas: fuenteDefaultPorUsuario(usuarioId),
-    "trabajo diario": fuenteDefaultPorUsuario(usuarioId),
-    otros: fuenteDefaultPorUsuario(usuarioId),
-  };
-
-  return map[fuenteNormalizada] || fuenteDefaultPorUsuario(usuarioId);
+// fuente_ingreso_id es solo un casillero técnico por usuario: el nombre visible
+// sale de concepto_manual, así que cualquier fuente usa el casillero del usuario.
+function mapFuenteIngresoId(_fuente, usuarioId) {
+  return fuenteDefaultPorUsuario(usuarioId);
 }
 
 export default async function handler(req, res) {

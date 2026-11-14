@@ -70,8 +70,8 @@ export const DEFAULT_CONFIG = {
 
 export const FUENTES_INGRESO_GENERICAS = ["Hogar", "Ventas", "Trabajo Diario", "Otros"];
 
+// Solo queda el nombre técnico viejo que todavía puede venir de la base.
+// "Anses" y "Descartables V&G" ya no se renombran: son fuentes válidas que la persona puede escribir.
 export const MAPA_FUENTES_INGRESO_LEGACY = {
   Vane: "Hogar",
-  Anses: "Trabajo Diario",
-  "Descartables V&G": "Ventas",
 };

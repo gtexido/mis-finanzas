@@ -59,7 +59,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 54 | Cuotas, paso 3: bloque "Tus cuotas" en Inicio, con lo que se va este mes, qué cuota es, cuándo termina cada compra y cuánto queda por pagar | `1e1ba4e` |
 | 55 | Pendiente por medio de pago: bloque "Cuánto necesitás en cada cuenta" en Inicio y línea "Falta pagar" en cada medio de pago de Movimientos | `2300558` |
 | 56 | Arreglo: el menú de los tres puntitos se abre hacia arriba cuando la fila está al final de la pantalla (antes lo tapaba la barra inferior y no se podía editar ni eliminar). Inicio más liviano: se quita "Últimos movimientos" | `2261660` |
-| 57 | Inicio compacto: salen "En qué más gastaste" (queda en Informes) y "Próximo pago" cuando ya se ve "¿Llegás a fin de mes?"; Replicar aparece solo si falta llevar gastos; "Tus cuotas" y "Por pagar en cada cuenta" quedan plegados en una línea con el total | pendiente |
+| 57 | Inicio compacto: salen "En qué más gastaste" (queda en Informes) y "Próximo pago" cuando ya se ve "¿Llegás a fin de mes?"; Replicar aparece solo si falta llevar gastos; "Tus cuotas" y "Por pagar en cada cuenta" quedan plegados en una línea con el total | `93b87a5` |
+| 58 | Arreglo: un ingreso se guarda con el nombre que se escribe. Antes "Anses" pasaba a "Trabajo Diario" y "Descartables V&G" a "Ventas" por una regla vieja | pendiente |
 
 Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
