@@ -17,6 +17,7 @@
 .mv-mas:before{content:"";position:absolute;inset:-4px}
 .mv-cierre{position:fixed;inset:0;z-index:40;background:transparent;border:0;padding:0}
 .mv-menu{position:absolute;right:0;top:38px;z-index:41;min-width:210px;padding:6px;border-radius:14px;background:#1a2233;border:1px solid var(--line);box-shadow:0 12px 32px rgba(0,0,0,.45)}
+.mv-menu.arriba{top:auto;bottom:38px}
 .mv-menu button{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;padding:0 12px;border:0;border-radius:9px;background:none;color:var(--text);font-size:14px;text-align:left}
 .mv-menu button:hover,.mv-menu button:focus-visible{background:rgba(255,255,255,.07)}
 .mv-menu .peligro{color:#ff9b93}

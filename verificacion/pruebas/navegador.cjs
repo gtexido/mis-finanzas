@@ -713,6 +713,33 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {home:true,movements:true,filterIndependent:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-35','El menú de una fila cerca del borde inferior se abre hacia arriba y deja tocar Editar y Eliminar',async()=>{
+    const s=await setup();try{
+      const base=s.db['2026-10'][0];
+      s.db['2026-10']=Array.from({length:9},(_,i)=>({...base,movimiento_id:`fila_${i}`,concepto_nombre:`Gasto ${i+1}`,servicio:`Gasto ${i+1}`,concepto_id:null,monto:1000+i}));
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Detalle');
+      const boton=s.page.locator('.mv-mas').last();
+      // Se ubica la última fila pegada al borde inferior, justo encima de la barra de navegación.
+      await boton.evaluate(el=>{const r=el.getBoundingClientRect();window.scrollBy(0,r.bottom-(window.innerHeight-110));});
+      await pause(200);
+      await boton.click();
+      const menu=s.page.locator('.mv-menu');await menu.waitFor();
+      assert(await menu.evaluate(el=>el.classList.contains('arriba')),'El menú tiene que abrirse hacia arriba');
+      const visible=await menu.evaluate(el=>{const r=el.getBoundingClientRect(),barra=document.querySelector('nav')?.getBoundingClientRect();return r.top>=0&&r.bottom<=(barra?barra.top:window.innerHeight);});
+      assert(visible,'El menú completo queda por encima de la barra inferior');
+      await capture(s.page,'35-menu-hacia-arriba.png');
+      await s.page.getByRole('menuitem',{name:'Eliminar'}).click();
+      await s.page.getByRole('dialog').getByRole('heading',{name:'¿Eliminar este gasto?'}).waitFor();
+      await s.page.getByRole('dialog').getByRole('button',{name:'Cancelar'}).click();
+      // Una fila de arriba sigue abriendo el menú hacia abajo.
+      await s.page.locator('.mv-mas').first().evaluate(el=>window.scrollBy(0,el.getBoundingClientRect().top-120));await pause(150);
+      await s.page.locator('.mv-mas').first().click();
+      assert(!(await s.page.locator('.mv-menu').evaluate(el=>el.classList.contains('arriba'))));
+      assert.deepEqual(s.pageErrors,[]);
+      return {opensUp:true,reachable:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});
