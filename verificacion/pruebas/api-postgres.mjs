@@ -510,6 +510,19 @@ await check('CALC-12','Tus cuotas: agrupa por compra, deja afuera las terminadas
   return {cases:5};
 });
 
+await check('CALC-13','Pendiente por medio de pago: suma solo lo no pagado, agrupa por medio y ordena de mayor a menor (src/utils/porMedio.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/porMedio.js'));await mod.evaluate();const m=mod.namespace;
+  const g=(medio,monto,estado)=>({medio,monto,estado});
+  const gastos=[g('bancor',1000,'pendiente'),g('bancor',500,'pagado'),g('bancor',250,'pendiente'),g('mp',3000,'pendiente'),g('efectivo',700,'pagado')];
+  const meta=x=>({id:x.medio,label:x.medio.toUpperCase(),color:'#fff'});
+  const r=m.pendientePorMedio({gastos,meta});
+  assert.equal(r.filas.map(f=>f.id).join(','),'mp,bancor');assert.equal(r.total,4250);
+  assert.equal(r.filas[1].pendiente,1250);assert.equal(r.filas[1].cantidad,2);assert.equal(r.filas[1].label,'BANCOR');
+  assert.equal(m.pendientePorMedio({gastos,meta,importe:x=>x.monto*2}).total,8500);
+  assert.equal(m.pendientePorMedio({gastos:[g('a',1,'pagado')],meta}).filas.length,0);assert.equal(m.pendientePorMedio({}).total,0);
+  return {cases:4};
+});
+
 // CUO-xx: compras en cuotas
 const compra={periodo:'2026-10',dia:31,servicio:'Compra ficticia',monto:1000,moneda:'ARS',estado:'pagado',vencimiento:'2026-10-31',etiquetasIds:['tag_a'],cuotas:{total:12}};
 const cuotasDe=async()=>(await pg.query("SELECT movimiento_id,periodo,dia,to_char(fecha_operacion,'YYYY-MM-DD') f,to_char(vencimiento,'YYYY-MM-DD') v,estado,monto,cuota_plan_id,cuota_numero,cuota_total FROM movimientos ORDER BY periodo,cuota_numero")).rows;
