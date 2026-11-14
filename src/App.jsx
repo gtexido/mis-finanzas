@@ -91,8 +91,10 @@ import "./styles/base-compacta.css";
 import "./styles/inflacion.css";
 import "./styles/llego.css";
 import "./styles/cuotas.css";
+import "./styles/por-cuenta.css";
 import InflacionView from "./views/InflacionView";
 import { validarCuotasForm } from "./utils/cuotas";
+import { pendientePorMedio } from "./utils/porMedio";
 import MovementRowCompacta from "./components/MovementRowCompacta";
 
 // Financial records are fetched for the signed-in user and kept in memory only.
@@ -537,6 +539,11 @@ useEffect(() => {
       return mapa;
     }, new Map()).values()
   ).sort((a, b) => b.total - a.total);
+
+  // Lo que falta pagar del mes en cada medio de pago, sin importar el filtro que esté puesto:
+  // es la plata que hay que tener en esa cuenta.
+  const porCuenta = pendientePorMedio({ gastos: gastosDelMes, meta: metaGrupoDetalle, importe: toARS_ });
+  const faltaEnMedio = (id) => porCuenta.filas.find((f) => f.id === id)?.pendiente || 0;
 
   // ── DetalleView derived vars (hoisted from IIFE) ────────────────────────────
   const gruposDetalle = gastosPorCatFiltrado2.filter(c => c.items.length > 0);
@@ -1909,7 +1916,7 @@ if (!authUser) {
         {["analisis","variacion","inflacion"].includes(view)&&<div className="segmented view-tabs"><button aria-pressed={view==="analisis"} onClick={()=>setView("analisis")}>Distribución</button><button aria-pressed={view==="variacion"} onClick={()=>setView("variacion")}>Evolución</button><button aria-pressed={view==="inflacion"} onClick={()=>setView("inflacion")}>Tu inflación</button></div>}
 
         {/* HOME */}
-        {view==="home"&&<PremiumHome key={authUser.usuarioId} gastosPorMes={data.gastos} userId={authUser.usuarioId} savingsStatus={savingsStatus} savings={savingsSummary(savingsRecords,mesKey,[localDate(today),localDate(new Date(mes.y,mes.m+1,0))].sort()[0])} onSavings={()=>openSavings()} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica} replicaPendientes={gastosFuenteReplicar.length} hoy={localDate(today)} mesKey={mesKey} esMesActual={mes.y===today.getFullYear()&&mes.m===today.getMonth()} ingresosLista={ingresosDelMes}/>}
+        {view==="home"&&<PremiumHome key={authUser.usuarioId} gastosPorMes={data.gastos} porCuenta={porCuenta} userId={authUser.usuarioId} savingsStatus={savingsStatus} savings={savingsSummary(savingsRecords,mesKey,[localDate(today),localDate(new Date(mes.y,mes.m+1,0))].sort()[0])} onSavings={()=>openSavings()} increases={recurringIncreases(gastosDelMes,data.gastos[mesAnteriorKey]||[])} previousLabel={MESES[(mes.m+11)%12].toLowerCase()} gastos={gastosDelMes} ingresos={totalIngresos} totalGastos={totalGastos} saldo={saldo} pendiente={totalPendiente} tc={tc} overview={overview} monthLabel={MESES[mes.m].toLowerCase()} onOpenAttention={openAttention} onNavigate={target=>{setView(target);window.scrollTo({top:0,behavior:"instant"});}} onEdit={openEdit} nextMonth={mesNombreSig()} onReplicate={abrirReplica} replicaPendientes={gastosFuenteReplicar.length} hoy={localDate(today)} mesKey={mesKey} esMesActual={mes.y===today.getFullYear()&&mes.m===today.getMonth()} ingresosLista={ingresosDelMes}/>}
 
         {/* CARGAR */}
         {view==="cargar"&&<>
@@ -1965,6 +1972,7 @@ if (!authUser) {
                     <div style={{ textAlign:"right" }}>
                       <div style={{ fontFamily:"'Space Mono',monospace",fontSize:14,fontWeight:900,color:cat.color }}>{fmtARS(cat.total)}</div>
                       <div style={{ fontSize:10,color:"#64748b",marginTop:2 }}>{porcentajeGrupo}% del filtro</div>
+                      <div className={`grupo-falta${faltaEnMedio(cat.id)>0?"":" al-dia"}`}>{faltaEnMedio(cat.id)>0?<>Falta pagar <strong className="money">{fmtARS(faltaEnMedio(cat.id))}</strong></>:"Todo pagado"}</div>
                     </div>
                   </div>
                   {cat.items.map(item => <MovementRowCompacta key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>)}

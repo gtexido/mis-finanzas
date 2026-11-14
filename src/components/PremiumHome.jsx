@@ -23,7 +23,7 @@ const etiquetaFecha = (fecha, hoy) => {
   return dias === 0 ? 'Hoy' : dias === 1 ? 'Mañana' : `${DIAS_CORTOS[d.getDay()]} ${d.getDate()}`;
 };
 
-export default function PremiumHome({ gastosPorMes, userId, savings, savingsStatus, onSavings, increases = [], previousLabel, gastos, ingresos, totalGastos, saldo, pendiente, tc, overview, monthLabel, onOpenAttention, onNavigate, onEdit, onReplicate, nextMonth, replicaPendientes, hoy, mesKey, esMesActual = false, ingresosLista = [] }) {
+export default function PremiumHome({ gastosPorMes, porCuenta, userId, savings, savingsStatus, onSavings, increases = [], previousLabel, gastos, ingresos, totalGastos, saldo, pendiente, tc, overview, monthLabel, onOpenAttention, onNavigate, onEdit, onReplicate, nextMonth, replicaPendientes, hoy, mesKey, esMesActual = false, ingresosLista = [] }) {
   const recent = [...gastos].sort((a, b) => Number(b.dia) - Number(a.dia)).slice(0, 3);
   const used = ingresos > 0 ? Math.round(totalGastos / ingresos * 100) : null;
   const next = overview.next;
@@ -84,6 +84,17 @@ export default function PremiumHome({ gastosPorMes, userId, savings, savingsStat
       {p.pasos.length > 3 && <p className="small muted llego-mas">y {plural(p.pasos.length - 3, 'fecha')} más hasta fin de mes</p>}
       {p.sinFecha && <div className="llego-paso sin-fecha"><span className="llego-fecha">Sin fecha</span><span className="llego-nombres">{resumenNombres(p.sinFecha.items)}</span><span className="llego-montos"><strong className="money">−{money(p.sinFecha.total)}</strong></span></div>}
     </section>);
+  // Lo pendiente del mes por medio de pago: cuánta plata hay que tener en cada cuenta.
+  const bCuentas = porCuenta?.filas?.length > 0 && (<section className="por-cuenta surface" aria-labelledby="por-cuenta-title">
+      <div className="section-line"><h2 id="por-cuenta-title">Cuánto necesitás en cada cuenta</h2></div>
+      <p className="small muted pc-ayuda">Lo que falta pagar de {monthLabel}, por medio de pago.</p>
+      {porCuenta.filas.map(fila => <div className="pc-fila" key={fila.id}>
+        <span className="pc-punto" style={{ background: fila.color || 'var(--muted)' }} aria-hidden="true"/>
+        <span className="pc-nombre"><strong>{fila.label}</strong><small>{plural(fila.cantidad, 'pago')} pendiente{fila.cantidad === 1 ? '' : 's'}</small></span>
+        <span className="money pc-monto">{money(fila.pendiente)}</span>
+      </div>)}
+      {porCuenta.filas.length > 1 && <div className="pc-fila pc-total"><span/><span className="pc-nombre"><strong>Total</strong></span><span className="money pc-monto">{money(porCuenta.total)}</span></div>}
+    </section>);
   // Compras en cuotas: cuánto se va este mes y cuándo termina cada una.
   const cuotas = gastosPorMes && mesKey ? resumenPlanes({ gastosPorMes, mesKey, importe: g => montoReal(g, tc) }) : { planes: [] };
   const bCuotas = cuotas.planes.length > 0 && (<section className="tus-cuotas surface" aria-labelledby="tus-cuotas-title">
@@ -102,6 +113,6 @@ export default function PremiumHome({ gastosPorMes, userId, savings, savingsStat
   const bLargest = !!largest.length&&<details className="home-largest"><summary>En qué más gastaste<UiIcon name="chart" size={18}/></summary>{largest.map(item=><div className="largest-item" key={item.key}><div className="section-line"><strong>{item.name}</strong><span className="money">{money(item.total)}</span></div>{!hidden&&<div className="largest-bar"><span style={{width:`${totalGastos>0?item.total/totalGastos*100:0}%`}}/></div>}</div>)}<button className="text-button" onClick={()=>onNavigate('analisis')}>Ver distribución completa<UiIcon name="arrow" size={16}/></button></details>;
   const bRecientes = <section className="home-section"><div className="section-line"><h2>Últimos movimientos</h2><button className="text-button" onClick={() => onNavigate('resumen')}>Ver todos<UiIcon name="chevron" size={15}/></button></div><div className="surface">{recent.length ? recent.map(g => <button className="summary-row" key={g.id} onClick={() => onEdit(g)}><span className="row-icon">{String(g.servicio || 'G').slice(0, 1).toUpperCase()}</span><span className="row-copy"><strong>{g.servicio}</strong><small>Día {g.dia} · {g.estado === 'pagado' ? 'Pagado' : 'Pendiente'}</small></span><span className="money">{money(montoReal(g, tc))}</span></button>) : <div className="empty-state"><UiIcon name="wallet" size={30}/><h3>Tu mes empieza acá</h3><p>Cargá tu primer gasto para seguir sus pagos desde el inicio.</p></div>}</div></section>;
   return <div className="home-view panorama-home inicio-nuevo">
-    {bBalance}{bCargar}{bProyeccion || bPendiente}{bHoy}{bProximo}{bCuotas}{bAhorro}{bReplicar}{bCambios}{bLargest}{bRecientes}
+    {bBalance}{bCargar}{bProyeccion || bPendiente}{bHoy}{bProximo}{bCuentas}{bCuotas}{bAhorro}{bReplicar}{bCambios}{bLargest}{bRecientes}
   </div>;
 }

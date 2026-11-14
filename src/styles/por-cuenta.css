@@ -1,0 +1,14 @@
+/* Pendiente por medio de pago: bloque de Inicio y línea en cada grupo de Movimientos. */
+.por-cuenta{padding:12px var(--pad) 6px;margin:0 0 var(--gap)}
+.por-cuenta>.section-line h2{font-size:var(--fs-md)}
+.pc-ayuda{margin:2px 0 8px}
+.pc-fila{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.pc-punto{width:8px;height:8px;border-radius:var(--r-full)}
+.pc-nombre{display:grid;gap:1px;min-width:0}
+.pc-nombre strong{font-size:var(--fs-sm);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc-nombre small{font-size:var(--fs-xs);color:var(--muted)}
+.pc-monto{font-size:var(--fs-md);font-weight:600}
+.pc-total .pc-nombre strong{color:var(--muted)}
+.grupo-falta{margin-top:4px;font-size:var(--fs-xs);color:var(--amber);white-space:nowrap}
+.grupo-falta strong{font-weight:700}
+.grupo-falta.al-dia{color:var(--muted)}

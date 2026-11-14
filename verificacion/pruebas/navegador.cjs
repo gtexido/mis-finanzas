@@ -687,6 +687,32 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {block:true,totals:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-34','Inicio y Movimientos muestran cuánto falta pagar en cada medio de pago, aunque haya un filtro puesto',async()=>{
+    const s=await setup();try{
+      const base=s.db['2026-10'][0];
+      s.db['2026-10']=[{...base,movimiento_id:'pm_1',monto:100000,estado:'pendiente'},{...base,movimiento_id:'pm_2',monto:40000,estado:'pagado'},{...base,movimiento_id:'pm_3',monto:25000,estado:'pendiente'}];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      const bloque=s.page.locator('.por-cuenta');await bloque.waitFor();
+      const texto=(await bloque.innerText()).replace(/\s+/g,' ');
+      assert(/2 pagos pendientes/.test(texto)&&/125\.000/.test(texto),texto);
+      await bloque.scrollIntoViewIfNeeded();await capture(s.page,'34-por-cuenta-inicio.png');
+      await nav(s.page,'Detalle');
+      const falta=s.page.locator('.grupo-falta').first();await falta.waitFor();
+      assert(/Falta pagar \$\s?125\.000/.test((await falta.innerText()).replace(/\s+/g,' ')));
+      // Con el filtro "Pagados" el total del grupo cambia, pero lo que falta pagar sigue igual.
+      await s.page.getByRole('button',{name:'Pagados',exact:true}).click();
+      assert(/Falta pagar \$\s?125\.000/.test((await s.page.locator('.grupo-falta').first().innerText()).replace(/\s+/g,' ')));
+      await capture(s.page,'34-por-cuenta-movimientos.png');
+      // Si no queda nada pendiente, Inicio no muestra el bloque y el grupo dice "Todo pagado".
+      s.db['2026-10']=s.db['2026-10'].map(x=>({...x,estado:'pagado'}));
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      assert.equal(await s.page.locator('.por-cuenta').count(),0);
+      await nav(s.page,'Detalle');
+      assert.equal((await s.page.locator('.grupo-falta').first().innerText()).trim(),'Todo pagado');
+      assert.deepEqual(s.pageErrors,[]);
+      return {home:true,movements:true,filterIndependent:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});

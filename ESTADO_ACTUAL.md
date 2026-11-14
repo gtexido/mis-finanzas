@@ -56,7 +56,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 51 | Cuotas, paso 1: el servidor crea todas las cuotas de una compra en una operación y permite borrar "esta y las que faltan". Todavía sin pantalla | `3cc1bf5` |
 | 52 | Cuotas, paso 2: opción "Es una compra en cuotas" en Cargar (dentro de Más opciones), marca "Cuota 3/12" en Movimientos y Vencimientos, y al eliminar una cuota se elige "solo esta" o "esta y las que faltan". Las cuotas no entran en Replicar ni en Tu inflación | `53a81fa` |
 | 53 | Cuotas: las cuotas de los meses siguientes nacen con la fecha de vencimiento "para confirmar" (la primera queda como se cargó). No suman avisos en Inicio hasta que llega su mes | `c5e4ff3` |
-| 54 | Cuotas, paso 3: bloque "Tus cuotas" en Inicio, con lo que se va este mes, qué cuota es, cuándo termina cada compra y cuánto queda por pagar | pendiente |
+| 54 | Cuotas, paso 3: bloque "Tus cuotas" en Inicio, con lo que se va este mes, qué cuota es, cuándo termina cada compra y cuánto queda por pagar | `1e1ba4e` |
+| 55 | Pendiente por medio de pago: bloque "Cuánto necesitás en cada cuenta" en Inicio y línea "Falta pagar" en cada medio de pago de Movimientos | pendiente |
 
 Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
