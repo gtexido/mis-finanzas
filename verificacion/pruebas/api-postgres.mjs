@@ -488,6 +488,28 @@ await check('CALC-11','Cuotas en pantalla: valida cantidad y número, calcula cu
   return {cases:15};
 });
 
+await check('CALC-12','Tus cuotas: agrupa por compra, deja afuera las terminadas y suma lo del mes y lo que falta (src/utils/cuotas.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/cuotas.js'));await mod.evaluate();const m=mod.namespace;
+  const c=(plan,n,total,monto,estado='pendiente',servicio='Aire')=>({cuotaPlanId:plan,cuotaNumero:n,cuotaTotal:total,monto,estado,servicio});
+  const gastosPorMes={
+    '2026-09':[c('viejo',1,2,500,'pagado','Zapatillas')],
+    '2026-10':[c('viejo',2,2,500,'pagado','Zapatillas'),c('a',1,3,1000,'pagado'),{servicio:'Luz',monto:900,estado:'pendiente'}],
+    '2026-11':[c('a',2,3,1000),c('b',1,2,300,'pendiente','Heladera')],
+    '2026-12':[c('a',3,3,1000),c('b',2,2,300,'pendiente','Heladera')],
+  };
+  const nov=m.resumenPlanes({gastosPorMes,mesKey:'2026-11'});
+  assert.equal(nov.planes.length,2);assert.equal(nov.planes.map(p=>p.planId).join(','),'a,b');
+  assert.equal(nov.totalMes,1300);assert.equal(nov.totalPorPagar,2600);
+  const a=nov.planes[0];assert.equal(a.nombre,'Aire');assert.equal(a.cuotaDelMes,2);assert.equal(a.total,3);assert.equal(a.terminaKey,'2026-12');assert.equal(a.cuotasPorPagar,2);assert.equal(a.montoPorPagar,2000);
+  const oct=m.resumenPlanes({gastosPorMes,mesKey:'2026-10'});
+  assert.equal(oct.planes.length,3);assert.equal(oct.totalMes,1500);assert.equal(oct.totalPorPagar,2600);
+  assert.equal(oct.planes.find(p=>p.planId==='b').cuotaDelMes,null);
+  assert.equal(m.resumenPlanes({gastosPorMes,mesKey:'2027-01'}).planes.length,0);
+  const doble=m.resumenPlanes({gastosPorMes,mesKey:'2026-11',importe:g=>g.monto*2});assert.equal(doble.totalMes,2600);
+  assert.equal(m.resumenPlanes({}).planes.length,0);
+  return {cases:5};
+});
+
 // CUO-xx: compras en cuotas
 const compra={periodo:'2026-10',dia:31,servicio:'Compra ficticia',monto:1000,moneda:'ARS',estado:'pagado',vencimiento:'2026-10-31',etiquetasIds:['tag_a'],cuotas:{total:12}};
 const cuotasDe=async()=>(await pg.query("SELECT movimiento_id,periodo,dia,to_char(fecha_operacion,'YYYY-MM-DD') f,to_char(vencimiento,'YYYY-MM-DD') v,estado,monto,cuota_plan_id,cuota_numero,cuota_total FROM movimientos ORDER BY periodo,cuota_numero")).rows;
