@@ -677,6 +677,8 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       (s.db['2026-12']||=[]).push(cuota('2026-12','pa','Aire acondicionado',4,4,50000));
       await s.page.reload();await s.page.waitForLoadState('networkidle');
       const bloque=s.page.locator('.tus-cuotas');await bloque.waitFor();
+      assert(/Tus cuotas/.test(await bloque.innerText())&&!(await bloque.evaluate(el=>el.open)),'Empieza plegado');
+      await bloque.locator('summary').click();
       const texto=(await bloque.innerText()).replace(/\s+/g,' ');
       assert(/80\.000 este mes/.test(texto),texto);
       assert(/Aire acondicionado Cuota 2\/4 · termina en diciembre 2026/.test(texto),texto);
@@ -693,6 +695,8 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       s.db['2026-10']=[{...base,movimiento_id:'pm_1',monto:100000,estado:'pendiente'},{...base,movimiento_id:'pm_2',monto:40000,estado:'pagado'},{...base,movimiento_id:'pm_3',monto:25000,estado:'pendiente'}];
       await s.page.reload();await s.page.waitForLoadState('networkidle');
       const bloque=s.page.locator('.por-cuenta');await bloque.waitFor();
+      assert(/125\.000/.test(await bloque.locator('summary').innerText()),'Plegado ya muestra el total');
+      await bloque.locator('summary').click();
       const texto=(await bloque.innerText()).replace(/\s+/g,' ');
       assert(/2 pagos pendientes/.test(texto)&&/125\.000/.test(texto),texto);
       await bloque.scrollIntoViewIfNeeded();await capture(s.page,'34-por-cuenta-inicio.png');
@@ -738,6 +742,21 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert(!(await s.page.locator('.mv-menu').evaluate(el=>el.classList.contains('arriba'))));
       assert.deepEqual(s.pageErrors,[]);
       return {opensUp:true,reachable:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-36','Inicio compacto: sin "Últimos movimientos", "En qué más gastaste" ni "Próximo pago" duplicado, y Replicar solo si falta llevar gastos',async()=>{
+    const s=await setup();try{
+      const texto=await s.page.locator('.home-view').innerText();
+      assert(/¿Llegás a fin de mes\?/.test(texto),texto);
+      assert(!/Últimos movimientos/.test(texto)&&!/En qué más gastaste/.test(texto));
+      assert.equal(await s.page.locator('.next-payment').count(),0,'Con la proyección a la vista no se repite el próximo pago');
+      assert.equal(await s.page.getByRole('button',{name:/Replicar gastos/}).count(),0,'Con todo replicado no se ofrece en Inicio');
+      await capture(s.page,'36-inicio-compacto.png');
+      const s2=await setup({emptyNext:true});try{
+        assert(await s2.page.getByRole('button',{name:/Replicar gastos/}).isVisible(),'Si faltan gastos en el mes siguiente, se ofrece');
+      }finally{await s2.context.close();}
+      assert.deepEqual(s.pageErrors,[]);
+      return {compact:true,replicateOnlyWhenNeeded:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();
