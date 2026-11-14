@@ -174,6 +174,19 @@ await check('API-14','Login por usuario, credenciales inválidas y sin espacio a
   assert.equal((await h.call('auth-login.js',{usuarioId:'gustavo',pin:'incorrecta'})).code,401);
   assert.equal((await h.call('auth-login.js',{usuarioId:'vane',pin:'clave-ficticia-2'})).code,403);
 });
+await check('ING-01','El ingreso se guarda con el nombre que se escribió (Anses no pasa a ser Trabajo Diario) y se puede renombrar',async()=>{
+  const h=await harness();
+  const r=await h.call('ingresos.js',{periodo:'2026-10',dia:14,monto:101806,fuente:'  Anses '});assert.equal(r.code,200,JSON.stringify(r.payload));
+  const id=r.payload.data.movimiento_id;
+  const fila=async()=>(await pg.query('SELECT concepto_manual,fuente_ingreso_id,usuario_id FROM movimientos WHERE movimiento_id=$1',[id])).rows[0];
+  const creada=await fila();assert.equal(creada.concepto_manual,'Anses');
+  for(const [escrito,guardado] of [['Descartables V&G','Descartables V&G'],['Trabajo','Trabajo'],['venta','Ventas'],['TRABAJO DIARIO','Trabajo Diario'],['Alquiler  depto','Alquiler depto']]){
+    const e=await h.call('ingresos.js',{periodo:'2026-10',dia:14,monto:101806,fuente:escrito,movimientoId:id},'PUT');assert.equal(e.code,200,escrito);
+    assert.equal((await fila()).concepto_manual,guardado,escrito);
+  }
+  assert.equal((await fila()).fuente_ingreso_id,creada.fuente_ingreso_id,'El casillero técnico del usuario no cambia');
+  return {names:6};
+});
 await check('API-15','Tercer usuario configurable, acceso propio y fuente sin asignar a Vane',async()=>{
   await pg.exec("INSERT INTO workspaces VALUES('ws_tercero','Tercero',true); INSERT INTO workspace_usuarios(workspace_id,usuario_id,rol,activo) VALUES('ws_tercero','usr_prueba','owner',true)");
   try{
