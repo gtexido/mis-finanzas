@@ -14,8 +14,20 @@ import { fmtARS, fmtUSD, fmtMonto, fmtFecha } from '../utils/formatters';
 import { expenseAttention, hasUnconfirmedDue, isAutomaticDebit, reviewLabel } from '../utils/paymentStatus';
 import UiIcon from './UiIcon';
 
+// Alto aproximado del menú con sus cuatro opciones y de la barra de navegación de abajo, en píxeles.
+const ALTO_MENU = 200;
+const ESPACIO_BARRA_INFERIOR = 96;
+
 export default function MovementRowCompacta({ item, tc, month, onEdit, onToggle, onDelete, onConvert, busy }) {
   const [menu, setMenu] = useState(false);
+  // Si la fila está cerca del borde de abajo, el menú se abre hacia arriba para que no lo tape la barra inferior.
+  const [menuArriba, setMenuArriba] = useState(false);
+  const alternarMenu = e => {
+    const caja = e.currentTarget.getBoundingClientRect();
+    const lugarAbajo = window.innerHeight - caja.bottom - ESPACIO_BARRA_INFERIOR;
+    setMenuArriba(lugarAbajo < ALTO_MENU && caja.top > ALTO_MENU);
+    setMenu(!menu);
+  };
   const [desglose, setDesglose] = useState(false);
   const pagado = item.estado === 'pagado';
   const detalle = item.subconceptos || [];
@@ -45,10 +57,10 @@ export default function MovementRowCompacta({ item, tc, month, onEdit, onToggle,
       </span>}
     </button>
     <div className="mv-menu-caja">
-      <button className="mv-mas" aria-haspopup="menu" aria-expanded={menu} aria-label={`Más acciones: ${item.servicio}`} onClick={() => setMenu(!menu)}><UiIcon name="more" size={20} /></button>
+      <button className="mv-mas" aria-haspopup="menu" aria-expanded={menu} aria-label={`Más acciones: ${item.servicio}`} onClick={alternarMenu}><UiIcon name="more" size={20} /></button>
       {menu && <>
         <button className="mv-cierre" aria-label="Cerrar menú" onClick={() => setMenu(false)} />
-        <div className="mv-menu" role="menu">
+        <div className={`mv-menu${menuArriba ? ' arriba' : ''}`} role="menu">
           <button role="menuitem" onClick={elegir(() => onEdit(item))}><UiIcon name="edit" size={16} />Editar</button>
           {detalle.length > 0 && <button role="menuitem" onClick={elegir(() => setDesglose(!desglose))}><UiIcon name="movements" size={16} />{desglose ? 'Ocultar desglose' : `Ver desglose (${detalle.length})`}</button>}
           {onConvert && <button role="menuitem" onClick={elegir(() => onConvert(item))}><UiIcon name="savings" size={16} />Convertir en ahorro</button>}
