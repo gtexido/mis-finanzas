@@ -28,7 +28,6 @@ export default function PremiumHome({ gastosPorMes, porCuenta, userId, savings, 
   const next = overview.next;
   const savingsReady = savingsStatus === 'ready';
   const available = savingsReady ? saldo - savings.net : saldo;
-  const largest = Object.values(gastos.reduce((groups,item)=>{const key=item.conceptoId || String(item.servicio||'Sin concepto').trim().toLowerCase();if(!groups[key])groups[key]={key,name:item.servicio || 'Sin concepto',total:0};groups[key].total+=montoReal(item,tc);return groups;},Object.create(null))).sort((a,b)=>b.total-a.total).slice(0,3);
   const privacyKey = `mf_home_amounts_hidden_${userId}`;
   const [hidden, setHidden] = useState(() => {
     try { return localStorage.getItem(privacyKey) === 'true'; } catch { return false; }
@@ -84,8 +83,8 @@ export default function PremiumHome({ gastosPorMes, porCuenta, userId, savings, 
       {p.sinFecha && <div className="llego-paso sin-fecha"><span className="llego-fecha">Sin fecha</span><span className="llego-nombres">{resumenNombres(p.sinFecha.items)}</span><span className="llego-montos"><strong className="money">−{money(p.sinFecha.total)}</strong></span></div>}
     </section>);
   // Lo pendiente del mes por medio de pago: cuánta plata hay que tener en cada cuenta.
-  const bCuentas = porCuenta?.filas?.length > 0 && (<section className="por-cuenta surface" aria-labelledby="por-cuenta-title">
-      <div className="section-line"><h2 id="por-cuenta-title">Cuánto necesitás en cada cuenta</h2></div>
+  const bCuentas = porCuenta?.filas?.length > 0 && (<details className="por-cuenta surface plegable">
+      <summary><span className="pl-titulo">Por pagar en cada cuenta</span><span className="money pl-total">{money(porCuenta.total)}</span><UiIcon name="chevron" size={16}/></summary>
       <p className="small muted pc-ayuda">Lo que falta pagar de {monthLabel}, por medio de pago.</p>
       {porCuenta.filas.map(fila => <div className="pc-fila" key={fila.id}>
         <span className="pc-punto" style={{ background: fila.color || 'var(--muted)' }} aria-hidden="true"/>
@@ -93,24 +92,24 @@ export default function PremiumHome({ gastosPorMes, porCuenta, userId, savings, 
         <span className="money pc-monto">{money(fila.pendiente)}</span>
       </div>)}
       {porCuenta.filas.length > 1 && <div className="pc-fila pc-total"><span/><span className="pc-nombre"><strong>Total</strong></span><span className="money pc-monto">{money(porCuenta.total)}</span></div>}
-    </section>);
+    </details>);
   // Compras en cuotas: cuánto se va este mes y cuándo termina cada una.
   const cuotas = gastosPorMes && mesKey ? resumenPlanes({ gastosPorMes, mesKey, importe: g => montoReal(g, tc) }) : { planes: [] };
-  const bCuotas = cuotas.planes.length > 0 && (<section className="tus-cuotas surface" aria-labelledby="tus-cuotas-title">
-      <div className="section-line"><h2 id="tus-cuotas-title">Tus cuotas</h2><span className="tc-total"><span className="money">{money(cuotas.totalMes)}</span> este mes</span></div>
+  const bCuotas = cuotas.planes.length > 0 && (<details className="tus-cuotas surface plegable">
+      <summary><span className="pl-titulo">Tus cuotas</span><span className="pl-total"><span className="money">{money(cuotas.totalMes)}</span> este mes</span><UiIcon name="chevron" size={16}/></summary>
       {cuotas.planes.slice(0, 4).map(plan => <div className="tc-fila" key={plan.planId}>
         <span className="tc-nombre"><strong>{plan.nombre}</strong><small>{plan.cuotaDelMes ? `Cuota ${plan.cuotaDelMes}/${plan.total}` : `${plan.total} cuotas`} · termina en {fmtPeriodo(plan.terminaKey)}</small></span>
         <span className="money tc-monto">{money(plan.montoCuota)}</span>
       </div>)}
       {cuotas.planes.length > 4 && <p className="small muted tc-pie">y {plural(cuotas.planes.length - 4, 'compra')} más</p>}
       <p className="small muted tc-pie">Te queda por pagar <span className="money">{money(cuotas.totalPorPagar)}</span> en {plural(cuotas.planes.reduce((s, p) => s + p.cuotasPorPagar, 0), 'cuota')}.</p>
-    </section>);
+    </details>);
   const bAhorro = <button className="savings-home" onClick={onSavings}><span className="row-icon"><UiIcon name="savings" size={23}/></span><span className="row-copy"><strong>Tu ahorro</strong><small>{savingsReady ? `Acumulado: ${money(savings.ars)} · ${money(savings.usd,'USD')}` : savingsStatus==='error' ? 'No se pudo actualizar. Tocá para reintentar.' : 'Cargando tus ahorros…'}</small>{savingsReady&&savings.net!==0&&<small>{savings.net>0?'Apartado neto del mes: ':'Retirado neto del mes: '}{money(Math.abs(savings.net))}</small>}</span><UiIcon name="chevron" size={18}/></button>;
   const bCargar = <button className="primary home-add" onClick={() => onNavigate('cargar')}><UiIcon name="plus" size={20}/>Cargar<UiIcon name="arrow" size={20}/></button>;
-  const bReplicar = gastos.length > 0 && <ReplicateAction nextMonth={nextMonth} onClick={onReplicate} pendientes={replicaPendientes}/>;
+  // En Inicio solo se ofrece cuando falta llevar gastos al mes siguiente; siempre está en Movimientos.
+  const bReplicar = gastos.length > 0 && replicaPendientes > 0 && <ReplicateAction nextMonth={nextMonth} onClick={onReplicate} pendientes={replicaPendientes}/>;
   const bCambios = !!increases.length && <section className="home-section bill-increases" aria-labelledby="bill-increases-title"><div className="section-line"><h2 id="bill-increases-title">Cambios en gastos habituales</h2></div><p className="small muted">Comparación con {previousLabel}, en la moneda del gasto.</p><div className="surface">{increases.slice(0,2).map(change => <button className="bill-increase" key={change.item.id} onClick={() => onEdit(change.item)}><span className="section-line"><strong>{change.item.servicio}</strong><span className="increase-percent">{hidden ? 'Importe mayor' : formatPercent(change.percent)}</span></span><span className="bill-increase-detail">{hidden ? 'Importes ocultos' : `Registraste ${money(change.delta,change.currency)} más.`}</span><small>Antes {money(change.previousAmount,change.currency)} · Ahora {money(change.currentAmount,change.currency)}</small></button>)}</div>{increases.length>2 && <button className="text-button" onClick={() => onNavigate('analisis')}>Ver comparaciones en Informes<UiIcon name="arrow" size={16}/></button>}</section>;
-  const bLargest = !!largest.length&&<details className="home-largest"><summary>En qué más gastaste<UiIcon name="chart" size={18}/></summary>{largest.map(item=><div className="largest-item" key={item.key}><div className="section-line"><strong>{item.name}</strong><span className="money">{money(item.total)}</span></div>{!hidden&&<div className="largest-bar"><span style={{width:`${totalGastos>0?item.total/totalGastos*100:0}%`}}/></div>}</div>)}<button className="text-button" onClick={()=>onNavigate('analisis')}>Ver distribución completa<UiIcon name="arrow" size={16}/></button></details>;
   return <div className="home-view panorama-home inicio-nuevo">
-    {bBalance}{bCargar}{bProyeccion || bPendiente}{bHoy}{bProximo}{bCuentas}{bCuotas}{bAhorro}{bReplicar}{bCambios}{bLargest}
+    {bBalance}{bCargar}{bProyeccion || bPendiente}{bHoy}{!bProyeccion && bProximo}{bCuentas}{bCuotas}{bAhorro}{bReplicar}{bCambios}
   </div>;
 }

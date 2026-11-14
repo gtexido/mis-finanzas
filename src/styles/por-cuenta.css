@@ -12,3 +12,15 @@
 .grupo-falta{margin-top:4px;font-size:var(--fs-xs);color:var(--amber);white-space:nowrap}
 .grupo-falta strong{font-weight:700}
 .grupo-falta.al-dia{color:var(--muted)}
+
+/* Inicio · bloques plegados: una línea con el total, se abren al tocarlos. */
+.plegable{padding:0 var(--pad)}
+.plegable>summary{display:grid;grid-template-columns:minmax(0,1fr) auto 16px;align-items:center;gap:10px;min-height:48px;cursor:pointer;list-style:none}
+.plegable>summary::-webkit-details-marker{display:none}
+.plegable>summary svg{color:var(--muted);transition:transform .15s}
+.plegable[open]>summary svg{transform:rotate(90deg)}
+.pl-titulo{font-size:var(--fs-md);font-weight:600}
+.pl-total{font-size:var(--fs-sm);color:var(--muted)}
+.pl-total.money,.pl-total .money{color:var(--text);font-weight:600;font-size:var(--fs-md)}
+.plegable[open]{padding-bottom:6px}
+.plegable .pc-ayuda{margin:0 0 8px}
