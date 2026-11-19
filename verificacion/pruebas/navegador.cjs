@@ -759,6 +759,30 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {compact:true,replicateOnlyWhenNeeded:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-37','Informes abre en "Ajustar": separa lo que se puede ajustar de lo fijo y muestra cuánto subió cada grupo',async()=>{
+    const s=await setup();try{
+      const g=(k,id,nombre,cat,monto)=>({...movimiento(k,monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null,categoria_gasto_id:`cg_${cat}`,categoria_gasto_nombre:cat});
+      s.db['2026-09']=[g('2026-09','p1','Super','Supermercado',400000),g('2026-09','p2','Colegio','Educación',700000)];
+      s.db['2026-10']=[g('2026-10','a1','Super','Supermercado',500000),g('2026-10','a2','Verdulería','Comida',30000),g('2026-10','a3','Vaper','Personal',40000),g('2026-10','a4','Colegio','Educación',700000),g('2026-10','a5','Luz','Servicios',80000)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Analizar');
+      const vista=s.page.locator('.ajustar-view');await vista.waitFor();
+      assert.equal(await s.page.getByRole('button',{name:'Ajustar',exact:true}).getAttribute('aria-pressed'),'true');
+      const totales=(await s.page.locator('.aj-totales').innerText()).replace(/\s+/g,' ');
+      assert(/Podés ajustar \$\s?570\.000 42% del mes/.test(totales),totales);
+      assert(/Difícil de mover \$\s?780\.000 58% del mes/.test(totales),totales);
+      const dia=s.page.locator('.aj-grupo').filter({hasText:'Día a día'});
+      assert(/▲ \$\s?130\.000 \(\+32,5%\)/.test((await dia.innerText()).replace(/\s+/g,' ')));
+      await dia.locator('summary').click();
+      assert(/Supermercado/.test(await dia.locator('.aj-detalle').innerText()));
+      await capture(s.page,'37-donde-ajustar.png');
+      // Las otras pestañas de Informes siguen funcionando.
+      await s.page.getByRole('button',{name:'Distribución',exact:true}).click();
+      await s.page.locator('.report-ranking').waitFor();
+      assert.deepEqual(s.pageErrors,[]);
+      return {opensFirst:true,totals:true,variation:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});
