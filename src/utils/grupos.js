@@ -99,3 +99,40 @@ export function leerGruposManual(usuarioId) {
 export function guardarGruposManual(usuarioId, valor) {
   try { localStorage.setItem(claveStorageGrupos(usuarioId), JSON.stringify(valor)); } catch { /* sin almacenamiento: queda solo en esta sesión */ }
 }
+
+/**
+ * "Tu mes normal": cuánto se gasta habitualmente en Variables, calculado solo.
+ *
+ * Entrada:
+ *   gastosPorMes: { "AAAA-MM": [gastos] } con todo lo cargado.
+ *   mesKey:       mes que se está mirando.
+ *   manual:       elecciones de grupo por nombre.
+ *   importe:      función (gasto) => importe en pesos.
+ *
+ * Lógica:
+ *   - Toma hasta 6 meses anteriores a mesKey que tengan al menos 5 gastos
+ *     cargados (un mes casi vacío no es un mes real).
+ *   - Suma Variables de cada uno, sin contar los gastos llamados "Ahorros"
+ *     (plata separada, no gastada).
+ *   - El mes normal es el del medio (mediana): no lo tira para arriba un mes
+ *     con una compra grande ni para abajo un mes con poco cargado.
+ *   - Hacen falta al menos 3 meses; si no, devuelve null.
+ *
+ * Salida:
+ *   { normal, actual, diferencia (normal - actual), meses } o null.
+ */
+export function mesNormal({ gastosPorMes = {}, mesKey, manual = {}, importe = (g) => Number(g.monto) || 0 } = {}) {
+  const variables = (lista) => (lista || [])
+    .filter((g) => claveNombre(nombreGasto(g)) !== "ahorros" && grupoDeGasto(g, manual) === "variables")
+    .reduce((s, g) => s + importe(g), 0);
+  const anteriores = Object.keys(gastosPorMes || {})
+    .filter((k) => k < mesKey && (gastosPorMes[k] || []).length >= 5)
+    .sort()
+    .slice(-6);
+  if (anteriores.length < 3) return null;
+  const totales = anteriores.map((k) => variables(gastosPorMes[k])).sort((a, b) => a - b);
+  const medio = Math.floor(totales.length / 2);
+  const normal = Math.round(totales.length % 2 ? totales[medio] : (totales[medio - 1] + totales[medio]) / 2);
+  const actual = Math.round(variables(gastosPorMes[mesKey]));
+  return { normal, actual, diferencia: normal - actual, meses: anteriores.length };
+}

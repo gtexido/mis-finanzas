@@ -95,7 +95,7 @@ import "./styles/cuotas.css";
 import "./styles/por-cuenta.css";
 import InflacionView from "./views/InflacionView";
 import AjustarView from "./views/AjustarView";
-import { grupoDeGasto, claveNombre, nombreGasto, leerGruposManual, guardarGruposManual, GRUPOS } from "./utils/grupos";
+import { grupoDeGasto, claveNombre, nombreGasto, leerGruposManual, guardarGruposManual, GRUPOS, mesNormal } from "./utils/grupos";
 import { validarCuotasForm } from "./utils/cuotas";
 import { pendientePorMedio } from "./utils/porMedio";
 import MovementRowCompacta from "./components/MovementRowCompacta";
@@ -1824,7 +1824,7 @@ if (!authUser) {
       {deshacerCarga&&!deshacerBorrado&&(
         <div className="cr-deshacer" role="status" aria-live="polite">
           <span className="cr-deshacer-icono"><UiIcon name="check" size={18}/></span>
-          <div className="cr-deshacer-texto"><strong>{deshacerCarga.cuotas>1?`Se crearon ${deshacerCarga.cuotas} cuotas`:"Guardado"}</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}{deshacerCarga.cuotas>1?" cada una":""}</small></div>
+          <div className="cr-deshacer-texto"><strong>{deshacerCarga.cuotas>1?`Se crearon ${deshacerCarga.cuotas} cuotas`:"Guardado"}</strong><small>{deshacerCarga.servicio} · {fmtARS(deshacerCarga.monto)}{deshacerCarga.cuotas>1?" cada una":""}</small>{(()=>{const n=grupoDeGasto({servicio:deshacerCarga.servicio},gruposManual)==="variables"&&mesNormal({gastosPorMes:data.gastos,mesKey:deshacerCarga.periodo,manual:gruposManual,importe:g=>montoReal(g,tc)});return n?<small className="cr-normal">Variables: {fmtARS(n.actual)} de {fmtARS(n.normal)} de tu mes normal</small>:null;})()}</div>
           <button type="button" onClick={deshacerUltimoGasto}>Deshacer</button>
         </div>
       )}
@@ -2047,6 +2047,10 @@ if (!authUser) {
             previousLabel={mesAnteriorInfo.label}
             tc={tc}
             gruposManual={gruposManual}
+            gastosPorMes={data.gastos}
+            mesKey={mesKey}
+            esMesActual={mesKey===`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,"0")}`}
+            onAhorrar={monto=>openSavings({kind:"aporte",amount:String(monto),currency:"ARS"})}
           />
         )}
 
