@@ -561,6 +561,26 @@ await check('CALC-14','Tres grupos automáticos: Fijos, Servicios y Variables po
   return {cases:9};
 });
 
+await check('CALC-15','Tu mes normal: mediana de Variables de los meses anteriores cargados, sin contar Ahorros ni meses casi vacíos (src/utils/grupos.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/grupos.js'));await mod.evaluate();const m=mod.namespace;
+  const g=(servicio,monto,cat='Otros')=>({servicio,monto,categoriaGastoNombre:cat});
+  const relleno=n=>Array.from({length:n},(_,i)=>g('Luz casa',1,'Servicios'));
+  const mes=(variables,extra=[])=>[...relleno(4),g('Super',variables,'Supermercado'),...extra];
+  const gastosPorMes={
+    '2026-04':[g('Super',999999)],
+    '2026-05':mes(500),'2026-06':mes(300,[g('Ahorros',700000,'Personal')]),'2026-07':mes(400),'2026-08':mes(2000),
+    '2026-10':mes(150,[g('Colegio CESD',900,'Educación')]),
+  };
+  const r=m.mesNormal({gastosPorMes,mesKey:'2026-10'});
+  assert.equal(r.meses,4,'Abril tiene un solo gasto: no cuenta');
+  assert.equal(r.normal,450,'Mediana de 300, 400, 500 y 2000 (sin Ahorros)');
+  assert.equal(r.actual,150,'El colegio es fijo y no suma');
+  assert.equal(r.diferencia,300);
+  assert.equal(m.mesNormal({gastosPorMes,mesKey:'2026-07'}),null,'Con menos de 3 meses no hay mes normal');
+  assert.equal(m.mesNormal({gastosPorMes,mesKey:'2026-10',manual:{super:'fijos'}}).normal,0,'Respeta la elección manual de grupo');
+  return {cases:5};
+});
+
 // CUO-xx: compras en cuotas
 const compra={periodo:'2026-10',dia:31,servicio:'Compra ficticia',monto:1000,moneda:'ARS',estado:'pagado',vencimiento:'2026-10-31',etiquetasIds:['tag_a'],cuotas:{total:12}};
 const cuotasDe=async()=>(await pg.query("SELECT movimiento_id,periodo,dia,to_char(fecha_operacion,'YYYY-MM-DD') f,to_char(vencimiento,'YYYY-MM-DD') v,estado,monto,cuota_plan_id,cuota_numero,cuota_total FROM movimientos ORDER BY periodo,cuota_numero")).rows;

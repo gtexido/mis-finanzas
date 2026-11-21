@@ -808,6 +808,34 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {moved:true,remembered:true,allMonths:true};
     }finally{await s.context.close();}
   });
+  await probe('UI-39','Tu mes normal: en Ajustar muestra cuánto llevás de Variables contra tu mes normal y, en un mes cerrado, ofrece pasar lo que sobró a Ahorros',async()=>{
+    const s=await setup();try{
+      const g=(k,id,nombre,cat,monto)=>({...movimiento(k,monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null,categoria_gasto_id:`cg_${cat}`,categoria_gasto_nombre:cat});
+      const mes=(k,super_)=>[g(k,`${k}a`,'Super','Supermercado',super_),...['Luz casa','Gas','Expensas','Colegio CESD'].map((n,i)=>g(k,`${k}f${i}`,n,'Otros',10000))];
+      for(const k of Object.keys(s.db))s.db[k]=[];
+      s.db['2026-05']=mes('2026-05',400000);s.db['2026-06']=mes('2026-06',500000);s.db['2026-07']=mes('2026-07',600000);s.db['2026-08']=mes('2026-08',450000);
+      s.db['2026-09']=mes('2026-09',300000);
+      s.db['2026-10']=mes('2026-10',520000);
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      // Mes en curso (octubre): llevás y te pasaste.
+      await nav(s.page,'Analizar');
+      const tarjeta=s.page.locator('.aj-normal');await tarjeta.waitFor();
+      let texto=(await tarjeta.innerText()).replace(/\s+/g,' ');
+      assert(/tu mes normal \$\s?450\.000/.test(texto),texto);
+      assert(/Llevás \$\s?520\.000\. Te pasaste \$\s?70\.000/.test(texto),texto);
+      assert.equal(await tarjeta.getByRole('button').count(),0,'En el mes en curso no se ofrece ahorrar');
+      // Mes cerrado (septiembre): gastaste menos y se ofrece pasarlo a Ahorros.
+      await s.page.getByRole('button',{name:/Mes anterior/}).first().click();
+      texto=(await s.page.locator('.aj-normal').innerText()).replace(/\s+/g,' ');
+      assert(/tu mes normal \$\s?475\.000/.test(texto)&&/Gastaste \$\s?300\.000, \$\s?175\.000 menos que en un mes normal/.test(texto),texto);
+      await capture(s.page,'39-mes-normal.png');
+      await s.page.getByRole('button',{name:/Pasar \$\s?175\.000 a Ahorros/}).click();
+      const importe=s.page.getByLabel(/Importe|Monto/).first();await importe.waitFor();
+      assert.equal(await importe.inputValue(),'175000');
+      assert.deepEqual(s.pageErrors,[]);
+      return {current:true,closedMonth:true,savingsPrefilled:true};
+    }finally{await s.context.close();}
+  });
   await browser.close();await devServer.close();
   if(results.some(r=>r.status==='fallo'))process.exitCode=1;
 })().catch(async e=>{console.error(e);if(browser)await browser.close();if(devServer)await devServer.close();process.exitCode=1;});

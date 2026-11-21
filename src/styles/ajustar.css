@@ -39,3 +39,15 @@
 /* Menú de la fila · elegir grupo */
 .mv-menu .mv-grupo-titulo{padding:8px 12px 4px;font-size:var(--fs-xs);color:var(--muted)}
 .mv-menu button[aria-checked="true"]{color:var(--accent)}
+
+/* Tu mes normal (Variables) */
+.aj-normal{padding:14px var(--pad);display:grid;gap:8px}
+.aj-normal .section-line strong{font-size:var(--fs-sm)}
+.aj-normal-barra{height:8px;border-radius:var(--r-full);background:var(--surface-2);overflow:hidden}
+.aj-normal-barra span{display:block;height:100%;background:var(--mint);border-radius:var(--r-full)}
+.aj-normal.pasado .aj-normal-barra span{background:var(--danger)}
+.aj-normal-texto{margin:0;font-size:var(--fs-sm);line-height:1.45}
+.aj-normal-texto strong{color:var(--mint)}
+.aj-normal.pasado .aj-normal-texto strong{color:var(--danger)}
+.aj-ahorrar{width:100%}
+.cr-deshacer-texto .cr-normal{display:block;color:var(--muted)}
