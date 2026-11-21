@@ -11,7 +11,7 @@ Actualizado el 1 de noviembre de 2026.
 - GitHub conserva la rama `respaldo-2026-11-01`: el código exacto de producción al 1 de noviembre de 2026 (commit `89af1df`).
 - GitHub conserva la rama `respaldo-2026-11-12`: el código de producción previo a la base de diseño compacta (commit `1824b01`).
 - GitHub conserva la rama `respaldo-2026-11-13`: el código de producción previo a borrar las pantallas anteriores (commit `280357b`).
-- Neon conserva `respaldo-20261113-antes-cuotas` (base previa a las columnas de cuotas) y `prueba-cuotas-20261113` (copia donde se probó el script; se puede borrar).
+- Neon conserva `respaldo-20261113-antes-cuotas` (base previa a las columnas de cuotas) y `respaldo-20261121-antes-cuotas-desglose` (base previa a las cuotas por línea del desglose). Las copias de prueba `prueba-cuotas-20261113` y `prueba-cuotas-desglose-20261121` se borraron el 21/11 con aprobación, porque Neon gratuito permite 10 copias.
 
 ## Qué se hizo
 
@@ -64,7 +64,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 59 | Informes → "Ajustar" (nueva pestaña y la que abre por defecto): gastos del mes agrupados en Día a día, Gustos y extras, Fijos obligatorios, Servicios de la casa, Tarjetas y Negocio, separando lo que se puede ajustar de lo difícil de mover, con la variación contra el mes anterior | `8543ce8` |
 | 60 | "Ajustar" pasa a tres grupos automáticos: Fijos, Servicios y Variables, calculados por palabras del nombre (luz, gas, colegio, expensas...), cuotas y categoría. Nada que elegir al cargar. Si uno queda mal, "Grupo" en el menú de la fila lo cambia para ese nombre en todos los meses (se guarda en el teléfono). Sin cambios en la base | `28e22e2` |
 | 61 | "Tu mes normal": en Ajustar, Variables se compara con el mes del medio de los últimos meses cargados (sin contar "Ahorros"). En el mes en curso dice cuánto queda o cuánto te pasaste; en un mes cerrado con sobrante ofrece "Pasar a Ahorros" con el importe precargado. La barra de "Guardado" muestra cómo vas. Sin cambios en la base | `db229e7` |
-| 62 | Cargar sin "Tus gastos de siempre": al escribir el nombre aparecen como sugerencia los gastos ya cargados (últimos 6 meses) y al tocar uno se completa con su medio de pago; la sugerencia muestra el último importe como referencia | pendiente |
+| 62 | Cargar sin "Tus gastos de siempre": al escribir el nombre aparecen como sugerencia los gastos ya cargados (últimos 6 meses) y al tocar uno se completa con su medio de pago; la sugerencia muestra el último importe como referencia | `d50c7b4` |
+| 63 | Tarjeta con desglose y cuotas: cada línea del desglose acepta "cuota 4 de 6"; al replicar la tarjeta al mes siguiente se copian solo las cuotas que siguen con el número avanzado; "Tus cuotas" muestra cuánto trae ya el próximo resumen; Ajustar clasifica cada línea de la tarjeta en su grupo | pendiente |
 
 Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
@@ -74,6 +75,7 @@ Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver 
 |-------|--------|-------------------------|
 | 12/11/2026 | Forma de pago "QR" agregada para las dos cuentas (`ins_qr_gustavo`, `ins_qr_vane`) en `instrumentos_pago` | `respaldo-20261112-antes-qr` |
 | 13/11/2026 | Script `sql/SQL_CUOTAS_V1.sql`: tres columnas nuevas en `movimientos` (`cuota_plan_id`, `cuota_numero`, `cuota_total`), una restricción y un índice. 302 filas antes y después, sin cambios en los datos | `respaldo-20261113-antes-cuotas` |
+| 21/11/2026 | Script `sql/SQL_CUOTAS_DESGLOSE_V1.sql`: dos columnas nuevas en `detalle_movimiento` (`cuota_numero`, `cuota_total`) y una restricción. 214 líneas y 336 movimientos antes y después, sin cambios en los datos | `respaldo-20261121-antes-cuotas-desglose` |
 | 13/11/2026 | Cuotas 2 a 12 de Aire acondicionado (`plan_q2opfzmiei`): se marcaron con la fecha de vencimiento para confirmar (`requiere_revision`, motivo `REVISAR_VENCIMIENTO`, origen `CUOTA`). 11 filas; sin cambios en importes, fechas ni estados. Para revertir: poner `requiere_revision=false` y `motivo_revision`, `origen_movimiento` en NULL en esas 11 filas | no hizo falta (cambio chico y reversible) |
 
 ## Cómo volver atrás

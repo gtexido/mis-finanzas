@@ -8,7 +8,7 @@ import AttentionSummary from './AttentionSummary';
 import { formatPercent } from '../utils/comparisons';
 import { proyectarMes } from '../utils/proyeccion';
 import { plural, fmtPeriodo } from '../utils/formatters';
-import { resumenPlanes } from '../utils/cuotas';
+import { resumenPlanes, proximoResumen } from '../utils/cuotas';
 
 const DIAS_CORTOS = ['dom','lun','mar','mié','jue','vie','sáb'];
 /** Nombre del movimiento más grande y cuántos más hay ese día: "Prevencion y 1 más". */
@@ -95,14 +95,21 @@ export default function PremiumHome({ gastosPorMes, porCuenta, userId, savings, 
     </details>);
   // Compras en cuotas: cuánto se va este mes y cuándo termina cada una.
   const cuotas = gastosPorMes && mesKey ? resumenPlanes({ gastosPorMes, mesKey, importe: g => montoReal(g, tc) }) : { planes: [] };
-  const bCuotas = cuotas.planes.length > 0 && (<details className="tus-cuotas surface plegable">
-      <summary><span className="pl-titulo">Tus cuotas</span><span className="pl-total"><span className="money">{money(cuotas.totalMes)}</span> este mes</span><UiIcon name="chevron" size={16}/></summary>
+  // Tarjetas cargadas por el total con su desglose: cuánto trae ya el próximo resumen en cuotas.
+  const resumenes = proximoResumen({ gastos }).filter(r => r.proximo > 0);
+  const hayCuotas = cuotas.planes.length > 0 || resumenes.length > 0;
+  const bCuotas = hayCuotas && (<details className="tus-cuotas surface plegable">
+      <summary><span className="pl-titulo">Tus cuotas</span><span className="pl-total">{cuotas.planes.length > 0 ? <><span className="money">{money(cuotas.totalMes)}</span> este mes</> : <><span className="money">{money(resumenes.reduce((s, r) => s + r.proximo, 0))}</span> próximo resumen</>}</span><UiIcon name="chevron" size={16}/></summary>
+      {resumenes.map(r => <div className="tc-fila tc-resumen" key={r.id}>
+        <span className="tc-nombre"><strong>{r.nombre}</strong><small>El próximo resumen ya trae {plural(r.compras, 'compra')} en cuotas{r.terminan > 0 ? ` · ${r.terminan === 1 ? 'termina 1' : `terminan ${r.terminan}`} este mes` : ''}</small></span>
+        <span className="money tc-monto">{money(r.proximo)}</span>
+      </div>)}
       {cuotas.planes.slice(0, 4).map(plan => <div className="tc-fila" key={plan.planId}>
         <span className="tc-nombre"><strong>{plan.nombre}</strong><small>{plan.cuotaDelMes ? `Cuota ${plan.cuotaDelMes}/${plan.total}` : `${plan.total} cuotas`} · termina en {fmtPeriodo(plan.terminaKey)}</small></span>
         <span className="money tc-monto">{money(plan.montoCuota)}</span>
       </div>)}
       {cuotas.planes.length > 4 && <p className="small muted tc-pie">y {plural(cuotas.planes.length - 4, 'compra')} más</p>}
-      <p className="small muted tc-pie">Te queda por pagar <span className="money">{money(cuotas.totalPorPagar)}</span> en {plural(cuotas.planes.reduce((s, p) => s + p.cuotasPorPagar, 0), 'cuota')}.</p>
+      {cuotas.planes.length > 0 && <p className="small muted tc-pie">Te queda por pagar <span className="money">{money(cuotas.totalPorPagar)}</span> en {plural(cuotas.planes.reduce((s, p) => s + p.cuotasPorPagar, 0), 'cuota')}.</p>}
     </details>);
   const bAhorro = <button className="savings-home" onClick={onSavings}><span className="row-icon"><UiIcon name="savings" size={23}/></span><span className="row-copy"><strong>Tu ahorro</strong><small>{savingsReady ? `Acumulado: ${money(savings.ars)} · ${money(savings.usd,'USD')}` : savingsStatus==='error' ? 'No se pudo actualizar. Tocá para reintentar.' : 'Cargando tus ahorros…'}</small>{savingsReady&&savings.net!==0&&<small>{savings.net>0?'Apartado neto del mes: ':'Retirado neto del mes: '}{money(Math.abs(savings.net))}</small>}</span><UiIcon name="chevron" size={18}/></button>;
   const bCargar = <button className="primary home-add" onClick={() => onNavigate('cargar')}><UiIcon name="plus" size={20}/>Cargar<UiIcon name="arrow" size={20}/></button>;

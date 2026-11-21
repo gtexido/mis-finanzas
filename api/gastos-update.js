@@ -1,4 +1,4 @@
-import { validarGasto } from "./_validation.js";
+import { validarGasto, cuotaDeItem } from "./_validation.js";
 import { neon } from "@neondatabase/serverless";
 import { requireAuth, resolveWorkspaceForUser } from "./_auth.js";
 import { generarId, mapServicioId, normalizarFecha, normalizarListaIds, normalizarMoneda, toNumber } from "./_db.js";
@@ -425,6 +425,8 @@ export default async function handler(req, res) {
             monto_ars_calculado,
             orden,
             observacion,
+            cuota_numero,
+            cuota_total,
             activo
           ) SELECT
             ${detalleId},
@@ -436,6 +438,8 @@ export default async function handler(req, res) {
             ${toNumber(sub.montoARSCalculado, 0)},
             ${orden},
             ${sub.observacion || null},
+            ${cuotaDeItem(sub).numero},
+            ${cuotaDeItem(sub).total},
             true
           WHERE EXISTS (
             SELECT 1 FROM movimientos WHERE movimiento_id = ${id}

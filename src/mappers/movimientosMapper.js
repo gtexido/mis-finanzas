@@ -97,6 +97,8 @@ export const mapMovimientosDesdeApi = (apiData, periodo = getPeriodoActual()) =>
 
     nombre: d.nombre_item,
     nombreItem: d.nombre_item,
+    cuotaNumero: d.cuota_numero ?? null,
+    cuotaTotal: d.cuota_total ?? null,
 
     monto: Number(d.monto || 0),
     moneda: d.moneda || movimiento.moneda || "ARS",

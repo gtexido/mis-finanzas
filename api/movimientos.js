@@ -145,6 +145,8 @@ export default async function handler(req, res) {
           monto_ars_calculado,
           orden,
           observacion,
+          cuota_numero,
+          cuota_total,
           activo,
           created_at,
           updated_at

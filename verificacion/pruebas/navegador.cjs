@@ -63,7 +63,7 @@ async function setup({expired=false,delayWrites=false,emptyCurrent=false,emptyNe
     if(expired) return send({ok:false,error:'Sesión inválida o vencida'},401);
     if(url.pathname==='/api/catalogos')return send({ok:true,data:catalogos});
     if(url.pathname==='/api/movimientos'&&url.searchParams.get('recurso')==='ahorros')return send({ok:true,data:{records:[]}});
-    if(url.pathname==='/api/movimientos')return send({ok:true,data:{movimientos:entry.periodo ? db[entry.periodo]||[] : Object.values(db).flat(),detalles:[],etiquetas:[]}});
+    if(url.pathname==='/api/movimientos'){const filas=entry.periodo ? db[entry.periodo]||[] : Object.values(db).flat();return send({ok:true,data:{movimientos:filas,detalles:filas.flatMap(f=>f.detalle||[]),etiquetas:[]}});}
     if(url.pathname==='/api/cotizaciones')return send({ok:true,data:{valor:1000,fuente:'prueba'}});
     if(r.method()!=='GET'){
       if(delayWrites) await new Promise(resolve=>setTimeout(resolve,350));
@@ -852,6 +852,51 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert(/Servicio de prueba/.test(elegido),'Se elige el gasto ya cargado: '+elegido);
       assert.deepEqual(s.pageErrors,[]);
       return {noShortcuts:true,suggestOnType:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-41','Desglose con cuotas: cada línea acepta "cuota 4 de 6", se manda al guardar, rechaza una cuota imposible y Tus cuotas muestra el próximo resumen',async()=>{
+    const s=await setup({emptyCurrent:true});try{
+      await cargar(s);
+      await s.page.getByRole('button',{name:/Más opciones/}).click();
+      await s.page.getByRole('button',{name:'Agregar desglose',exact:true}).click();
+      const agregar=async(nombre,monto,n,t)=>{
+        await s.page.getByPlaceholder('Nombre del ítem...',{exact:true}).fill(nombre);
+        await s.page.getByPlaceholder('0.00',{exact:true}).last().fill(String(monto));
+        if(n){await s.page.getByLabel('Número de cuota del ítem nuevo').fill(String(n));await s.page.getByLabel('Total de cuotas del ítem nuevo').fill(String(t));}
+        await s.page.getByRole('button',{name:'+',exact:true}).click();
+      };
+      await agregar('Decathlon',16200,4,6);
+      await agregar('Fitness Group',27500);
+      // Una cuota imposible deja la línea marcada y no deja guardar.
+      await s.page.getByLabel('Número de cuota del ítem 1').fill('7');
+      await s.page.getByText('El número de cuota tiene que estar entre 1 y 6.').waitFor();
+      assert(await s.page.getByRole('button',{name:'Guardar desglose y volver',exact:true}).isDisabled());
+      await s.page.getByLabel('Número de cuota del ítem 1').fill('4');
+      await capture(s.page,'41-desglose-cuotas.png');
+      await s.page.getByRole('button',{name:'Guardar desglose y volver',exact:true}).click();
+      const resp=s.page.waitForResponse(r=>r.url().includes('/api/gastos')&&r.request().method()==='POST');
+      await s.page.getByRole('button',{name:'Guardar gasto',exact:true}).click();await resp;
+      const subs=writes(s)[0].body.subconceptos;
+      assert.equal(subs[0].cuotaNumero,4);assert.equal(subs[0].cuotaTotal,6);
+      assert.equal(subs[1].cuotaNumero,null);assert.equal(subs[1].cuotaTotal,null);
+      assert.deepEqual(s.pageErrors,[]);
+      return {field:true,payload:true,invalidBlocked:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-42','Inicio muestra en Tus cuotas cuánto trae ya el próximo resumen de la tarjeta',async()=>{
+    const s=await setup();try{
+      const base=s.db['2026-10'][0];
+      s.db['2026-10'].push({...base,movimiento_id:'tc1',concepto_nombre:'Tarjeta Cordobesa',servicio:'Tarjeta Cordobesa',concepto_id:null,monto:174058,categoria_gasto_nombre:'Tarjetas',
+        detalle:[{detalle_id:'d1',movimiento_id:'tc1',nombre_item:'Decathlon',monto:16200,moneda:'ARS',orden:1,cuota_numero:4,cuota_total:6},{detalle_id:'d2',movimiento_id:'tc1',nombre_item:'Dinosaurio',monto:101748,moneda:'ARS',orden:2,cuota_numero:4,cuota_total:4},{detalle_id:'d3',movimiento_id:'tc1',nombre_item:'Universal Assist',monto:56110,moneda:'ARS',orden:3,cuota_numero:2,cuota_total:9}]});
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      const bloque=s.page.locator('.tus-cuotas');await bloque.waitFor();
+      assert(/72\.310/.test(await bloque.locator('summary').innerText()),'Plegado muestra el próximo resumen');
+      await bloque.locator('summary').click();
+      const texto=(await bloque.innerText()).replace(/\s+/g,' ');
+      assert(/Tarjeta Cordobesa El próximo resumen ya trae 2 compras en cuotas · termina 1 este mes \$\s?72\.310/.test(texto),texto);
+      await bloque.scrollIntoViewIfNeeded();await capture(s.page,'42-proximo-resumen.png');
+      assert.deepEqual(s.pageErrors,[]);
+      return {nextStatement:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

@@ -1087,6 +1087,8 @@ const handleSubconceptosSave = (items) => {
         montoARSCalculado,
         orden: it.orden || idx + 1,
         observacion: it.observacion || "",
+        cuotaNumero: it.cuotaNumero ?? null,
+        cuotaTotal: it.cuotaTotal ?? null,
       };
     })
     .filter((it) => it.nombre && Number(it.monto) > 0);
