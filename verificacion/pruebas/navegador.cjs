@@ -120,7 +120,9 @@ async function probe(id,title,run){
 
 async function cargar(s) {
   await nav(s.page,'Cargar');
-  await s.page.locator('.cr-atajos button').first().click();
+  // Sin "Tus gastos de siempre": se escribe el nombre y se toca la sugerencia de un gasto ya cargado.
+  await s.page.locator('#expense-concept').fill('Servicio');
+  await s.page.locator('.cr-historial button').first().click();
 }
 // Abre el menú de la fila y elige Eliminar (la fila compacta no tiene botón directo).
 async function eliminarFila(page,nombre='Servicio de prueba') {
@@ -834,6 +836,22 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       assert.equal(await importe.inputValue(),'175000');
       assert.deepEqual(s.pageErrors,[]);
       return {current:true,closedMonth:true,savingsPrefilled:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-40','Cargar no muestra "Tus gastos de siempre"; al escribir aparecen los gastos ya cargados y al tocar uno se completa',async()=>{
+    const s=await setup();try{
+      await nav(s.page,'Cargar');
+      assert.equal(await s.page.locator('.cr-atajos').count(),0);
+      assert.equal(await s.page.getByText('Tus gastos de siempre').count(),0);
+      assert.equal(await s.page.locator('.cr-historial').count(),0,'Sin escribir no hay sugerencias');
+      await s.page.locator('#expense-concept').fill('serv');
+      const chip=s.page.locator('.cr-historial button').first();await chip.waitFor();
+      await capture(s.page,'40-cargar-sin-atajos.png');
+      await chip.click();
+      const elegido=(await s.page.locator('.cr-concepto').count())?await s.page.locator('.cr-concepto').innerText():await s.page.locator('#expense-concept').inputValue();
+      assert(/Servicio de prueba/.test(elegido),'Se elige el gasto ya cargado: '+elegido);
+      assert.deepEqual(s.pageErrors,[]);
+      return {noShortcuts:true,suggestOnType:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

@@ -1572,7 +1572,7 @@ const eliminar = async (alcance = null) => {
 
   const ultimoDiaCarga = new Date(mes.y, mes.m + 1, 0).getDate();
   const montoDeCarga = (g) => montoReal(g, tc);
-  const atajosCarga = atajosPorNombre(data.gastos, [mesKey, mesAnteriorKey], { limite: 6, montoDe: montoDeCarga, normalizar: normalizarTexto });
+  const atajosCarga = atajosPorNombre(data.gastos, Object.keys(data.gastos || {}).filter(k => k <= mesKey).sort().slice(-6), { limite: 80, montoDe: montoDeCarga, normalizar: normalizarTexto });
   const resumenCarga = resumenDelMes(data.gastos[mesKey] || [], { montoDe: montoDeCarga });
   const comparacionCarga = comparacionConMesAnterior({ conceptoId: form.conceptoId, servicio: form.servicio }, data.gastos[mesAnteriorKey] || [], montoReal(form, tc), { montoDe: montoDeCarga, normalizar: normalizarTexto });
  const guardarDesdeCarga = async()=>{
