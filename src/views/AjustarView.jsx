@@ -4,13 +4,9 @@ import { compareAmounts, formatPercent } from '../utils/comparisons';
 import { resumenPorGrupo } from '../utils/grupos';
 import UiIcon from '../components/UiIcon';
 
-// Informes · "Dónde ajustar": los gastos del mes por grupo, separando lo que se
-// puede recortar de lo que es difícil de mover, con la variación contra el mes anterior.
-const SECCIONES = [
-  { tipo: 'ajustable', titulo: 'Donde podés ajustar', texto: 'Gastos que dependen de decisiones del mes.' },
-  { tipo: 'fijo', titulo: 'Difícil de mover', texto: 'Compromisos que se pagan igual todos los meses.' },
-  { tipo: 'aparte', titulo: 'Aparte', texto: '' },
-];
+// Informes · "Ajustar": los gastos del mes en tres grupos automáticos (Fijos,
+// Servicios, Variables), cada concepto con su variación contra el mes anterior.
+// Variables viene abierto: es donde se ve en qué se puede ajustar.
 
 function Variacion({ actual, anterior, hayAnterior }) {
   if (!hayAnterior) return null;
@@ -20,43 +16,30 @@ function Variacion({ actual, anterior, hayAnterior }) {
   return <small className={`aj-var ${sube ? 'sube' : 'baja'}`}>{sube ? '▲' : '▼'} {fmtARS(Math.abs(delta))}{percent !== null ? ` (${formatPercent(percent)})` : ''}</small>;
 }
 
-export default function AjustarView({ gastosDelMes, previousGastos = [], hasPrevious, previousLabel, tc }) {
-  const r = resumenPorGrupo({ gastos: gastosDelMes, previos: previousGastos, importe: g => montoReal(g, tc) });
-  const pct = v => r.total > 0 ? `${Math.round(v / r.total * 100)}%` : '';
-  if (!r.grupos.length) return <div className="empty-state surface"><UiIcon name="chart" size={28}/><strong>Sin gastos en este mes</strong><p className="muted">Cuando cargues gastos vas a ver dónde podés ajustar.</p></div>;
+export default function AjustarView({ gastosDelMes, previousGastos = [], hasPrevious, previousLabel, tc, gruposManual = {} }) {
+  const r = resumenPorGrupo({ gastos: gastosDelMes, previos: previousGastos, manual: gruposManual, importe: g => montoReal(g, tc) });
+  const pct = v => r.total > 0 ? `${Math.round(v / r.total * 100)}%` : '0%';
+  if (!gastosDelMes.length) return <div className="empty-state surface"><UiIcon name="chart" size={28}/><strong>Sin gastos en este mes</strong><p className="muted">Cuando cargues gastos los vas a ver separados en fijos, servicios y variables.</p></div>;
   return <div className="ajustar-view">
     <section className="aj-resumen surface">
-      <div className="aj-barra" aria-hidden="true">
-        <span className="ajustable" style={{ width: pct(r.totalAjustable) }}/>
-        <span className="fijo" style={{ width: pct(r.totalFijo) }}/>
-      </div>
-      <div className="aj-totales">
-        <span><small>Podés ajustar</small><strong className="money">{fmtARS(r.totalAjustable)}</strong><small>{pct(r.totalAjustable)} del mes</small></span>
-        <span><small>Difícil de mover</small><strong className="money">{fmtARS(r.totalFijo)}</strong><small>{pct(r.totalFijo)} del mes</small></span>
-      </div>
+      <div className="aj-barra" aria-hidden="true">{r.grupos.map(g => <span key={g.id} className={g.id} style={{ width: pct(g.total) }}/>)}</div>
+      <div className="aj-totales">{r.grupos.map(g => <span key={g.id} className={g.id}><small>{g.nombre}</small><strong className="money">{fmtARS(g.total)}</strong><small>{pct(g.total)} del mes</small></span>)}</div>
       {hasPrevious && <p className="small muted aj-nota">Las flechas comparan con {previousLabel.toLowerCase()}.</p>}
     </section>
-    {SECCIONES.map(sec => {
-      const grupos = r.grupos.filter(g => g.tipo === sec.tipo);
-      if (!grupos.length) return null;
-      return <section className="aj-seccion" key={sec.tipo}>
-        <div className="aj-cabecera"><h2>{sec.titulo}</h2>{sec.texto && <small className="muted">{sec.texto}</small>}</div>
-        {grupos.map(gr => <details className={`aj-grupo surface ${gr.tipo}`} key={gr.id}>
-          <summary>
-            <span className="aj-nombre"><strong>{gr.nombre}</strong><small>{gr.ayuda}</small></span>
-            <span className="aj-monto"><strong className="money">{fmtARS(gr.total)}</strong><Variacion actual={gr.total} anterior={gr.anterior} hayAnterior={hasPrevious}/></span>
-            <UiIcon name="chevron" size={16}/>
-          </summary>
-          <div className="aj-detalle">
-            {gr.categorias.map(cat => <div className="aj-cat" key={cat.nombre}>
-              <div className="section-line"><span>{cat.nombre}</span><span className="money">{fmtARS(cat.total)}</span></div>
-              {cat.conceptos.length > 0 && <small className="muted">{cat.conceptos.map(c => c.nombre).join(' · ')}</small>}
-              <Variacion actual={cat.total} anterior={cat.anterior} hayAnterior={hasPrevious}/>
-            </div>)}
-            <small className="muted">{plural(gr.cantidad, 'gasto')} en el mes</small>
-          </div>
-        </details>)}
-      </section>;
-    })}
+    {r.grupos.filter(g => g.total > 0 || g.anterior > 0).map(gr => <details className={`aj-grupo surface ${gr.id}`} key={gr.id} open={gr.id === 'variables'}>
+      <summary>
+        <span className="aj-nombre"><strong>{gr.nombre}</strong><small>{gr.ayuda}</small></span>
+        <span className="aj-monto"><strong className="money">{fmtARS(gr.total)}</strong><Variacion actual={gr.total} anterior={gr.anterior} hayAnterior={hasPrevious}/></span>
+        <UiIcon name="chevron" size={16}/>
+      </summary>
+      <div className="aj-detalle">
+        {gr.conceptos.map(c => <div className="aj-cat" key={c.clave}>
+          <div className="section-line"><span>{c.nombre}{c.cantidad > 1 ? <small className="muted"> · {c.cantidad} veces</small> : null}</span><span className="money">{fmtARS(c.total)}</span></div>
+          {c.tarjeta && <small className="muted">Resumen de tarjeta: sin detalle de qué se compró</small>}
+          <Variacion actual={c.total} anterior={c.anterior} hayAnterior={hasPrevious}/>
+        </div>)}
+        <small className="muted">{plural(gr.cantidad, 'gasto')} en el mes · Si alguno no va acá, cambialo desde los tres puntitos en Movimientos.</small>
+      </div>
+    </details>)}
   </div>;
 }

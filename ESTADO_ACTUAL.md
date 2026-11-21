@@ -61,7 +61,8 @@ Ninguna cambió la base de datos ni el servidor, salvo que se indique. Cada fila
 | 56 | Arreglo: el menú de los tres puntitos se abre hacia arriba cuando la fila está al final de la pantalla (antes lo tapaba la barra inferior y no se podía editar ni eliminar). Inicio más liviano: se quita "Últimos movimientos" | `2261660` |
 | 57 | Inicio compacto: salen "En qué más gastaste" (queda en Informes) y "Próximo pago" cuando ya se ve "¿Llegás a fin de mes?"; Replicar aparece solo si falta llevar gastos; "Tus cuotas" y "Por pagar en cada cuenta" quedan plegados en una línea con el total | `93b87a5` |
 | 58 | Arreglo: un ingreso se guarda con el nombre que se escribe. Antes "Anses" pasaba a "Trabajo Diario" y "Descartables V&G" a "Ventas" por una regla vieja | `da73386` |
-| 59 | Informes → "Ajustar" (nueva pestaña y la que abre por defecto): gastos del mes agrupados en Día a día, Gustos y extras, Fijos obligatorios, Servicios de la casa, Tarjetas y Negocio, separando lo que se puede ajustar de lo difícil de mover, con la variación contra el mes anterior | pendiente |
+| 59 | Informes → "Ajustar" (nueva pestaña y la que abre por defecto): gastos del mes agrupados en Día a día, Gustos y extras, Fijos obligatorios, Servicios de la casa, Tarjetas y Negocio, separando lo que se puede ajustar de lo difícil de mover, con la variación contra el mes anterior | `8543ce8` |
+| 60 | "Ajustar" pasa a tres grupos automáticos: Fijos, Servicios y Variables, calculados por palabras del nombre (luz, gas, colegio, expensas...), cuotas y categoría. Nada que elegir al cargar. Si uno queda mal, "Grupo" en el menú de la fila lo cambia para ese nombre en todos los meses (se guarda en el teléfono). Sin cambios en la base | pendiente |
 
 Desde el PR 49 las pantallas anteriores ya no están en el código. Para volver a verlas hay que usar la rama `respaldo-2026-11-13` o revertir ese PR.
 
