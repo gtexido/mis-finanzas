@@ -36,7 +36,14 @@ export default function ExpenseFieldsRapido({
   const pagoCompleto = !!f.medioPagoId && f.medioPagoId !== 'mp_sin_definir' && !!f.instrumentoId && !String(f.instrumentoId).includes('sin_definir');
   const mostrarSelects = cambiarPago || !pagoCompleto;
   const textoConcepto = f.servicio?.trim();
-  const mostrarAtajos = !f.conceptoId && !textoConcepto && atajos.length > 0;
+  // "Tus gastos de siempre" ya no ocupa lugar: al escribir, los gastos que ya cargaste aparecen como sugerencia
+  // y al tocarlos se completan con el último importe y medio de pago.
+  // Si un nombre está en las dos listas, gana el del historial porque además completa importe y medio de pago.
+  const historial = textoConcepto && !f.conceptoId
+    ? atajos.filter(a => a.nombre.toLocaleLowerCase().includes(textoConcepto.toLocaleLowerCase()) && a.nombre.toLocaleLowerCase() !== textoConcepto.toLocaleLowerCase()).slice(0, 4)
+    : [];
+  const nombresHistorial = new Set(historial.map(a => a.nombre.toLocaleLowerCase()));
+  const conceptosSugeridos = candidates.filter(c => !nombresHistorial.has(c.nombre.toLocaleLowerCase()));
 
   const usaOtroDia = otroDia || diasRapidos.length === 0 || !diasRapidos.some(d => d.dia === String(f.dia));
   const usaOtraFecha = otraFecha || (!!f.vencimiento && !vencimientos.some(v => v.fecha === f.vencimiento));
@@ -47,15 +54,10 @@ export default function ExpenseFieldsRapido({
     {f.conceptoId
       ? <div className="cr-concepto"><div><small>Gasto elegido</small><strong>{f.servicio}</strong></div><button type="button" className="text-button" onClick={descartar}>Cambiar</button></div>
       : <div className="field">
-        <label htmlFor="expense-concept">{mostrarAtajos ? 'Tus gastos de siempre' : '¿Qué gasto querés registrar?'}</label>
-        {mostrarAtajos && <div className="cr-atajos">{atajos.map(a => {
-          const med = (config.mediosPago || []).find(m => m.id === a.ultimo?.medioPagoId);
-          const auto = a.ultimo?.instrumentoId ? isAutomaticDebit({ instrumentoId: a.ultimo.instrumentoId }, config) : false;
-          return <button type="button" key={a.nombre} onClick={() => onSelectAtajo(a)}><strong>{a.nombre}</strong><span className="money">{montoAtajo(a)}</span><small>{med?.nombre || 'Sin cuenta'}{auto ? ' · débito aut.' : ''}</small></button>;
-        })}</div>}
-        {mostrarAtajos && <p className="cr-o">¿Es otro gasto?</p>}
+        <label htmlFor="expense-concept">¿Qué gasto querés registrar?</label>
         <input id="expense-concept" className="inf" placeholder="Ej: Alquiler, supermercado, internet" value={f.servicio || ''} onChange={e => setValue(p => ({ ...p, servicio: e.target.value, conceptoId: '', crearConceptoPendiente: false, guardarComoConceptoFrecuente: false, categoriaGastoId: '', etiquetasIds: [], accionCompuesto: 'nuevo', decisionManual: false }))} />
-        {!f.conceptoId && textoConcepto && candidates.length > 0 && <div className="suggestions" aria-label="Conceptos sugeridos">{candidates.map(c => <button type="button" key={c.id} onClick={() => onSelectConcept(c)}>{c.nombre}</button>)}</div>}
+        {historial.length > 0 && <div className="suggestions cr-historial" aria-label="Gastos que ya cargaste">{historial.map(a => <button type="button" key={a.nombre} onClick={() => onSelectAtajo(a)}>{a.nombre}<small className="muted"> · {montoAtajo(a)}</small></button>)}</div>}
+        {!f.conceptoId && textoConcepto && conceptosSugeridos.length > 0 && <div className="suggestions" aria-label="Conceptos sugeridos">{conceptosSugeridos.map(c => <button type="button" key={c.id} onClick={() => onSelectConcept(c)}>{c.nombre}</button>)}</div>}
         {(textoConcepto || f.monto) && !f.conceptoId && <button type="button" className="text-button" onClick={descartar}>Borrar y empezar de nuevo</button>}
         {textoConcepto && !f.conceptoId && onRemember && <label className="check-line"><input type="checkbox" checked={!!(f.crearConceptoPendiente || f.guardarComoConceptoFrecuente)} onChange={onRemember} />Recordar este concepto</label>}
       </div>}
