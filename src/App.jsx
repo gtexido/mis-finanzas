@@ -95,6 +95,7 @@ import "./styles/cuotas.css";
 import "./styles/por-cuenta.css";
 import InflacionView from "./views/InflacionView";
 import AjustarView from "./views/AjustarView";
+import { grupoDeGasto, claveNombre, nombreGasto, leerGruposManual, guardarGruposManual, GRUPOS } from "./utils/grupos";
 import { validarCuotasForm } from "./utils/cuotas";
 import { pendientePorMedio } from "./utils/porMedio";
 import MovementRowCompacta from "./components/MovementRowCompacta";
@@ -1394,6 +1395,19 @@ const eliminar = async (alcance = null) => {
   const mesKeySiguiente=()=>{ let m=mes.m+1,y=mes.y; if(m>11){m=0;y++;} return getMesKey(y,m); };
   const mesNombreSig=()=>{ let m=mes.m+1; return MESES[m>11?0:m]; };
   // Las cuotas no se replican: ya están creadas en los meses que les corresponden.
+  // Grupos (Fijos, Servicios, Variables): la elección manual por nombre se guarda en el teléfono.
+  const usuarioGrupos = authUser?.usuarioId;
+  const [gruposManual, setGruposManual] = useState({});
+  useEffect(() => { setGruposManual(leerGruposManual(usuarioGrupos)); }, [usuarioGrupos]);
+  const cambiarGrupo = (gasto, grupoId) => {
+    const clave = claveNombre(nombreGasto(gasto));
+    setGruposManual(prev => {
+      const nuevo = { ...prev, [clave]: grupoId };
+      guardarGruposManual(usuarioGrupos, nuevo);
+      return nuevo;
+    });
+    toast_(`"${nombreGasto(gasto)}" queda en ${GRUPOS.find(g => g.id === grupoId)?.nombre || grupoId}, también en los otros meses`);
+  };
   const gastosFuenteReplicar=missingReplicas(gastosDelMes.filter(g=>!g.cuotaPlanId),data.gastos[mesKeySiguiente()]||[]);
   const abrirReplica = () => {
     const recurrent = gastosFuenteReplicar.filter(g=>g.esRecurrente || isAutomaticDebit(g,cfg));
@@ -1977,7 +1991,7 @@ if (!authUser) {
                       <div className={`grupo-falta${faltaEnMedio(cat.id)>0?"":" al-dia"}`}>{faltaEnMedio(cat.id)>0?<>Falta pagar <strong className="money">{fmtARS(faltaEnMedio(cat.id))}</strong></>:"Todo pagado"}</div>
                     </div>
                   </div>
-                  {cat.items.map(item => <MovementRowCompacta key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})}/>)}
+                  {cat.items.map(item => <MovementRowCompacta key={item.id} item={item} tc={tc} month={mes.m} onEdit={openEdit} onToggle={toggleEstado} busy={estadoBusy} onConvert={convertToSavings} onDelete={g=>solicitarBorrado({...g,tipo:"gastos"})} grupo={grupoDeGasto(item,gruposManual)} onGrupo={cambiarGrupo}/>)}
                 </div>
               );
             })}
@@ -2032,6 +2046,7 @@ if (!authUser) {
             hasPrevious={!!(data.gastos[mesAnteriorKey]||[]).length}
             previousLabel={mesAnteriorInfo.label}
             tc={tc}
+            gruposManual={gruposManual}
           />
         )}
 

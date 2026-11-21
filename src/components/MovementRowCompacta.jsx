@@ -13,19 +13,23 @@ import { montoReal, montoUSDReal } from '../utils/money';
 import { fmtARS, fmtUSD, fmtMonto, fmtFecha } from '../utils/formatters';
 import { expenseAttention, hasUnconfirmedDue, isAutomaticDebit, reviewLabel } from '../utils/paymentStatus';
 import UiIcon from './UiIcon';
+import { GRUPOS } from '../utils/grupos';
 
 // Alto aproximado del menú con sus cuatro opciones y de la barra de navegación de abajo, en píxeles.
-const ALTO_MENU = 200;
+const ALTO_MENU = 240;
 const ESPACIO_BARRA_INFERIOR = 96;
 
-export default function MovementRowCompacta({ item, tc, month, onEdit, onToggle, onDelete, onConvert, busy }) {
+// grupo y onGrupo son opcionales: si llegan, el menú ofrece "Grupo" para mover ese nombre a Fijos, Servicios o Variables.
+export default function MovementRowCompacta({ item, tc, month, onEdit, onToggle, onDelete, onConvert, busy, grupo, onGrupo }) {
   const [menu, setMenu] = useState(false);
+  const [eligiendoGrupo, setEligiendoGrupo] = useState(false);
   // Si la fila está cerca del borde de abajo, el menú se abre hacia arriba para que no lo tape la barra inferior.
   const [menuArriba, setMenuArriba] = useState(false);
   const alternarMenu = e => {
     const caja = e.currentTarget.getBoundingClientRect();
     const lugarAbajo = window.innerHeight - caja.bottom - ESPACIO_BARRA_INFERIOR;
     setMenuArriba(lugarAbajo < ALTO_MENU && caja.top > ALTO_MENU);
+    setEligiendoGrupo(false);
     setMenu(!menu);
   };
   const [desglose, setDesglose] = useState(false);
@@ -61,10 +65,16 @@ export default function MovementRowCompacta({ item, tc, month, onEdit, onToggle,
       {menu && <>
         <button className="mv-cierre" aria-label="Cerrar menú" onClick={() => setMenu(false)} />
         <div className={`mv-menu${menuArriba ? ' arriba' : ''}`} role="menu">
+          {eligiendoGrupo ? <>
+            <div className="mv-grupo-titulo">¿En qué grupo va "{item.servicio}"?</div>
+            {GRUPOS.map(gr => <button key={gr.id} role="menuitemradio" aria-checked={grupo === gr.id} onClick={elegir(() => onGrupo(item, gr.id))}><UiIcon name={grupo === gr.id ? 'check' : 'chart'} size={16} />{gr.nombre}</button>)}
+          </> : <>
           <button role="menuitem" onClick={elegir(() => onEdit(item))}><UiIcon name="edit" size={16} />Editar</button>
           {detalle.length > 0 && <button role="menuitem" onClick={elegir(() => setDesglose(!desglose))}><UiIcon name="movements" size={16} />{desglose ? 'Ocultar desglose' : `Ver desglose (${detalle.length})`}</button>}
           {onConvert && <button role="menuitem" onClick={elegir(() => onConvert(item))}><UiIcon name="savings" size={16} />Convertir en ahorro</button>}
+          {onGrupo && <button role="menuitem" onClick={() => setEligiendoGrupo(true)}><UiIcon name="chart" size={16} />Grupo: {GRUPOS.find(g => g.id === grupo)?.nombre || 'Variables'}</button>}
           <button role="menuitem" className="peligro" onClick={elegir(() => onDelete(item))}><UiIcon name="trash" size={16} />Eliminar</button>
+          </>}
         </div>
       </>}
     </div>

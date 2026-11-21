@@ -2,13 +2,16 @@
 .ajustar-view{display:grid;gap:var(--gap)}
 .aj-resumen{padding:14px var(--pad);display:grid;gap:10px}
 .aj-barra{display:flex;height:8px;border-radius:var(--r-full);overflow:hidden;background:var(--surface-2)}
-.aj-barra .ajustable{background:var(--mint)}
-.aj-barra .fijo{background:var(--accent)}
-.aj-totales{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+.aj-barra .fijos{background:var(--accent)}
+.aj-barra .servicios{background:var(--amber)}
+.aj-barra .variables{background:var(--mint)}
+.aj-totales{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
 .aj-totales span{display:grid;gap:2px}
 .aj-totales small{font-size:var(--fs-xs);color:var(--muted)}
-.aj-totales strong{font-size:var(--fs-lg)}
-.aj-totales span:first-child strong{color:var(--mint)}
+.aj-totales strong{font-size:var(--fs-md);white-space:nowrap}
+.aj-totales .fijos small:first-child{color:var(--accent)}
+.aj-totales .servicios small:first-child{color:var(--amber)}
+.aj-totales .variables small:first-child{color:var(--mint)}
 .aj-nota{margin:0}
 .aj-seccion{display:grid;gap:8px}
 .aj-cabecera{display:grid;gap:2px;padding:4px 2px 0}
@@ -32,3 +35,7 @@
 .aj-cat{display:grid;gap:2px;padding-top:8px}
 .aj-cat .section-line{font-size:var(--fs-sm)}
 .aj-cat small{font-size:var(--fs-xs)}
+
+/* Menú de la fila · elegir grupo */
+.mv-menu .mv-grupo-titulo{padding:8px 12px 4px;font-size:var(--fs-xs);color:var(--muted)}
+.mv-menu button[aria-checked="true"]{color:var(--accent)}

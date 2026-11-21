@@ -759,28 +759,53 @@ const until=async(condition,ms=5000)=>{const start=Date.now();while(Date.now()-s
       return {compact:true,replicateOnlyWhenNeeded:true};
     }finally{await s.context.close();}
   });
-  await probe('UI-37','Informes abre en "Ajustar": separa lo que se puede ajustar de lo fijo y muestra cuánto subió cada grupo',async()=>{
+  await probe('UI-37','Informes abre en "Ajustar" con tres grupos automáticos: Fijos, Servicios y Variables, y la variación de cada gasto',async()=>{
     const s=await setup();try{
       const g=(k,id,nombre,cat,monto)=>({...movimiento(k,monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null,categoria_gasto_id:`cg_${cat}`,categoria_gasto_nombre:cat});
-      s.db['2026-09']=[g('2026-09','p1','Super','Supermercado',400000),g('2026-09','p2','Colegio','Educación',700000)];
-      s.db['2026-10']=[g('2026-10','a1','Super','Supermercado',500000),g('2026-10','a2','Verdulería','Comida',30000),g('2026-10','a3','Vaper','Personal',40000),g('2026-10','a4','Colegio','Educación',700000),g('2026-10','a5','Luz','Servicios',80000)];
+      s.db['2026-09']=[g('2026-09','p1','Super','Supermercado',400000),g('2026-09','p2','Colegio CESD','Educación',700000)];
+      s.db['2026-10']=[g('2026-10','a1','Super','Supermercado',500000),g('2026-10','a2','Verdulería','Otros',30000),g('2026-10','a3','Vaper','Personal',40000),g('2026-10','a4','Colegio CESD','Otros',700000),g('2026-10','a5','Luz casa','Otros',80000)];
       await s.page.reload();await s.page.waitForLoadState('networkidle');
       await nav(s.page,'Analizar');
-      const vista=s.page.locator('.ajustar-view');await vista.waitFor();
+      await s.page.locator('.ajustar-view').waitFor();
       assert.equal(await s.page.getByRole('button',{name:'Ajustar',exact:true}).getAttribute('aria-pressed'),'true');
       const totales=(await s.page.locator('.aj-totales').innerText()).replace(/\s+/g,' ');
-      assert(/Podés ajustar \$\s?570\.000 42% del mes/.test(totales),totales);
-      assert(/Difícil de mover \$\s?780\.000 58% del mes/.test(totales),totales);
-      const dia=s.page.locator('.aj-grupo').filter({hasText:'Día a día'});
-      assert(/▲ \$\s?130\.000 \(\+32,5%\)/.test((await dia.innerText()).replace(/\s+/g,' ')));
-      await dia.locator('summary').click();
-      assert(/Supermercado/.test(await dia.locator('.aj-detalle').innerText()));
-      await capture(s.page,'37-donde-ajustar.png');
-      // Las otras pestañas de Informes siguen funcionando.
+      assert(/Fijos \$\s?700\.000 52% del mes/.test(totales),totales);
+      assert(/Servicios \$\s?80\.000 6% del mes/.test(totales),totales);
+      assert(/Variables \$\s?570\.000 42% del mes/.test(totales),totales);
+      const variables=s.page.locator('.aj-grupo.variables');
+      assert(await variables.evaluate(el=>el.open),'Variables viene abierto');
+      const texto=(await variables.innerText()).replace(/\s+/g,' ');
+      assert(/Super \$\s?500\.000 ▲ \$\s?100\.000 \(\+25%\)/.test(texto),texto);
+      assert(texto.indexOf('Super')<texto.indexOf('Vaper')&&texto.indexOf('Vaper')<texto.indexOf('Verdulería'),'Ordenados de mayor a menor');
+      await capture(s.page,'37-ajustar-tres-grupos.png');
       await s.page.getByRole('button',{name:'Distribución',exact:true}).click();
       await s.page.locator('.report-ranking').waitFor();
       assert.deepEqual(s.pageErrors,[]);
-      return {opensFirst:true,totals:true,variation:true};
+      return {threeGroups:true,variablesOpen:true,sorted:true};
+    }finally{await s.context.close();}
+  });
+  await probe('UI-38','"Grupo" en el menú de la fila mueve ese nombre de grupo, en todos los meses, y se recuerda al volver a abrir',async()=>{
+    const s=await setup();try{
+      const g=(k,id,nombre,cat,monto)=>({...movimiento(k,monto,id),concepto_nombre:nombre,servicio:nombre,concepto_id:null,categoria_gasto_id:`cg_${cat}`,categoria_gasto_nombre:cat});
+      s.db['2026-09']=[g('2026-09','b0','Bucor','Deporte',90000)];
+      s.db['2026-10']=[g('2026-10','b1','Bucor','Deporte',100000),g('2026-10','b2','Super','Supermercado',500000)];
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Detalle');
+      await s.page.getByRole('button',{name:'Más acciones: Bucor'}).click();
+      await s.page.getByRole('menuitem',{name:'Grupo: Variables'}).click();
+      await capture(s.page,'38-elegir-grupo.png');
+      await s.page.getByRole('menuitemradio',{name:'Fijos'}).click();
+      await s.page.getByText('"Bucor" queda en Fijos',{exact:false}).first().waitFor();
+      // Se recuerda después de recargar y vale también para el mes anterior.
+      await s.page.reload();await s.page.waitForLoadState('networkidle');
+      await nav(s.page,'Analizar');
+      const fijos=s.page.locator('.aj-grupo.fijos');await fijos.waitFor();
+      await fijos.locator('summary').click();
+      assert(/Bucor/.test(await fijos.innerText()));
+      assert(/▲ \$\s?10\.000/.test((await fijos.locator('summary').innerText()).replace(/\s+/g,' ')),'El mes anterior también cuenta Bucor como fijo');
+      assert(!/Bucor/.test(await s.page.locator('.aj-grupo.variables').innerText()));
+      assert.deepEqual(s.pageErrors,[]);
+      return {moved:true,remembered:true,allMonths:true};
     }finally{await s.context.close();}
   });
   await browser.close();await devServer.close();

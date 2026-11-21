@@ -536,24 +536,29 @@ await check('CALC-13','Pendiente por medio de pago: suma solo lo no pagado, agru
   return {cases:4};
 });
 
-await check('CALC-14','Dónde ajustar: agrupa categorías en grupos, separa ajustable de fijo y compara con el mes anterior (src/utils/grupos.js)',async()=>{
+await check('CALC-14','Tres grupos automáticos: Fijos, Servicios y Variables por palabras del nombre, cuotas y categoría; la elección manual gana (src/utils/grupos.js)',async()=>{
   const h=await harness(),mod=await h.load(path.join(project,'src/utils/grupos.js'));await mod.evaluate();const m=mod.namespace;
-  assert.equal(m.grupoDeCategoria('Supermercado'),'dia');assert.equal(m.grupoDeCategoria('Educación'),'fijos');assert.equal(m.grupoDeCategoria('SERVICIOS'),'servicios');
-  assert.equal(m.grupoDeCategoria('Local'),'negocio');assert.equal(m.grupoDeCategoria('Categoría nueva'),'extras');assert.equal(m.grupoDeCategoria(''),'extras');
-  const g=(cat,monto,servicio='X')=>({categoriaGastoNombre:cat,monto,servicio});
+  const g=(servicio,cat='Otros',extra={})=>({servicio,categoriaGastoNombre:cat,monto:100,...extra});
+  for(const n of ['Luz casa','Luz local','Gas','Aguas Cordobesas','Cable Casa y Teléfonos','Bidón agua'])assert.equal(m.grupoAutomatico(g(n)),'servicios',n);
+  for(const n of ['Colegio CESD','Prevencion','Expensas','Seguro Auto','Monotributo','Muni Auto','Mantenimiento de Cuenta','Cuota Abogada'])assert.equal(m.grupoAutomatico(g(n)),'fijos',n);
+  for(const n of ['Super','Farmacia','Verdulería','Gastos bezza Airbag','Vaper','Tarjeta Santander'])assert.equal(m.grupoAutomatico(g(n)),'variables',n);
+  assert.equal(m.grupoAutomatico(g('Aire acondicionado','Otros',{cuotaPlanId:'p'})),'fijos','Una cuota es fija');
+  assert.equal(m.grupoAutomatico(g('Proveedor X','Servicios')),'servicios','Sin palabra clave decide la categoría');
+  assert.equal(m.grupoAutomatico(g('Basquet','Educación')),'fijos');
+  assert.equal(m.grupoDeGasto(g('Bucor','Deporte'),{bucor:'fijos'}),'fijos','La elección manual gana');
+  assert.equal(m.grupoDeGasto(g('  BUCOR '),{bucor:'fijos'}),'fijos','La clave ignora mayúsculas y espacios');
+  assert.equal(m.esTarjeta(g('Tarjeta Cordobesa','Tarjetas')),true);
   const r=m.resumenPorGrupo({
-    gastos:[g('Supermercado',500,'Super'),g('Comida',100,'Verdulería'),g('Personal',50,'Vaper'),g('Educación',700,'Colegio'),g('Servicios',80,'Luz'),g('Tarjetas',300,'Visa'),g('Supermercado',20,'Chino')],
-    previos:[g('Supermercado',400),g('Personal',90),g('Deporte',40)],
-  });
-  assert.equal(r.grupos.map(x=>x.id).join(','),'dia,extras,fijos,servicios,tarjetas');
-  assert.equal(r.total,1750);assert.equal(r.totalAjustable,670);assert.equal(r.totalFijo,780);
-  const dia=r.grupos[0];assert.equal(dia.total,620);assert.equal(dia.anterior,400);assert.equal(dia.cantidad,3);
-  assert.equal(dia.categorias[0].nombre,'Supermercado');assert.equal(dia.categorias[0].total,520);
-  assert.equal(dia.categorias[0].conceptos.map(c=>c.nombre).join(','),'Super,Chino');
-  const extras=r.grupos[1];assert.equal(extras.total,50);assert.equal(extras.anterior,130);
-  assert.equal(extras.categorias.find(c=>c.nombre==='Deporte').total,0,'Una categoría solo del mes anterior aparece en cero');
-  assert.equal(m.resumenPorGrupo({}).grupos.length,0);
-  return {cases:6};
+    gastos:[g('Luz casa','Servicios',{monto:80}),g('Colegio CESD','Educación',{monto:700}),g('Super','Supermercado',{monto:500}),g('Super','Supermercado',{monto:20}),g('Vaper','Personal',{monto:40}),g('Bucor','Deporte',{monto:100})],
+    previos:[g('Super','Supermercado',{monto:400}),g('Kiosco','Otros',{monto:30})],
+    manual:{bucor:'fijos'},importe:x=>x.monto});
+  assert.equal(r.grupos.map(x=>x.id).join(','),'fijos,servicios,variables');assert.equal(r.total,1440);
+  const [fijos,servicios,variables]=r.grupos;
+  assert.equal(fijos.total,800);assert.equal(servicios.total,80);assert.equal(variables.total,560);assert.equal(variables.anterior,430);
+  assert.equal(variables.conceptos[0].nombre,'Super');assert.equal(variables.conceptos[0].total,520);assert.equal(variables.conceptos[0].cantidad,2);
+  assert.equal(variables.conceptos.find(c=>c.nombre==='Kiosco').total,0,'Un concepto solo del mes anterior aparece en cero');
+  assert.equal(m.resumenPorGrupo({}).total,0);
+  return {cases:9};
 });
 
 // CUO-xx: compras en cuotas
