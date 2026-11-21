@@ -50,8 +50,17 @@ export const moverDiaAlMesSiguiente = (dia, nextKey) => {
   return String(diaFinal);
 };
 
+// Réplica del desglose al mes siguiente.
+// - Si ninguna línea es cuota, se copian todas como siempre.
+// - Si alguna línea es cuota (típico del resumen de una tarjeta), se copian solo las
+//   cuotas que siguen, con el número avanzado (4/6 pasa a 5/6). Las que terminaron y las
+//   compras sin cuotas no se copian: el mes siguiente se agregan las compras nuevas.
 export const prepararSubconceptosParaReplica = (subconceptos = []) => {
-  return (subconceptos || []).map((s, idx) => {
+  const lista = subconceptos || [];
+  const esCuota = (s) => Number(s.cuotaTotal) >= 2 && Number(s.cuotaNumero) >= 1;
+  const conCuotas = lista.some(esCuota);
+  const aCopiar = conCuotas ? lista.filter((s) => esCuota(s) && Number(s.cuotaNumero) < Number(s.cuotaTotal)) : lista;
+  return aCopiar.map((s, idx) => {
     const monedaItem = String(s.moneda || "ARS").trim().toUpperCase();
 
     return {
@@ -59,8 +68,11 @@ export const prepararSubconceptosParaReplica = (subconceptos = []) => {
       nombre: s.nombre || s.nombreItem || "Item",
       monto: Number(s.monto ?? s.montoUSD ?? 0),
       moneda: monedaItem,
-      orden: s.orden || idx + 1,
+      // Sin cuotas se conserva el orden original; con cuotas se renumera porque se sacan líneas.
+      orden: conCuotas ? idx + 1 : s.orden || idx + 1,
       observacion: s.observacion || "",
+      cuotaNumero: esCuota(s) ? Number(s.cuotaNumero) + 1 : null,
+      cuotaTotal: esCuota(s) ? Number(s.cuotaTotal) : null,
 
       // Importante:
       // Si es USD, NO copiamos tipoCambio ni montoARSCalculado.

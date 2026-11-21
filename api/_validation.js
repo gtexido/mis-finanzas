@@ -44,11 +44,28 @@ export function validarGasto(body) {
     if (tc !== undefined && tc !== null && tc !== "") validarImporte(tc, "tipo de cambio");
     const ars = item.montoARSCalculado ?? item.monto_ars_calculado;
     if (ars !== undefined && ars !== null && ars !== "") validarImporte(ars, "equivalente en pesos");
+    cuotaDeItem(item);
   }
   validarCuotas(body.cuotas, items);
 }
 
 export const CUOTAS_MAXIMO = 60;
+
+/**
+ * Cuota de una línea del desglose (opcional), por ejemplo "Decathlon, cuota 4 de 6".
+ * Devuelve { numero, total } o { numero: null, total: null } si la línea no es cuota.
+ * Las dos van juntas: total entre 2 y 60, número entre 1 y total.
+ */
+export function cuotaDeItem(item = {}) {
+  const vacio = (x) => x === undefined || x === null || x === "";
+  const n = item.cuotaNumero ?? item.cuota_numero;
+  const t = item.cuotaTotal ?? item.cuota_total;
+  if (vacio(n) && vacio(t)) return { numero: null, total: null };
+  const numero = Number(n), total = Number(t);
+  if (!Number.isInteger(total) || total < 2 || total > CUOTAS_MAXIMO) invalid(`La cuota de "${item.nombre || item.nombreItem || "un ítem"}" necesita un total entre 2 y ${CUOTAS_MAXIMO}.`);
+  if (!Number.isInteger(numero) || numero < 1 || numero > total) invalid(`El número de cuota de "${item.nombre || item.nombreItem || "un ítem"}" tiene que estar entre 1 y ${total}.`);
+  return { numero, total };
+}
 
 /**
  * Compra en cuotas (opcional): { total, desde }.

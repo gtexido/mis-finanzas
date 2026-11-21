@@ -121,3 +121,35 @@ export function resumenPlanes({ gastosPorMes = {}, mesKey, importe = (g) => Numb
     totalPorPagar: planes.reduce((s, p) => s + p.montoPorPagar, 0),
   };
 }
+
+/**
+ * Cuotas dentro del desglose (típico del resumen de una tarjeta cargado por el total).
+ *
+ * Entrada:
+ *   gastos:  gastos del mes que se está mirando.
+ *   importe: función (línea) => importe en pesos de la línea.
+ *
+ * Lógica:
+ *   Para cada gasto con líneas en cuotas, suma las líneas que todavía no son la
+ *   última (4 de 6 sí; 6 de 6 no): es lo que el próximo resumen ya trae seguro.
+ *
+ * Salida:
+ *   [{ id, nombre, proximo, compras, terminan }] ordenado por importe, donde
+ *   compras = líneas que siguen el mes que viene y terminan = líneas que terminan este mes.
+ */
+export function proximoResumen({ gastos = [], importe = (l) => Number(l.montoARSCalculado ?? l.monto) || 0 } = {}) {
+  const filas = [];
+  for (const g of gastos || []) {
+    const lineas = (g?.subconceptos || []).filter((l) => Number(l.cuotaTotal) >= 2 && Number(l.cuotaNumero) >= 1);
+    if (!lineas.length) continue;
+    const siguen = lineas.filter((l) => Number(l.cuotaNumero) < Number(l.cuotaTotal));
+    filas.push({
+      id: g.id,
+      nombre: g.servicio || g.conceptoManual || "Tarjeta",
+      proximo: siguen.reduce((s, l) => s + importe(l), 0),
+      compras: siguen.length,
+      terminan: lineas.length - siguen.length,
+    });
+  }
+  return filas.sort((a, b) => b.proximo - a.proximo);
+}

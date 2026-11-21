@@ -20,3 +20,12 @@
 .tc-nombre small{font-size:var(--fs-xs);color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .tc-monto{font-size:var(--fs-md);font-weight:600}
 .tc-pie{margin:0;padding:8px 0;border-top:1px solid var(--line)}
+
+/* Desglose · cuota opcional por línea ("cuota 4 de 6") */
+.sc-cuota{display:grid;grid-template-columns:minmax(0,1fr) 56px auto 56px;align-items:center;gap:8px;margin-bottom:9px}
+.sc-cuota>span:first-child{margin:0}
+.sc-cuota>span:nth-child(3){font-size:12px;color:var(--muted)}
+.sc-cuota input{width:100%;background:#1a1a24;border:1.5px solid #2a2a3e;border-radius:12px;padding:9px 8px;color:#e2e8f0;font-size:13px;text-align:center;outline:none}
+
+/* Inicio · Tus cuotas: la línea del próximo resumen puede ocupar dos renglones */
+.tc-resumen .tc-nombre small{white-space:normal}

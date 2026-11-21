@@ -66,13 +66,46 @@ export const grupoDeGasto = (g, manual = {}) => manual[claveNombre(nombreGasto(g
  *   Siempre los tres grupos, en orden Fijos, Servicios, Variables.
  *   Dentro de cada grupo, los conceptos van del más grande al más chico.
  */
+/**
+ * Abre el resumen de una tarjeta en sus líneas del desglose, para que cada compra
+ * caiga en su grupo (Aguas Cordobesas → Servicios, Dinosaurio → Variables).
+ * Solo para tarjetas con desglose; el resto de los gastos queda igual.
+ * Cada línea lleva _linea: true y su importe en pesos en _importe.
+ */
+export function abrirTarjetas(gastos = [], importe = (g) => Number(g.monto) || 0) {
+  const out = [];
+  for (const g of gastos || []) {
+    const lineas = g?.subconceptos || [];
+    if (!esTarjeta(g) || !lineas.length) { out.push(g); continue; }
+    for (const l of lineas) {
+      out.push({
+        id: `${g.id}_${l.id || l.nombre}`,
+        servicio: l.nombre || l.nombreItem || "Ítem de tarjeta",
+        categoriaGastoNombre: "",
+        estado: g.estado,
+        _linea: true,
+        _importe: Number(l.montoARSCalculado ?? l.monto) || 0,
+      });
+    }
+  }
+  // Si el desglose no llega al total del resumen, la diferencia queda como "sin detalle".
+  return out.concat((gastos || []).filter((g) => esTarjeta(g) && (g.subconceptos || []).length).flatMap((g) => {
+    const suma = (g.subconceptos || []).reduce((s, l) => s + (Number(l.montoARSCalculado ?? l.monto) || 0), 0);
+    const resto = Math.round(importe(g) - suma);
+    return resto > 0 ? [{ id: `${g.id}_resto`, servicio: g.servicio, categoriaGastoNombre: "Tarjetas", estado: g.estado, _linea: true, _importe: resto }] : [];
+  }));
+}
+
 export function resumenPorGrupo({ gastos = [], previos = [], manual = {}, importe = (g) => Number(g.monto) || 0 } = {}) {
+  const imp = (g) => (g?._linea ? g._importe : importe(g));
+  gastos = abrirTarjetas(gastos, importe);
+  previos = abrirTarjetas(previos, importe);
   const base = new Map(GRUPOS.map((gr) => [gr.id, { ...gr, total: 0, anterior: 0, cantidad: 0, porConcepto: new Map() }]));
   const sumar = (g, campo) => {
     const grupo = base.get(grupoDeGasto(g, manual)) || base.get("variables");
     const nombre = nombreGasto(g);
     const clave = claveNombre(nombre);
-    const monto = importe(g);
+    const monto = imp(g);
     grupo[campo] += monto;
     const fila = grupo.porConcepto.get(clave) || { clave, nombre, total: 0, anterior: 0, cantidad: 0, tarjeta: esTarjeta(g) };
     fila[campo] += monto;
@@ -122,9 +155,9 @@ export function guardarGruposManual(usuarioId, valor) {
  *   { normal, actual, diferencia (normal - actual), meses } o null.
  */
 export function mesNormal({ gastosPorMes = {}, mesKey, manual = {}, importe = (g) => Number(g.monto) || 0 } = {}) {
-  const variables = (lista) => (lista || [])
+  const variables = (lista) => abrirTarjetas(lista, importe)
     .filter((g) => claveNombre(nombreGasto(g)) !== "ahorros" && grupoDeGasto(g, manual) === "variables")
-    .reduce((s, g) => s + importe(g), 0);
+    .reduce((s, g) => s + (g._linea ? g._importe : importe(g)), 0);
   const anteriores = Object.keys(gastosPorMes || {})
     .filter((k) => k < mesKey && (gastosPorMes[k] || []).length >= 5)
     .sort()

@@ -63,8 +63,21 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
       montoARSCalculado,
       observacion: item?.observacion || "",
       orden: item?.orden || index + 1,
+      cuotaNumero: item?.cuotaNumero ?? item?.cuota_numero ?? "",
+      cuotaTotal: item?.cuotaTotal ?? item?.cuota_total ?? "",
     };
   };
+
+  // Cuota opcional de la línea ("Decathlon, cuota 4 de 6"). Vacía en las dos = no es cuota.
+  const leerCuota = (item) => {
+    const n = String(item?.cuotaNumero ?? "").trim(), t = String(item?.cuotaTotal ?? "").trim();
+    if (!n && !t) return { ok: true, numero: null, total: null };
+    const numero = Number(n), total = Number(t);
+    if (!Number.isInteger(total) || total < 2 || total > 60) return { ok: false, mensaje: "La cuota necesita el total: un número entre 2 y 60." };
+    if (!Number.isInteger(numero) || numero < 1 || numero > total) return { ok: false, mensaje: `El número de cuota tiene que estar entre 1 y ${total}.` };
+    return { ok: true, numero, total };
+  };
+  const soloNumero = (v) => String(v || "").replace(/\D/g, "").slice(0, 2);
 
   const [items, setItems] = useState(
     Array.isArray(gasto?.subconceptos)
@@ -77,6 +90,8 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
     monto: "",
     moneda: monedaMovimiento,
     observacion: "",
+    cuotaNumero: "",
+    cuotaTotal: "",
   });
 
   const fmtMonto = (monto, mon = "ARS") => {
@@ -121,6 +136,8 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
       monto: "",
       moneda: monedaMovimiento,
       observacion: "",
+      cuotaNumero: "",
+      cuotaTotal: "",
     });
   };
 
@@ -129,7 +146,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
     const monto = toNumber(nuevoItem.monto, null);
     const moneda = normalizarMoneda(nuevoItem.moneda);
 
-    if (!nombre || !Number.isFinite(monto) || monto <= 0) {
+    if (!nombre || !Number.isFinite(monto) || monto <= 0 || !leerCuota(nuevoItem).ok) {
       return;
     }
 
@@ -146,6 +163,8 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
         montoARSCalculado: calcularMontoARS(monto, moneda, tipoCambio),
         observacion: String(nuevoItem.observacion || "").trim(),
         orden: prev.length + 1,
+        cuotaNumero: nuevoItem.cuotaNumero,
+        cuotaTotal: nuevoItem.cuotaTotal,
       },
     ]);
 
@@ -161,7 +180,8 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
           const monto = toNumber(item.monto, null);
           const tipoCambio = moneda === "USD" ? toNumber(item.tipoCambio || tipoCambioActual, 1) : null;
 
-          if (!nombre || !Number.isFinite(monto) || monto <= 0) {
+          const cuota = leerCuota(item);
+          if (!nombre || !Number.isFinite(monto) || monto <= 0 || !cuota.ok) {
             return null;
           }
 
@@ -176,6 +196,8 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
             montoARSCalculado: calcularMontoARS(monto, moneda, tipoCambio),
             observacion: String(item.observacion || "").trim(),
             orden: index + 1,
+            cuotaNumero: cuota.numero,
+            cuotaTotal: cuota.total,
           };
         })
         .filter(Boolean),
@@ -360,7 +382,8 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
           const moneda = normalizarMoneda(item.moneda);
           const montoValido = toNumber(item.monto, null);
           const nombreValido = String(item.nombre || "").trim();
-          const itemInvalido = !nombreValido || !Number.isFinite(montoValido) || montoValido <= 0;
+          const cuotaItem = leerCuota(item);
+          const itemInvalido = !nombreValido || !Number.isFinite(montoValido) || montoValido <= 0 || !cuotaItem.ok;
 
           return (
             <div
@@ -444,6 +467,13 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
                 </div>
               </div>
 
+              <div className="sc-cuota">
+                <span style={labelStyle}>Cuota (opcional)</span>
+                <input inputMode="numeric" aria-label={`Número de cuota del ítem ${index + 1}`} placeholder="4" value={item.cuotaNumero ?? ""} onChange={(e) => actualizarItem(item.id, { cuotaNumero: soloNumero(e.target.value) })} />
+                <span>de</span>
+                <input inputMode="numeric" aria-label={`Total de cuotas del ítem ${index + 1}`} placeholder="6" value={item.cuotaTotal ?? ""} onChange={(e) => actualizarItem(item.id, { cuotaTotal: soloNumero(e.target.value) })} />
+              </div>
+
               <div style={{ marginBottom: 9 }}>
                 <div style={labelStyle}>Observación del ítem</div>
                 <input
@@ -467,7 +497,7 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
 
               {itemInvalido && (
                 <div style={{ marginTop: 8, fontSize: 11, color: "#f87171", fontWeight: 800 }}>
-                  Completá nombre y monto mayor a cero para poder guardar.
+                  {cuotaItem.ok ? "Completá nombre y monto mayor a cero para poder guardar." : cuotaItem.mensaje}
                 </div>
               )}
             </div>
@@ -550,6 +580,14 @@ export default function SubconceptosModal({ gasto, tc, onSave, onClose }) {
               +
             </button>
           </div>
+
+          <div className="sc-cuota">
+            <span style={labelStyle}>Cuota (opcional)</span>
+            <input inputMode="numeric" aria-label="Número de cuota del ítem nuevo" placeholder="4" value={nuevoItem.cuotaNumero} onChange={(e) => setNuevoItem((p) => ({ ...p, cuotaNumero: soloNumero(e.target.value) }))} />
+            <span>de</span>
+            <input inputMode="numeric" aria-label="Total de cuotas del ítem nuevo" placeholder="6" value={nuevoItem.cuotaTotal} onChange={(e) => setNuevoItem((p) => ({ ...p, cuotaTotal: soloNumero(e.target.value) }))} />
+          </div>
+          {!leerCuota(nuevoItem).ok && <div style={{ margin: "-2px 0 8px", fontSize: 11, color: "#f87171", fontWeight: 800 }}>{leerCuota(nuevoItem).mensaje}</div>}
 
           <input
             style={{

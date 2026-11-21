@@ -35,6 +35,9 @@ CREATE TABLE login_fallos(id bigserial primary key,usuario_id text not null,ip t
 // Se aplica el script real de cuotas sobre el esquema de prueba (dos veces: debe poder repetirse sin efecto).
 const sqlCuotas=await fs.readFile(path.join(project,'sql/SQL_CUOTAS_V1.sql'),'utf8');
 await pg.exec(sqlCuotas);await pg.exec(sqlCuotas);
+// Cuotas dentro del desglose (también se aplica dos veces).
+const sqlCuotasDesglose=await fs.readFile(path.join(project,'sql/SQL_CUOTAS_DESGLOSE_V1.sql'),'utf8');
+await pg.exec(sqlCuotasDesglose);await pg.exec(sqlCuotasDesglose);
 async function snapshot(){return Object.fromEntries(await Promise.all(['movimientos','detalle_movimiento','movimiento_etiquetas'].map(async t=>[t,(await pg.query(`SELECT * FROM ${t} ORDER BY 1,2`)).rows])));}
 async function reset(){await pg.exec('DROP TABLE IF EXISTS ahorro_libros; TRUNCATE detalle_movimiento,movimiento_etiquetas,movimientos,login_fallos;');}
 async function check(id,title,run){
@@ -579,6 +582,54 @@ await check('CALC-15','Tu mes normal: mediana de Variables de los meses anterior
   assert.equal(m.mesNormal({gastosPorMes,mesKey:'2026-07'}),null,'Con menos de 3 meses no hay mes normal');
   assert.equal(m.mesNormal({gastosPorMes,mesKey:'2026-10',manual:{super:'fijos'}}).normal,0,'Respeta la elección manual de grupo');
   return {cases:5};
+});
+
+await check('CUO-09','Desglose con cuotas: el servidor guarda y devuelve la cuota de cada línea, la conserva al editar y rechaza cuotas imposibles',async()=>{
+  const h=await harness();
+  const tarjeta={...expense,servicio:'Tarjeta ficticia',monto:0,subconceptos:[{nombre:'Decathlon',monto:16200,moneda:'ARS',cuotaNumero:4,cuotaTotal:6},{nombre:'Fitness',monto:27500,moneda:'ARS'}]};
+  const r=await h.call('gastos.js',tarjeta);assert.equal(r.code,200,JSON.stringify(r.payload));
+  const id=r.payload.data.movimiento_id;
+  const lineas=async()=>(await pg.query('SELECT nombre_item,cuota_numero,cuota_total FROM detalle_movimiento WHERE movimiento_id=$1 AND activo ORDER BY orden',[id])).rows;
+  assert.deepEqual(JSON.parse(JSON.stringify(await lineas())),[{nombre_item:'Decathlon',cuota_numero:4,cuota_total:6},{nombre_item:'Fitness',cuota_numero:null,cuota_total:null}]);
+  // La lectura completa (api/movimientos.js) necesita tablas que este esquema de prueba no tiene; se verifica que pida las columnas.
+  const lectura=await fs.readFile(path.join(project,'api/movimientos.js'),'utf8');
+  const bloque=lectura.slice(lectura.indexOf('FROM detalle_movimiento')-400,lectura.indexOf('FROM detalle_movimiento'));
+  assert(bloque.includes('cuota_numero')&&bloque.includes('cuota_total'),'La lectura del desglose pide la cuota de cada línea');
+  const mapper=await fs.readFile(path.join(project,'src/mappers/movimientosMapper.js'),'utf8');
+  assert(mapper.includes('cuotaNumero: d.cuota_numero')&&mapper.includes('cuotaTotal: d.cuota_total'),'El mapeo pasa la cuota a la app');
+  const e=await h.call('gastos-update.js',{...tarjeta,id,subconceptos:[{nombre:'Decathlon',monto:16200,moneda:'ARS',cuotaNumero:5,cuotaTotal:6}]},'PUT');assert.equal(e.code,200,JSON.stringify(e.payload));
+  assert.deepEqual(JSON.parse(JSON.stringify(await lineas())),[{nombre_item:'Decathlon',cuota_numero:5,cuota_total:6}]);
+  for(const mal of [{cuotaNumero:7,cuotaTotal:6},{cuotaNumero:1,cuotaTotal:1},{cuotaNumero:2},{cuotaTotal:6},{cuotaNumero:1,cuotaTotal:61}]){
+    const x=await h.call('gastos.js',{...tarjeta,subconceptos:[{nombre:'Mal',monto:10,moneda:'ARS',...mal}]});
+    assert.equal(x.code,400,JSON.stringify(mal));
+  }
+  return {saved:true,read:true,edited:true,rejected:5};
+});
+
+await check('CALC-16','Tarjeta con desglose: la réplica avanza las cuotas y saca las terminadas; el próximo resumen suma lo que sigue; Ajustar clasifica cada línea',async()=>{
+  const h=await harness();
+  const rep=await h.load(path.join(project,'src/utils/replicas.js'));await rep.evaluate();
+  const cuo=await h.load(path.join(project,'src/utils/cuotas.js'));await cuo.evaluate();
+  const gru=await h.load(path.join(project,'src/utils/grupos.js'));await gru.evaluate();
+  const L=(nombre,monto,n,t)=>({nombre,monto,moneda:'ARS',...(n?{cuotaNumero:n,cuotaTotal:t}:{})});
+  const lineas=[L('Dinosaurio',101748,4,4),L('Decathlon',16200,4,6),L('Universal Assist',55858.66,2,9),L('Aguas Cordobesas',40112.02,3,6),L('Fitness Group',27500),L('Impuesto de sellos',6535.58)];
+  const r=rep.namespace.prepararSubconceptosParaReplica(lineas);
+  assert.equal(r.map(x=>`${x.nombre} ${x.cuotaNumero}/${x.cuotaTotal}`).join(', '),'Decathlon 5/6, Universal Assist 3/9, Aguas Cordobesas 4/6','Solo siguen las cuotas, con el número avanzado');
+  assert.equal(r.map(x=>x.orden).join(','),'1,2,3');
+  const sin=rep.namespace.prepararSubconceptosParaReplica([L('A',10),L('B',20)]);
+  assert.equal(sin.length,2,'Sin cuotas se copia todo como siempre');assert.equal(sin[0].cuotaNumero,null);
+  const tarjeta={id:'t1',servicio:'Tarjeta Cordobesa',categoriaGastoNombre:'Tarjetas',monto:247954.26,subconceptos:lineas};
+  const prox=cuo.namespace.proximoResumen({gastos:[tarjeta,{id:'x',servicio:'Super',monto:5}]});
+  assert.equal(prox.length,1);assert.equal(Math.round(prox[0].proximo),112171);assert.equal(prox[0].compras,3);assert.equal(prox[0].terminan,1);
+  const g=gru.namespace.resumenPorGrupo({gastos:[tarjeta]});
+  const de=id=>g.grupos.find(x=>x.id===id).conceptos.map(c=>c.nombre);
+  assert(de('servicios').includes('Aguas Cordobesas'));assert(de('fijos').includes('Impuesto de sellos'));
+  assert(de('variables').includes('Dinosaurio')&&de('variables').includes('Fitness Group'));
+  assert(!de('variables').includes('Tarjeta Cordobesa'),'Con el desglose completo no queda nada "sin detalle"');
+  assert.equal(Math.round(g.total),247954);
+  const incompleta=gru.namespace.resumenPorGrupo({gastos:[{...tarjeta,monto:300000}]});
+  assert.equal(Math.round(incompleta.grupos.find(x=>x.id==='variables').conceptos.find(c=>c.nombre==='Tarjeta Cordobesa').total),52046,'Lo que el desglose no cubre queda como sin detalle');
+  return {replica:true,proximo:true,grupos:true};
 });
 
 // CUO-xx: compras en cuotas

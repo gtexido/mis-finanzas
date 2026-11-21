@@ -42,5 +42,7 @@ export const payloadParaRecrearGasto = (gasto, periodo, legacy = {}) => ({
     observacion: s.observacion || "",
     tipoCambio: s.tipoCambio ?? null,
     montoARSCalculado: s.montoARSCalculado ?? null,
+    cuotaNumero: s.cuotaNumero ?? null,
+    cuotaTotal: s.cuotaTotal ?? null,
   })),
 });
