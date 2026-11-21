@@ -68,7 +68,8 @@ export const prepararSubconceptosParaReplica = (subconceptos = []) => {
       nombre: s.nombre || s.nombreItem || "Item",
       monto: Number(s.monto ?? s.montoUSD ?? 0),
       moneda: monedaItem,
-      orden: idx + 1,
+      // Sin cuotas se conserva el orden original; con cuotas se renumera porque se sacan líneas.
+      orden: conCuotas ? idx + 1 : s.orden || idx + 1,
       observacion: s.observacion || "",
       cuotaNumero: esCuota(s) ? Number(s.cuotaNumero) + 1 : null,
       cuotaTotal: esCuota(s) ? Number(s.cuotaTotal) : null,
