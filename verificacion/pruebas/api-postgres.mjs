@@ -536,6 +536,26 @@ await check('CALC-13','Pendiente por medio de pago: suma solo lo no pagado, agru
   return {cases:4};
 });
 
+await check('CALC-14','Dónde ajustar: agrupa categorías en grupos, separa ajustable de fijo y compara con el mes anterior (src/utils/grupos.js)',async()=>{
+  const h=await harness(),mod=await h.load(path.join(project,'src/utils/grupos.js'));await mod.evaluate();const m=mod.namespace;
+  assert.equal(m.grupoDeCategoria('Supermercado'),'dia');assert.equal(m.grupoDeCategoria('Educación'),'fijos');assert.equal(m.grupoDeCategoria('SERVICIOS'),'servicios');
+  assert.equal(m.grupoDeCategoria('Local'),'negocio');assert.equal(m.grupoDeCategoria('Categoría nueva'),'extras');assert.equal(m.grupoDeCategoria(''),'extras');
+  const g=(cat,monto,servicio='X')=>({categoriaGastoNombre:cat,monto,servicio});
+  const r=m.resumenPorGrupo({
+    gastos:[g('Supermercado',500,'Super'),g('Comida',100,'Verdulería'),g('Personal',50,'Vaper'),g('Educación',700,'Colegio'),g('Servicios',80,'Luz'),g('Tarjetas',300,'Visa'),g('Supermercado',20,'Chino')],
+    previos:[g('Supermercado',400),g('Personal',90),g('Deporte',40)],
+  });
+  assert.equal(r.grupos.map(x=>x.id).join(','),'dia,extras,fijos,servicios,tarjetas');
+  assert.equal(r.total,1750);assert.equal(r.totalAjustable,670);assert.equal(r.totalFijo,780);
+  const dia=r.grupos[0];assert.equal(dia.total,620);assert.equal(dia.anterior,400);assert.equal(dia.cantidad,3);
+  assert.equal(dia.categorias[0].nombre,'Supermercado');assert.equal(dia.categorias[0].total,520);
+  assert.equal(dia.categorias[0].conceptos.map(c=>c.nombre).join(','),'Super,Chino');
+  const extras=r.grupos[1];assert.equal(extras.total,50);assert.equal(extras.anterior,130);
+  assert.equal(extras.categorias.find(c=>c.nombre==='Deporte').total,0,'Una categoría solo del mes anterior aparece en cero');
+  assert.equal(m.resumenPorGrupo({}).grupos.length,0);
+  return {cases:6};
+});
+
 // CUO-xx: compras en cuotas
 const compra={periodo:'2026-10',dia:31,servicio:'Compra ficticia',monto:1000,moneda:'ARS',estado:'pagado',vencimiento:'2026-10-31',etiquetasIds:['tag_a'],cuotas:{total:12}};
 const cuotasDe=async()=>(await pg.query("SELECT movimiento_id,periodo,dia,to_char(fecha_operacion,'YYYY-MM-DD') f,to_char(vencimiento,'YYYY-MM-DD') v,estado,monto,cuota_plan_id,cuota_numero,cuota_total FROM movimientos ORDER BY periodo,cuota_numero")).rows;
